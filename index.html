@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>17th Century Prosopography Database</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>17th Century Prosopography Database</h1>
+            <nav>
+                <button id="nav-search" class="nav-btn active">Search</button>
+                <button id="nav-add" class="nav-btn">Add Person</button>
+                <button id="nav-browse" class="nav-btn">Browse All</button>
+                <button id="nav-export" class="nav-btn">Export/Import</button>
+            </nav>
+        </header>
+
+        <main>
+            <!-- Search View -->
+            <section id="search-view" class="view active">
+                <h2>Search Persons</h2>
+                <div class="search-form">
+                    <input type="text" id="search-name" placeholder="Search by name (any variant)">
+                    <input type="text" id="search-place" placeholder="Search by place">
+                    <input type="number" id="search-year" placeholder="Year">
+                    <div class="phonetic-option">
+                        <label>
+                            <input type="checkbox" id="phonetic-search">
+                            Phonetic matching (Soundex)
+                        </label>
+                    </div>
+                    <button id="btn-search">Search</button>
+                    <button id="btn-clear">Clear</button>
+                </div>
+                <div id="search-info" class="search-info"></div>
+                <div id="search-results"></div>
+            </section>
+
+            <!-- Add/Edit Person View -->
+            <section id="add-view" class="view">
+                <h2 id="form-title">Add New Person</h2>
+                <form id="person-form">
+                    <input type="hidden" id="person-id">
+
+                    <fieldset>
+                        <legend>Basic Information</legend>
+                        <div class="name-input-wrapper">
+                            <label>
+                                Standardized Name:
+                                <input type="text" id="standardized-name" required autocomplete="off">
+                            </label>
+                            <div id="name-suggestions" class="suggestions-panel"></div>
+                        </div>
+
+                        <div class="autocomplete-wrapper">
+                            <label>
+                                Nationality:
+                                <input type="text" id="nationality" autocomplete="off" placeholder="e.g., Dutch, Spanish, French">
+                            </label>
+                            <div id="nationality-suggestions" class="autocomplete-dropdown"></div>
+                        </div>
+                    </fieldset>
+
+                    <fieldset>
+                        <legend>Name Variants</legend>
+                        <div id="name-variants-container"></div>
+                        <button type="button" id="btn-add-variant">+ Add Name Variant</button>
+                    </fieldset>
+
+                    <fieldset>
+                        <legend>Life Events</legend>
+                        <div class="life-event">
+                            <h4>Birth</h4>
+                            <label>Year: <input type="number" id="birth-year"></label>
+                            <label>Month: <input type="number" id="birth-month" min="1" max="12"></label>
+                            <label>Day: <input type="number" id="birth-day" min="1" max="31"></label>
+                            <label><input type="checkbox" id="birth-circa"> Circa</label>
+                            <label>Place: <input type="text" id="birth-place"></label>
+                            <label>Certainty: 
+                                <select id="birth-certainty">
+                                    <option value="certain">Certain</option>
+                                    <option value="probable">Probable</option>
+                                    <option value="possible">Possible</option>
+                                    <option value="estimated">Estimated</option>
+                                </select>
+                            </label>
+                        </div>
+                        <div class="life-event">
+                            <h4>Death</h4>
+                            <label>Year: <input type="number" id="death-year"></label>
+                            <label>Month: <input type="number" id="death-month" min="1" max="12"></label>
+                            <label>Day: <input type="number" id="death-day" min="1" max="31"></label>
+                            <label><input type="checkbox" id="death-circa"> Circa</label>
+                            <label>Place: <input type="text" id="death-place"></label>
+                            <label>Certainty: 
+                                <select id="death-certainty">
+                                    <option value="certain">Certain</option>
+                                    <option value="probable">Probable</option>
+                                    <option value="possible">Possible</option>
+                                    <option value="estimated">Estimated</option>
+                                </select>
+                            </label>
+                        </div>
+                    </fieldset>
+
+                    <fieldset>
+                        <legend>Attestations</legend>
+                        <div id="attestations-container"></div>
+                        <button type="button" id="btn-add-attestation">+ Add Attestation</button>
+                    </fieldset>
+
+                    <fieldset>
+                        <legend>Relationships</legend>
+                        <div id="relationships-container"></div>
+                        <button type="button" id="btn-add-relationship">+ Add Relationship</button>
+                    </fieldset>
+
+                    <fieldset>
+                        <legend>Additional Information</legend>
+                        <label>
+                            Occupations (comma-separated):
+                            <input type="text" id="occupations">
+                        </label>
+                        <label>
+                            Biography/Notes:
+                            <textarea id="biography" rows="4"></textarea>
+                        </label>
+                    </fieldset>
+
+                    <div class="form-actions">
+                        <button type="submit" id="btn-save">Save Person</button>
+                        <button type="button" id="btn-cancel">Cancel</button>
+                    </div>
+                </form>
+            </section>
+
+            <!-- Browse View -->
+            <section id="browse-view" class="view">
+                <h2>Browse All Persons</h2>
+                <div class="browse-controls">
+                    <label>
+                        Sort by:
+                        <select id="sort-by">
+                            <option value="name">Name</option>
+                            <option value="birth">Birth Year</option>
+                            <option value="death">Death Year</option>
+                        </select>
+                    </label>
+                </div>
+                <div id="browse-results"></div>
+            </section>
+
+            <!-- Export/Import View -->
+            <section id="export-view" class="view">
+                <h2>Export / Import Data</h2>
+
+                <div class="export-section">
+                    <h3>Export Database</h3>
+                    <p>Download your entire prosopography database as JSON.</p>
+                    <button id="btn-export-json">Download JSON</button>
+                </div>
+
+                <div class="import-section">
+                    <h3>Import Database</h3>
+                    <p>Import a JSON database file. This will replace your current data.</p>
+                    <input type="file" id="import-file" accept=".json">
+                    <button id="btn-import-json">Import JSON</button>
+                </div>
+
+                <div class="stats-section">
+                    <h3>Database Statistics</h3>
+                    <div id="stats-display"></div>
+                </div>
+            </section>
+
+            <!-- Person Detail View (modal) -->
+            <div id="detail-modal" class="modal">
+                <div class="modal-content">
+                    <span class="close">&times;</span>
+                    <div id="detail-content"></div>
+                    <div class="modal-actions">
+                        <button id="btn-edit-person">Edit</button>
+                        <button id="btn-delete-person">Delete</button>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="database.js"></script>
+    <script src="ui.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>

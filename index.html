@@ -35,7 +35,7 @@
     <div class="container">
         <header>
             <div class="header-content">
-                <img src="livorno-header.png" alt="Livorno Coat of Arms" class="header-logo">
+                <img src="images/livorno-header.png" alt="Livorno Coat of Arms" class="header-logo">
                 <h1>Turncoats and Apostates</h1>
                 <button id="hamburger-btn" class="hamburger-btn" aria-label="Menu">
                     <span class="hamburger-line"></span>
@@ -326,16 +326,16 @@
     </div>
 
     <!-- Scripts with cache busters to force reload -->
-    <script src="database.js?v=10"></script>
-    <script src="github-sync.js?v=10"></script>
-    <script src="ui.js?v=10"></script>
-    <script src="app.js?v=10"></script>
+    <script src="scripts/database.js?v=10"></script>
+    <script src="scripts/github-sync.js?v=10"></script>
+    <script src="scripts/ui.js?v=10"></script>
+    <script src="scripts/app.js?v=10"></script>
 
     <!-- Service Worker Registration -->
     <script>
     if ('serviceWorker' in navigator) {
     window.addEventListener('load', function() {
-        navigator.serviceWorker.register('./service-worker.js')
+        navigator.serviceWorker.register('scripts/service-worker.js')
         .then(function(registration) {
             console.log('ServiceWorker registered:', registration.scope);
         });

@@ -294,6 +294,10 @@ const Database = {
 
         const nationalities = this.getAllNationalities();
 
+        const maleCount = persons.filter(p => p.gender === 'male').length;
+        const femaleCount = persons.filter(p => p.gender === 'female').length;
+        const unknownGender = persons.filter(p => !p.gender || p.gender === 'unknown').length;
+
         return {
             totalPersons: persons.length,
             totalSources: data.sources.length,
@@ -301,10 +305,15 @@ const Database = {
             totalRelationships,
             personsWithBirth,
             personsWithDeath,
-            totalNationalities: nationalities.length
+            totalNationalities: nationalities.length,
+            maleCount,
+            femaleCount,
+            unknownGender
         };
     }
 };
 
 // Initialize database on load
 Database.init();
+
+console.log('Database module loaded successfully');

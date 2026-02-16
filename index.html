@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>17th Century Prosopography Database</title>
-    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="styles.css?v=3">
 </head>
 <body>
     <div class="container">
@@ -15,6 +15,7 @@
                 <button id="nav-add" class="nav-btn">Add Person</button>
                 <button id="nav-browse" class="nav-btn">Browse All</button>
                 <button id="nav-export" class="nav-btn">Export/Import</button>
+                <button id="nav-settings" class="nav-btn">Settings</button>
             </nav>
         </header>
 
@@ -55,12 +56,23 @@
                             <div id="name-suggestions" class="suggestions-panel"></div>
                         </div>
 
-                        <div class="autocomplete-wrapper">
+                        <div class="form-row">
+                            <div class="autocomplete-wrapper">
+                                <label>
+                                    Nationality:
+                                    <input type="text" id="nationality" autocomplete="off" placeholder="e.g., Dutch, Spanish, French">
+                                </label>
+                                <div id="nationality-suggestions" class="autocomplete-dropdown"></div>
+                            </div>
+
                             <label>
-                                Nationality:
-                                <input type="text" id="nationality" autocomplete="off" placeholder="e.g., Dutch, Spanish, French">
+                                Gender:
+                                <select id="gender">
+                                    <option value="unknown">Unknown</option>
+                                    <option value="male">Male</option>
+                                    <option value="female">Female</option>
+                                </select>
                             </label>
-                            <div id="nationality-suggestions" class="autocomplete-dropdown"></div>
                         </div>
                     </fieldset>
 
@@ -158,21 +170,89 @@
                 <h2>Export / Import Data</h2>
 
                 <div class="export-section">
-                    <h3>Export Database</h3>
-                    <p>Download your entire prosopography database as JSON.</p>
-                    <button id="btn-export-json">Download JSON</button>
+                    <h3>Sync with GitHub</h3>
+                    <p id="github-status">Not connected to GitHub</p>
+                    <div class="github-actions">
+                        <button id="btn-push-github" disabled>Push to GitHub</button>
+                        <button id="btn-pull-github" disabled>Pull from GitHub</button>
+                        <button id="btn-view-history">View GitHub History</button>
+                    </div>
+                    <div id="sync-status" class="sync-status"></div>
                 </div>
 
-                <div class="import-section">
-                    <h3>Import Database</h3>
-                    <p>Import a JSON database file. This will replace your current data.</p>
-                    <input type="file" id="import-file" accept=".json">
-                    <button id="btn-import-json">Import JSON</button>
+                <div class="export-section">
+                    <h3>Local Export/Import</h3>
+                    <p>Download or upload your database as a JSON file.</p>
+                    <button id="btn-export-json">Download JSON</button>
+                    <div style="margin-top: 1rem;">
+                        <input type="file" id="import-file" accept=".json">
+                        <button id="btn-import-json">Import JSON</button>
+                    </div>
                 </div>
 
                 <div class="stats-section">
                     <h3>Database Statistics</h3>
                     <div id="stats-display"></div>
+                </div>
+            </section>
+
+            <!-- Settings View -->
+            <section id="settings-view" class="view">
+                <h2>Settings</h2>
+
+                <div class="settings-section">
+                    <h3>GitHub Integration</h3>
+                    <p>Connect your prosopography database to GitHub for automatic version control and backup.</p>
+
+                    <div class="github-setup">
+                        <h4>Step 1: Create a Personal Access Token</h4>
+                        <ol>
+                            <li>Go to <a href="https://github.com/settings/tokens?type=beta" target="_blank">GitHub Settings → Tokens (Fine-grained)</a></li>
+                            <li>Click "Generate new token"</li>
+                            <li>Give it a name like "Prosopography Database"</li>
+                            <li>Set expiration (recommend 90 days or 1 year)</li>
+                            <li>Under "Repository access", select "Only select repositories"</li>
+                            <li>Choose: <strong>lvansnippenburg/JsonDataStorage</strong></li>
+                            <li>Under "Repository permissions", set <strong>Contents</strong> to "Read and write"</li>
+                            <li>Click "Generate token" and copy it</li>
+                        </ol>
+
+                        <h4>Step 2: Configure Connection</h4>
+                        <div class="settings-form">
+                            <label>
+                                GitHub Personal Access Token:
+                                <input type="password" id="github-token" placeholder="ghp_xxxxxxxxxxxx">
+                                <small>This token is stored only on your device (localStorage)</small>
+                            </label>
+
+                            <label>
+                                File Path in Repository:
+                                <input type="text" id="github-filepath" value="prosopography-database.json">
+                                <small>The JSON file name in your GitHub repository</small>
+                            </label>
+
+                            <label>
+                                Branch:
+                                <input type="text" id="github-branch" value="main">
+                                <small>Usually "main" or "master"</small>
+                            </label>
+
+                            <div class="settings-actions">
+                                <button id="btn-save-settings">Save Settings</button>
+                                <button id="btn-test-connection">Test Connection</button>
+                                <button id="btn-clear-settings" class="btn-danger">Clear Settings</button>
+                            </div>
+
+                            <div id="connection-status" class="connection-status"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="settings-section">
+                    <h3>About</h3>
+                    <p><strong>17th Century Prosopography Database</strong></p>
+                    <p>A specialized tool for managing historical prosopographical research with support for name variants, attestations, relationships, and phonetic matching.</p>
+                    <p>Repository: <a href="https://github.com/lvansnippenburg/JsonDataStorage" target="_blank">lvansnippenburg/JsonDataStorage</a></p>
                 </div>
             </section>
 
@@ -190,8 +270,10 @@
         </main>
     </div>
 
-    <script src="database.js"></script>
-    <script src="ui.js"></script>
-    <script src="app.js"></script>
+    <!-- Scripts with cache busters to force reload -->
+    <script src="database.js?v=3"></script>
+    <script src="github-sync.js?v=3"></script>
+    <script src="ui.js?v=3"></script>
+    <script src="app.js?v=3"></script>
 </body>
 </html>

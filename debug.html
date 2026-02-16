@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Debug Test</title>
+</head>
+<body>
+    <h1>Debug Console</h1>
+    <div id="output"></div>
+
+    <script src="database.js"></script>
+    <script src="github-sync.js"></script>
+    <script src="ui.js"></script>
+    <script src="app.js"></script>
+
+    <script>
+        const output = document.getElementById('output');
+
+        // Test if scripts loaded
+        output.innerHTML += '<p>Database object exists: ' + (typeof Database !== 'undefined') + '</p>';
+        output.innerHTML += '<p>GitHubSync object exists: ' + (typeof GitHubSync !== 'undefined') + '</p>';
+        output.innerHTML += '<p>UI object exists: ' + (typeof UI !== 'undefined') + '</p>';
+
+        // Check for errors
+        window.addEventListener('error', function(e) {
+            output.innerHTML += '<p style="color:red;">ERROR: ' + e.message + ' at ' + e.filename + ':' + e.lineno + '</p>';
+        });
+
+        // Try to get database
+        try {
+            const data = Database.getData();
+            output.innerHTML += '<p>Database loaded successfully. Persons: ' + data.persons.length + '</p>';
+        } catch (e) {
+            output.innerHTML += '<p style="color:red;">Database error: ' + e.message + '</p>';
+        }
+    </script>
+</body>
+</html>

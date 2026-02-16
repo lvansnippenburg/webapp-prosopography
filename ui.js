@@ -2,6 +2,15 @@
 const UI = {
     currentPersonId: null,
 
+    // Get gender icon
+    getGenderIcon(gender) {
+        switch(gender) {
+            case 'male': return '♂';
+            case 'female': return '♀';
+            default: return '?';
+        }
+    },
+
     // Render person card for lists
     renderPersonCard(person) {
         const dateRange = Database.formatDateRange(
@@ -14,11 +23,13 @@ const UI = {
             : '';
 
         const attestationsCount = person.attestations?.length || 0;
-        const nationalityText = person.nationality ? `<div class="nationality">${person.nationality}</div>` : '';
+        const nationalityText = person.nationality ? `<span class="badge nationality-badge">${person.nationality}</span>` : '';
+        const genderIcon = this.getGenderIcon(person.gender);
+        const genderText = `<span class="badge gender-badge gender-${person.gender || 'unknown'}">${genderIcon}</span>`;
 
         return `
             <div class="person-card" data-person-id="${person.id}">
-                <h3>${person.standardizedName}</h3>
+                <h3>${person.standardizedName} ${genderText}</h3>
                 ${nationalityText}
                 <div class="dates">${dateRange}</div>
                 ${variantsText ? `<div class="variants">${variantsText}</div>` : ''}
@@ -172,11 +183,13 @@ const UI = {
             const soundexCode = Database.soundex(person.standardizedName);
             const inputSoundex = Database.soundex(inputValue);
             const isPhoneticMatch = soundexCode === inputSoundex;
+            const genderIcon = this.getGenderIcon(person.gender);
 
             html += `
                 <div class="suggestion-item" data-person-id="${person.id}">
                     <div class="suggestion-main">
                         <strong>${person.standardizedName}</strong>
+                        <span class="gender-indicator">${genderIcon}</span>
                         ${isPhoneticMatch ? '<span class="phonetic-badge">Sounds similar</span>' : ''}
                     </div>
                     <div class="suggestion-details">
@@ -252,11 +265,19 @@ const UI = {
 
         this.currentPersonId = personId;
 
+        const genderIcon = this.getGenderIcon(person.gender);
+        const genderLabel = person.gender ? person.gender.charAt(0).toUpperCase() + person.gender.slice(1) : 'Unknown';
+
         let html = `<h2>${person.standardizedName}</h2>`;
 
-        if (person.nationality) {
-            html += `<p class="detail-nationality"><strong>Nationality:</strong> ${person.nationality}</p>`;
+        html += '<div class="detail-basic-info">';
+        if (person.gender) {
+            html += `<p><strong>Gender:</strong> ${genderIcon} ${genderLabel}</p>`;
         }
+        if (person.nationality) {
+            html += `<p><strong>Nationality:</strong> ${person.nationality}</p>`;
+        }
+        html += '</div>';
 
         // Name variants
         if (person.nameVariants && person.nameVariants.length > 0) {
@@ -351,6 +372,7 @@ const UI = {
         document.getElementById('person-id').value = personId;
         document.getElementById('standardized-name').value = person.standardizedName || '';
         document.getElementById('nationality').value = person.nationality || '';
+        document.getElementById('gender').value = person.gender || 'unknown';
 
         // Hide suggestions when loading a person
         document.getElementById('name-suggestions').style.display = 'none';
@@ -498,6 +520,7 @@ const UI = {
         document.getElementById('form-title').textContent = 'Add New Person';
         document.getElementById('person-form').reset();
         document.getElementById('person-id').value = '';
+        document.getElementById('gender').value = 'unknown';
         document.getElementById('name-variants-container').innerHTML = '';
         document.getElementById('attestations-container').innerHTML = '';
         document.getElementById('relationships-container').innerHTML = '';
@@ -527,6 +550,14 @@ const UI = {
             <div class="stat-card">
                 <div class="number">${stats.totalPersons}</div>
                 <div class="label">Total Persons</div>
+            </div>
+            <div class="stat-card">
+                <div class="number">${stats.maleCount}</div>
+                <div class="label">Male</div>
+            </div>
+            <div class="stat-card">
+                <div class="number">${stats.femaleCount}</div>
+                <div class="label">Female</div>
             </div>
             <div class="stat-card">
                 <div class="number">${stats.totalAttestations}</div>

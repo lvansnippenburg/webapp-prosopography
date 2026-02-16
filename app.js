@@ -1,102 +1,142 @@
 // Main application logic and event handlers
 document.addEventListener('DOMContentLoaded', () => {
+    console.log('DOM Content Loaded - Initializing app...');
     initializeApp();
 });
 
 function initializeApp() {
-    // Initialize name suggestions functionality
-    UI.initNameSuggestions();
+    try {
+        // Initialize name suggestions functionality
+        UI.initNameSuggestions();
+        console.log('Name suggestions initialized');
 
-    // Initialize nationality autocomplete
-    UI.initNationalityAutocomplete();
+        // Initialize nationality autocomplete
+        UI.initNationalityAutocomplete();
+        console.log('Nationality autocomplete initialized');
 
-    // Navigation
-    document.getElementById('nav-search').addEventListener('click', () => {
-        UI.showView('search-view');
-        performSearch();
-    });
-
-    document.getElementById('nav-add').addEventListener('click', () => {
-        UI.clearForm();
-        UI.showView('add-view');
-    });
-
-    document.getElementById('nav-browse').addEventListener('click', () => {
-        UI.showView('browse-view');
-        loadBrowseView();
-    });
-
-    document.getElementById('nav-export').addEventListener('click', () => {
-        UI.showView('export-view');
-        UI.displayStatistics();
-    });
-
-    // Search functionality
-    document.getElementById('btn-search').addEventListener('click', performSearch);
-
-    document.getElementById('btn-clear').addEventListener('click', () => {
-        document.getElementById('search-name').value = '';
-        document.getElementById('search-place').value = '';
-        document.getElementById('search-year').value = '';
-        document.getElementById('phonetic-search').checked = false;
-        document.getElementById('search-results').innerHTML = '';
-        document.getElementById('search-info').innerHTML = '';
-    });
-
-    // Allow Enter key to search
-    ['search-name', 'search-place', 'search-year'].forEach(id => {
-        document.getElementById(id).addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') performSearch();
+        // Navigation
+        document.getElementById('nav-search').addEventListener('click', () => {
+            UI.showView('search-view');
+            performSearch();
         });
-    });
 
-    // Form functionality
-    document.getElementById('person-form').addEventListener('submit', handleFormSubmit);
+        document.getElementById('nav-add').addEventListener('click', () => {
+            UI.clearForm();
+            UI.showView('add-view');
+        });
 
-    document.getElementById('btn-cancel').addEventListener('click', () => {
-        UI.clearForm();
-        UI.showView('search-view');
-    });
+        document.getElementById('nav-browse').addEventListener('click', () => {
+            UI.showView('browse-view');
+            loadBrowseView();
+        });
 
-    document.getElementById('btn-add-variant').addEventListener('click', () => {
-        UI.addNameVariantField();
-    });
+        document.getElementById('nav-export').addEventListener('click', () => {
+            UI.showView('export-view');
+            UI.displayStatistics();
+            GitHubSync.updateConnectionStatus();
+        });
 
-    document.getElementById('btn-add-attestation').addEventListener('click', () => {
-        UI.addAttestationField();
-    });
+        document.getElementById('nav-settings').addEventListener('click', () => {
+            UI.showView('settings-view');
+            loadSettings();
+        });
 
-    document.getElementById('btn-add-relationship').addEventListener('click', () => {
-        UI.addRelationshipField();
-    });
+        console.log('Navigation initialized');
 
-    // Modal functionality
-    document.querySelector('.close').addEventListener('click', closeModal);
+        // Search functionality
+        document.getElementById('btn-search').addEventListener('click', performSearch);
 
-    document.getElementById('btn-edit-person').addEventListener('click', () => {
-        closeModal();
-        UI.loadPersonIntoForm(UI.currentPersonId);
-    });
+        document.getElementById('btn-clear').addEventListener('click', () => {
+            document.getElementById('search-name').value = '';
+            document.getElementById('search-place').value = '';
+            document.getElementById('search-year').value = '';
+            document.getElementById('phonetic-search').checked = false;
+            document.getElementById('search-results').innerHTML = '';
+            document.getElementById('search-info').innerHTML = '';
+        });
 
-    document.getElementById('btn-delete-person').addEventListener('click', handleDeletePerson);
+        // Allow Enter key to search
+        ['search-name', 'search-place', 'search-year'].forEach(id => {
+            document.getElementById(id).addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') performSearch();
+            });
+        });
 
-    // Close modal when clicking outside
-    window.addEventListener('click', (e) => {
-        const modal = document.getElementById('detail-modal');
-        if (e.target === modal) {
+        console.log('Search functionality initialized');
+
+        // Form functionality
+        document.getElementById('person-form').addEventListener('submit', handleFormSubmit);
+
+        document.getElementById('btn-cancel').addEventListener('click', () => {
+            UI.clearForm();
+            UI.showView('search-view');
+        });
+
+        document.getElementById('btn-add-variant').addEventListener('click', () => {
+            UI.addNameVariantField();
+        });
+
+        document.getElementById('btn-add-attestation').addEventListener('click', () => {
+            UI.addAttestationField();
+        });
+
+        document.getElementById('btn-add-relationship').addEventListener('click', () => {
+            UI.addRelationshipField();
+        });
+
+        console.log('Form functionality initialized');
+
+        // Modal functionality
+        document.querySelector('.close').addEventListener('click', closeModal);
+
+        document.getElementById('btn-edit-person').addEventListener('click', () => {
             closeModal();
-        }
-    });
+            UI.loadPersonIntoForm(UI.currentPersonId);
+        });
 
-    // Browse sorting
-    document.getElementById('sort-by').addEventListener('change', loadBrowseView);
+        document.getElementById('btn-delete-person').addEventListener('click', handleDeletePerson);
 
-    // Export/Import
-    document.getElementById('btn-export-json').addEventListener('click', exportData);
-    document.getElementById('btn-import-json').addEventListener('click', importData);
+        // Close modal when clicking outside
+        window.addEventListener('click', (e) => {
+            const modal = document.getElementById('detail-modal');
+            if (e.target === modal) {
+                closeModal();
+            }
+        });
 
-    // Initial load - show all persons in search
-    performSearch();
+        console.log('Modal functionality initialized');
+
+        // Browse sorting
+        document.getElementById('sort-by').addEventListener('change', loadBrowseView);
+
+        // Local Export/Import
+        document.getElementById('btn-export-json').addEventListener('click', exportData);
+        document.getElementById('btn-import-json').addEventListener('click', importData);
+
+        // GitHub Sync
+        document.getElementById('btn-push-github').addEventListener('click', pushToGitHub);
+        document.getElementById('btn-pull-github').addEventListener('click', pullFromGitHub);
+        document.getElementById('btn-view-history').addEventListener('click', viewGitHubHistory);
+
+        console.log('Export/Import functionality initialized');
+
+        // Settings
+        document.getElementById('btn-save-settings').addEventListener('click', saveGitHubSettings);
+        document.getElementById('btn-test-connection').addEventListener('click', testGitHubConnection);
+        document.getElementById('btn-clear-settings').addEventListener('click', clearGitHubSettings);
+
+        console.log('Settings functionality initialized');
+
+        // Initial load - show all persons in search
+        performSearch();
+        console.log('Initial search performed');
+
+        console.log('App initialization complete!');
+
+    } catch (error) {
+        console.error('Error during app initialization:', error);
+        alert('Error initializing app: ' + error.message);
+    }
 }
 
 function performSearch() {
@@ -137,6 +177,7 @@ function handleFormSubmit(e) {
     const person = {
         standardizedName: document.getElementById('standardized-name').value.trim(),
         nationality: document.getElementById('nationality').value.trim() || null,
+        gender: document.getElementById('gender').value,
         nameVariants: collectNameVariants(),
         lifeEvents: {
             birth: collectLifeEvent('birth'),
@@ -385,3 +426,145 @@ function importData() {
     };
     reader.readAsText(file);
 }
+
+// GitHub Functions
+async function pushToGitHub() {
+    if (!GitHubSync.isConfigured()) {
+        alert('Please configure GitHub settings first.');
+        UI.showView('settings-view');
+        return;
+    }
+
+    const statusDiv = document.getElementById('sync-status');
+    statusDiv.innerHTML = '<p class="sync-progress">Pushing to GitHub...</p>';
+    statusDiv.style.display = 'block';
+
+    try {
+        const result = await GitHubSync.push();
+        statusDiv.innerHTML = `<p class="sync-success">✓ ${result.message}</p>`;
+        setTimeout(() => {
+            statusDiv.style.display = 'none';
+        }, 5000);
+    } catch (error) {
+        statusDiv.innerHTML = `<p class="sync-error">✗ Push failed: ${error.message}</p>`;
+    }
+}
+
+async function pullFromGitHub() {
+    if (!GitHubSync.isConfigured()) {
+        alert('Please configure GitHub settings first.');
+        UI.showView('settings-view');
+        return;
+    }
+
+    if (!confirm('This will replace your local database with the version from GitHub. Continue?')) {
+        return;
+    }
+
+    const statusDiv = document.getElementById('sync-status');
+    statusDiv.innerHTML = '<p class="sync-progress">Pulling from GitHub...</p>';
+    statusDiv.style.display = 'block';
+
+    try {
+        const result = await GitHubSync.pull();
+        statusDiv.innerHTML = `<p class="sync-success">✓ ${result.message}</p>`;
+
+        // Refresh the display
+        UI.displayStatistics();
+        performSearch();
+
+        setTimeout(() => {
+            statusDiv.style.display = 'none';
+        }, 5000);
+    } catch (error) {
+        statusDiv.innerHTML = `<p class="sync-error">✗ Pull failed: ${error.message}</p>`;
+    }
+}
+
+async function viewGitHubHistory() {
+    if (!GitHubSync.isConfigured()) {
+        alert('Please configure GitHub settings first.');
+        UI.showView('settings-view');
+        return;
+    }
+
+    await GitHubSync.showHistory();
+}
+
+// Settings Functions
+function loadSettings() {
+    const settings = GitHubSync.getSettings();
+    if (settings) {
+        document.getElementById('github-token').value = settings.token;
+        document.getElementById('github-filepath').value = settings.filepath;
+        document.getElementById('github-branch').value = settings.branch;
+    }
+}
+
+function saveGitHubSettings() {
+    const token = document.getElementById('github-token').value.trim();
+    const filepath = document.getElementById('github-filepath').value.trim();
+    const branch = document.getElementById('github-branch').value.trim();
+
+    if (!token) {
+        alert('Please enter a GitHub Personal Access Token.');
+        return;
+    }
+
+    GitHubSync.saveSettings(token, filepath, branch);
+
+    const statusDiv = document.getElementById('connection-status');
+    statusDiv.innerHTML = '<p class="status-success">✓ Settings saved successfully!</p>';
+    statusDiv.style.display = 'block';
+
+    setTimeout(() => {
+        statusDiv.style.display = 'none';
+    }, 3000);
+}
+
+async function testGitHubConnection() {
+    const token = document.getElementById('github-token').value.trim();
+
+    if (!token) {
+        alert('Please enter a GitHub Personal Access Token first.');
+        return;
+    }
+
+    // Temporarily save settings for testing
+    const filepath = document.getElementById('github-filepath').value.trim();
+    const branch = document.getElementById('github-branch').value.trim();
+    GitHubSync.saveSettings(token, filepath, branch);
+
+    const statusDiv = document.getElementById('connection-status');
+    statusDiv.innerHTML = '<p class="status-progress">Testing connection...</p>';
+    statusDiv.style.display = 'block';
+
+    const result = await GitHubSync.testConnection();
+
+    if (result.success) {
+        statusDiv.innerHTML = `<p class="status-success">✓ ${result.message}</p>`;
+    } else {
+        statusDiv.innerHTML = `<p class="status-error">✗ ${result.message}</p>`;
+    }
+}
+
+function clearGitHubSettings() {
+    if (!confirm('Are you sure you want to clear your GitHub settings? This will not delete any data.')) {
+        return;
+    }
+
+    GitHubSync.clearSettings();
+    document.getElementById('github-token').value = '';
+    document.getElementById('github-filepath').value = 'prosopography-database.json';
+    document.getElementById('github-branch').value = 'main';
+
+    const statusDiv = document.getElementById('connection-status');
+    statusDiv.innerHTML = '<p class="status-success">✓ Settings cleared.</p>';
+    statusDiv.style.display = 'block';
+
+    setTimeout(() => {
+        statusDiv.style.display = 'none';
+    }, 3000);
+}
+
+console.log('App.js loaded successfully');

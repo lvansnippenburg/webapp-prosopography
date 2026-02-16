@@ -1,584 +1,1047 @@
-// UI module - handles rendering and form management
-const UI = {
-    currentPersonId: null,
+// UI Module - Handles all user interface rendering and interactions
+var UI = {
+    currentEditId: null,
+    variantCounter: 0,
+    attestationCounter: 0,
+    relationshipCounter: 0,
 
-    // Get gender icon
-    getGenderIcon(gender) {
-        switch(gender) {
-            case 'male': return '♂';
-            case 'female': return '♀';
-            default: return '?';
+    // Initialize the application
+    init: function() {
+        this.initNavigation();
+        this.initForms();
+        this.initAutocomplete();
+        this.displayStatistics();
+        console.log('UI initialized');
+    },
+
+    // Navigation setup
+    initNavigation: function() {
+        var hamburger = document.getElementById('hamburger-btn');
+        var nav = document.getElementById('main-nav');
+        var navButtons = document.querySelectorAll('.nav-btn');
+
+        hamburger.addEventListener('click', function() {
+            hamburger.classList.toggle('active');
+            nav.classList.toggle('open');
+        });
+
+        navButtons.forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                var viewName = btn.id.replace('nav-', '') + '-view';
+                UI.switchView(viewName);
+
+                navButtons.forEach(function(b) { b.classList.remove('active'); });
+                btn.classList.add('active');
+
+                nav.classList.remove('open');
+                hamburger.classList.remove('active');
+            });
+        });
+    },
+
+    // Switch between views
+    switchView: function(viewName) {
+        console.log('Switching to view:', viewName);
+
+        document.querySelectorAll('.view').forEach(function(view) {
+            view.classList.remove('active');
+        });
+
+        var targetView = document.getElementById(viewName);
+        if (targetView) {
+            targetView.classList.add('active');
+
+            if (viewName === 'browse-view') {
+                this.displayBrowseResults();
+            } else if (viewName === 'add-view') {
+                // Don't clear form if we're editing
+                if (!this.currentEditId) {
+                    this.clearForm();
+                }
+            } else if (viewName === 'search-view') {
+                this.displayStatistics();
+            }
+        } else {
+            console.error('View not found:', viewName);
         }
     },
 
-    // Render person card for lists
-    renderPersonCard(person) {
-        const dateRange = Database.formatDateRange(
-            person.lifeEvents?.birth,
-            person.lifeEvents?.death
-        );
+    // Initialize forms
+    initForms: function() {
+        var form = document.getElementById('person-form');
+        var btnCancel = document.getElementById('btn-cancel');
 
-        const variantsText = person.nameVariants && person.nameVariants.length > 0
-            ? `Variants: ${person.nameVariants.map(v => v.fullName).join(', ')}`
-            : '';
+        btnCancel.addEventListener('click', function() {
+            UI.switchView('search-view');
+            UI.clearForm();
+        });
 
-        const attestationsCount = person.attestations?.length || 0;
-        const nationalityText = person.nationality ? `<span class="badge nationality-badge">${person.nationality}</span>` : '';
-        const genderIcon = this.getGenderIcon(person.gender);
-        const genderText = `<span class="badge gender-badge gender-${person.gender || 'unknown'}">${genderIcon}</span>`;
+        // Dynamic field buttons
+        document.getElementById('btn-add-variant').addEventListener('click', function() {
+            UI.addNameVariantField();
+        });
 
-        return `
-            <div class="person-card" data-person-id="${person.id}">
-                <h3>${person.standardizedName} ${genderText}</h3>
-                ${nationalityText}
-                <div class="dates">${dateRange}</div>
-                ${variantsText ? `<div class="variants">${variantsText}</div>` : ''}
-                <div class="attestations-count">${attestationsCount} attestation(s)</div>
-            </div>
-        `;
+        document.getElementById('btn-add-attestation').addEventListener('click', function() {
+            UI.addAttestationField();
+        });
+
+        document.getElementById('btn-add-relationship').addEventListener('click', function() {
+            UI.addRelationshipField();
+        });
     },
 
-    // Initialize nationality autocomplete
-    initNationalityAutocomplete() {
-        const nationalityInput = document.getElementById('nationality');
-        const suggestionsDiv = document.getElementById('nationality-suggestions');
-        let debounceTimer;
+    // Initialize autocomplete for nationality, religion, and source documents
+    initAutocomplete: function() {
+        this.initNationalityAutocomplete();
+        this.initReligionAutocomplete();
+    },
 
-        nationalityInput.addEventListener('input', (e) => {
-            clearTimeout(debounceTimer);
-            debounceTimer = setTimeout(() => {
-                const value = e.target.value.trim();
-                if (value.length < 1) {
-                    suggestionsDiv.style.display = 'none';
-                    return;
+    // Nationality autocomplete
+    initNationalityAutocomplete: function() {
+        var input = document.getElementById('nationality');
+        var dropdown = document.getElementById('nationality-suggestions');
+
+        if (!input || !dropdown) return;
+
+        input.addEventListener('input', function() {
+            var value = input.value.trim();
+
+            if (value.length === 0) {
+                dropdown.style.display = 'none';
+                return;
+            }
+
+            var persons = Database.getAllPersons();
+            var nationalitiesSet = new Set();
+
+            persons.forEach(function(person) {
+                if (person.nationality) {
+                    nationalitiesSet.add(person.nationality);
                 }
+            });
 
-                const matches = Database.filterNationalities(value);
+            var nationalities = Array.from(nationalitiesSet).sort();
+            var filtered = nationalities.filter(function(nat) {
+                return nat.toLowerCase().indexOf(value.toLowerCase()) !== -1;
+            });
 
-                if (matches.length === 0) {
-                    suggestionsDiv.style.display = 'none';
-                    return;
-                }
+            if (filtered.length === 0) {
+                dropdown.style.display = 'none';
+                return;
+            }
 
-                suggestionsDiv.innerHTML = matches.map(nat => 
-                    `<div class="autocomplete-item" data-value="${nat}">${nat}</div>`
-                ).join('');
-                suggestionsDiv.style.display = 'block';
-
-                // Add click handlers
-                suggestionsDiv.querySelectorAll('.autocomplete-item').forEach(item => {
-                    item.addEventListener('click', () => {
-                        nationalityInput.value = item.dataset.value;
-                        suggestionsDiv.style.display = 'none';
-                    });
+            dropdown.innerHTML = '';
+            filtered.forEach(function(nat) {
+                var item = document.createElement('div');
+                item.className = 'autocomplete-item';
+                item.textContent = nat;
+                item.addEventListener('click', function() {
+                    input.value = nat;
+                    dropdown.style.display = 'none';
                 });
-            }, 150);
+                dropdown.appendChild(item);
+            });
+
+            dropdown.style.display = 'block';
         });
 
-        nationalityInput.addEventListener('focus', () => {
-            if (nationalityInput.value.length >= 1) {
-                const matches = Database.filterNationalities(nationalityInput.value);
-                if (matches.length > 0) {
-                    suggestionsDiv.innerHTML = matches.map(nat => 
-                        `<div class="autocomplete-item" data-value="${nat}">${nat}</div>`
-                    ).join('');
-                    suggestionsDiv.style.display = 'block';
+        document.addEventListener('click', function(e) {
+            if (e.target !== input) {
+                dropdown.style.display = 'none';
+            }
+        });
+    },
 
-                    suggestionsDiv.querySelectorAll('.autocomplete-item').forEach(item => {
-                        item.addEventListener('click', () => {
-                            nationalityInput.value = item.dataset.value;
-                            suggestionsDiv.style.display = 'none';
-                        });
+    // Religion autocomplete
+    initReligionAutocomplete: function() {
+        var input = document.getElementById('religion');
+        var dropdown = document.getElementById('religion-suggestions');
+
+        if (!input || !dropdown) return;
+
+        input.addEventListener('input', function() {
+            var value = input.value.trim();
+
+            if (value.length === 0) {
+                dropdown.style.display = 'none';
+                return;
+            }
+
+            var persons = Database.getAllPersons();
+            var religionsSet = new Set();
+
+            persons.forEach(function(person) {
+                if (person.religion) {
+                    religionsSet.add(person.religion);
+                }
+            });
+
+            var religions = Array.from(religionsSet).sort();
+            var filtered = religions.filter(function(rel) {
+                return rel.toLowerCase().indexOf(value.toLowerCase()) !== -1;
+            });
+
+            if (filtered.length === 0) {
+                dropdown.style.display = 'none';
+                return;
+            }
+
+            dropdown.innerHTML = '';
+            filtered.forEach(function(rel) {
+                var item = document.createElement('div');
+                item.className = 'autocomplete-item';
+                item.textContent = rel;
+                item.addEventListener('click', function() {
+                    input.value = rel;
+                    dropdown.style.display = 'none';
+                });
+                dropdown.appendChild(item);
+            });
+
+            dropdown.style.display = 'block';
+        });
+
+        document.addEventListener('click', function(e) {
+            if (e.target !== input) {
+                dropdown.style.display = 'none';
+            }
+        });
+    },
+
+    // Source document autocomplete
+    initSourceAutocomplete: function(inputElement, dropdownElement) {
+        if (!inputElement || !dropdownElement) return;
+
+        inputElement.addEventListener('input', function() {
+            var value = inputElement.value.trim();
+
+            if (value.length === 0) {
+                dropdownElement.style.display = 'none';
+                return;
+            }
+
+            var persons = Database.getAllPersons();
+            var sourcesSet = new Set();
+
+            persons.forEach(function(person) {
+                if (person.nameVariants) {
+                    person.nameVariants.forEach(function(variant) {
+                        if (variant.sources) {
+                            variant.sources.forEach(function(source) {
+                                if (source.documentName) {
+                                    sourcesSet.add(source.documentName);
+                                }
+                            });
+                        }
                     });
                 }
+
+                if (person.attestations) {
+                    person.attestations.forEach(function(att) {
+                        if (att.sources) {
+                            att.sources.forEach(function(source) {
+                                if (source.documentName) {
+                                    sourcesSet.add(source.documentName);
+                                }
+                            });
+                        }
+                    });
+                }
+
+                if (person.relationships) {
+                    person.relationships.forEach(function(rel) {
+                        if (rel.sources) {
+                            rel.sources.forEach(function(source) {
+                                if (source.documentName) {
+                                    sourcesSet.add(source.documentName);
+                                }
+                            });
+                        }
+                    });
+                }
+            });
+
+            var sources = Array.from(sourcesSet).sort();
+            var filtered = sources.filter(function(src) {
+                return src.toLowerCase().indexOf(value.toLowerCase()) !== -1;
+            });
+
+            if (filtered.length === 0) {
+                dropdownElement.style.display = 'none';
+                return;
+            }
+
+            dropdownElement.innerHTML = '';
+            filtered.forEach(function(src) {
+                var item = document.createElement('div');
+                item.className = 'autocomplete-item';
+                item.textContent = src;
+                item.addEventListener('click', function() {
+                    inputElement.value = src;
+                    dropdownElement.style.display = 'none';
+                });
+                dropdownElement.appendChild(item);
+            });
+
+            dropdownElement.style.display = 'block';
+        });
+
+        document.addEventListener('click', function(e) {
+            if (e.target !== inputElement && !dropdownElement.contains(e.target)) {
+                dropdownElement.style.display = 'none';
+            }
+        });
+    },
+
+    // Helper function to safely get source data (backward compatible)
+    getSourceData: function(sources, index) {
+        if (!sources || !sources[index]) {
+            return { documentName: '', location: '' };
+        }
+
+        var source = sources[index];
+
+        // New format
+        if (source.documentName !== undefined) {
+            return {
+                documentName: source.documentName || '',
+                location: source.location || ''
+            };
+        }
+
+        // Old format (citation only)
+        if (source.citation) {
+            return {
+                documentName: source.citation,
+                location: ''
+            };
+        }
+
+        return { documentName: '', location: '' };
+    },
+
+    // Add name variant field with source autocomplete
+    addNameVariantField: function(variant) {
+        var container = document.getElementById('name-variants-container');
+        var index = this.variantCounter++;
+
+        var item = document.createElement('div');
+        item.className = 'variant-item';
+        item.dataset.index = index;
+
+        var sourceData = this.getSourceData(variant ? variant.sources : null, 0);
+
+        var html = '';
+        html += '<button type="button" class="remove-btn" onclick="this.parentElement.remove()">×</button>';
+        html += '<label>Full Name: <input type="text" name="variant-fullname-' + index + '" value="' + (variant && variant.fullName ? variant.fullName : '') + '"></label>';
+        html += '<div class="form-row">';
+        html += '<label>First Name: <input type="text" name="variant-firstname-' + index + '" value="' + (variant && variant.firstName ? variant.firstName : '') + '"></label>';
+        html += '<label>Last Name: <input type="text" name="variant-lastname-' + index + '" value="' + (variant && variant.lastName ? variant.lastName : '') + '"></label>';
+        html += '</div>';
+        html += '<label>Notes: <input type="text" name="variant-notes-' + index + '" value="' + (variant && variant.notes ? variant.notes : '') + '"></label>';
+
+        // New source fields structure
+        html += '<div class="source-fields">';
+        html += '<div class="autocomplete-wrapper">';
+        html += '<label>Source Document:';
+        html += '<input type="text" class="source-doc-input" name="variant-source-doc-' + index + '" value="' + sourceData.documentName + '" autocomplete="off" placeholder="e.g., Archivio di Stato...">';
+        html += '<div class="autocomplete-dropdown variant-source-dropdown-' + index + '"></div>';
+        html += '</label>';
+        html += '</div>';
+        html += '<label>Location:';
+        html += '<input type="text" name="variant-source-loc-' + index + '" value="' + sourceData.location + '" placeholder="e.g., fol. 23r, p. 145">';
+        html += '</label>';
+        html += '</div>';
+
+        item.innerHTML = html;
+        container.appendChild(item);
+
+        // Initialize source autocomplete for this field
+        var sourceInput = item.querySelector('[name="variant-source-doc-' + index + '"]');
+        var sourceDropdown = item.querySelector('.variant-source-dropdown-' + index);
+        this.initSourceAutocomplete(sourceInput, sourceDropdown);
+    },
+
+    // Add attestation field with source autocomplete
+    addAttestationField: function(attestation) {
+        var container = document.getElementById('attestations-container');
+        var index = this.attestationCounter++;
+
+        var item = document.createElement('div');
+        item.className = 'attestation-item';
+        item.dataset.index = index;
+
+        var sourceData = this.getSourceData(attestation ? attestation.sources : null, 0);
+        var attDate = attestation && attestation.date ? attestation.date : {};
+
+        var html = '';
+        html += '<button type="button" class="remove-btn" onclick="this.parentElement.remove()">×</button>';
+        html += '<label>Place: <input type="text" name="att-place-' + index + '" value="' + (attestation && attestation.place ? attestation.place : '') + '"></label>';
+
+        html += '<div class="form-row">';
+        html += '<label>Year: <input type="number" name="att-year-' + index + '" value="' + (attDate.year || '') + '"></label>';
+        html += '<label>Month: <input type="number" name="att-month-' + index + '" min="1" max="12" value="' + (attDate.month || '') + '"></label>';
+        html += '<label>Day: <input type="number" name="att-day-' + index + '" min="1" max="31" value="' + (attDate.day || '') + '"></label>';
+        html += '</div>';
+
+        html += '<label>Event/Activity: <input type="text" name="att-event-' + index + '" value="' + (attestation && attestation.event ? attestation.event : '') + '"></label>';
+        html += '<label>Notes: <input type="text" name="att-notes-' + index + '" value="' + (attestation && attestation.notes ? attestation.notes : '') + '"></label>';
+
+        // New source fields structure
+        html += '<div class="source-fields">';
+        html += '<div class="autocomplete-wrapper">';
+        html += '<label>Source Document:';
+        html += '<input type="text" class="source-doc-input" name="att-source-doc-' + index + '" value="' + sourceData.documentName + '" autocomplete="off" placeholder="e.g., Notarial Archive...">';
+        html += '<div class="autocomplete-dropdown att-source-dropdown-' + index + '"></div>';
+        html += '</label>';
+        html += '</div>';
+        html += '<label>Location:';
+        html += '<input type="text" name="att-source-loc-' + index + '" value="' + sourceData.location + '" placeholder="e.g., fol. 45v">';
+        html += '</label>';
+        html += '</div>';
+
+        item.innerHTML = html;
+        container.appendChild(item);
+
+        // Initialize source autocomplete for this field
+        var sourceInput = item.querySelector('[name="att-source-doc-' + index + '"]');
+        var sourceDropdown = item.querySelector('.att-source-dropdown-' + index);
+        this.initSourceAutocomplete(sourceInput, sourceDropdown);
+    },
+
+    // Add relationship field with source autocomplete
+    addRelationshipField: function(relationship) {
+        var container = document.getElementById('relationships-container');
+        var index = this.relationshipCounter++;
+
+        var item = document.createElement('div');
+        item.className = 'relationship-item';
+        item.dataset.index = index;
+
+        var sourceData = this.getSourceData(relationship ? relationship.sources : null, 0);
+
+        var html = '';
+        html += '<button type="button" class="remove-btn" onclick="this.parentElement.remove()">×</button>';
+        html += '<label>Related Person: <input type="text" name="rel-person-' + index + '" value="' + (relationship && relationship.relatedPerson ? relationship.relatedPerson : '') + '"></label>';
+        html += '<label>Relationship Type: <input type="text" name="rel-type-' + index + '" value="' + (relationship && relationship.type ? relationship.type : '') + '" placeholder="e.g., father, spouse, business partner"></label>';
+        html += '<label>Notes: <input type="text" name="rel-notes-' + index + '" value="' + (relationship && relationship.notes ? relationship.notes : '') + '"></label>';
+
+        // New source fields structure
+        html += '<div class="source-fields">';
+        html += '<div class="autocomplete-wrapper">';
+        html += '<label>Source Document:';
+        html += '<input type="text" class="source-doc-input" name="rel-source-doc-' + index + '" value="' + sourceData.documentName + '" autocomplete="off" placeholder="e.g., Parish Records...">';
+        html += '<div class="autocomplete-dropdown rel-source-dropdown-' + index + '"></div>';
+        html += '</label>';
+        html += '</div>';
+        html += '<label>Location:';
+        html += '<input type="text" name="rel-source-loc-' + index + '" value="' + sourceData.location + '" placeholder="e.g., p. 78">';
+        html += '</label>';
+        html += '</div>';
+
+        item.innerHTML = html;
+        container.appendChild(item);
+
+        // Initialize source autocomplete for this field
+        var sourceInput = item.querySelector('[name="rel-source-doc-' + index + '"]');
+        var sourceDropdown = item.querySelector('.rel-source-dropdown-' + index);
+        this.initSourceAutocomplete(sourceInput, sourceDropdown);
+    },
+
+    // Load person data into form for editing - WITH DETAILED LOGGING
+    loadPersonIntoForm: function(person) {
+        console.log('=== loadPersonIntoForm called ===');
+        console.log('Person ID:', person.id);
+        console.log('Person data:', person);
+
+        try {
+            this.currentEditId = person.id;
+            console.log('Set currentEditId:', this.currentEditId);
+
+            // Update form title and ID
+            var formTitle = document.getElementById('form-title');
+            var personIdField = document.getElementById('person-id');
+
+            if (formTitle) {
+                formTitle.textContent = 'Edit Person';
+                console.log('✓ Updated form title');
             } else {
-                // Show all existing nationalities on focus
-                const allNationalities = Database.getAllNationalities();
-                if (allNationalities.length > 0) {
-                    suggestionsDiv.innerHTML = allNationalities.map(nat => 
-                        `<div class="autocomplete-item" data-value="${nat}">${nat}</div>`
-                    ).join('');
-                    suggestionsDiv.style.display = 'block';
+                console.error('✗ form-title element not found!');
+            }
 
-                    suggestionsDiv.querySelectorAll('.autocomplete-item').forEach(item => {
-                        item.addEventListener('click', () => {
-                            nationalityInput.value = item.dataset.value;
-                            suggestionsDiv.style.display = 'none';
-                        });
-                    });
+            if (personIdField) {
+                personIdField.value = person.id;
+                console.log('✓ Set person-id field');
+            } else {
+                console.error('✗ person-id element not found!');
+            }
+
+            // Basic info fields
+            var nameField = document.getElementById('standardized-name');
+            var nationalityField = document.getElementById('nationality');
+            var genderField = document.getElementById('gender');
+            var religionField = document.getElementById('religion');
+            var religionCertaintyField = document.getElementById('religion-certainty');
+
+            if (nameField) {
+                nameField.value = person.standardizedName || '';
+                console.log('✓ Set standardized-name:', nameField.value);
+            } else {
+                console.error('✗ standardized-name field not found!');
+            }
+
+            if (nationalityField) {
+                nationalityField.value = person.nationality || '';
+                console.log('✓ Set nationality:', nationalityField.value);
+            }
+
+            if (genderField) {
+                genderField.value = person.gender || 'unknown';
+                console.log('✓ Set gender:', genderField.value);
+            }
+
+            if (religionField) {
+                religionField.value = person.religion || '';
+                console.log('✓ Set religion:', religionField.value);
+            }
+
+            if (religionCertaintyField) {
+                religionCertaintyField.value = person.religionCertainty || 'certain';
+                console.log('✓ Set religion-certainty:', religionCertaintyField.value);
+            }
+
+            // Life events - Birth
+            console.log('Loading birth data...');
+            if (person.lifeEvents && person.lifeEvents.birth) {
+                var birth = person.lifeEvents.birth;
+                if (birth.date) {
+                    var birthYearEl = document.getElementById('birth-year');
+                    var birthMonthEl = document.getElementById('birth-month');
+                    var birthDayEl = document.getElementById('birth-day');
+                    var birthCircaEl = document.getElementById('birth-circa');
+
+                    if (birthYearEl) birthYearEl.value = birth.date.year || '';
+                    if (birthMonthEl) birthMonthEl.value = birth.date.month || '';
+                    if (birthDayEl) birthDayEl.value = birth.date.day || '';
+                    if (birthCircaEl) birthCircaEl.checked = birth.date.circa || false;
+
+                    console.log('✓ Birth date:', birth.date.year, birth.date.month, birth.date.day);
                 }
+                var birthPlaceEl = document.getElementById('birth-place');
+                var birthCertaintyEl = document.getElementById('birth-certainty');
+                if (birthPlaceEl) birthPlaceEl.value = birth.place || '';
+                if (birthCertaintyEl) birthCertaintyEl.value = birth.certainty || 'certain';
+            } else {
+                console.log('No birth data');
+                this.clearLifeEventFields('birth');
             }
-        });
 
-        // Hide suggestions when clicking outside
-        document.addEventListener('click', (e) => {
-            if (!nationalityInput.contains(e.target) && !suggestionsDiv.contains(e.target)) {
-                suggestionsDiv.style.display = 'none';
-            }
-        });
-    },
+            // Life events - Death
+            console.log('Loading death data...');
+            if (person.lifeEvents && person.lifeEvents.death) {
+                var death = person.lifeEvents.death;
+                if (death.date) {
+                    var deathYearEl = document.getElementById('death-year');
+                    var deathMonthEl = document.getElementById('death-month');
+                    var deathDayEl = document.getElementById('death-day');
+                    var deathCircaEl = document.getElementById('death-circa');
 
-    // Render search results
-    renderSearchResults(persons) {
-        const resultsDiv = document.getElementById('search-results');
+                    if (deathYearEl) deathYearEl.value = death.date.year || '';
+                    if (deathMonthEl) deathMonthEl.value = death.date.month || '';
+                    if (deathDayEl) deathDayEl.value = death.date.day || '';
+                    if (deathCircaEl) deathCircaEl.checked = death.date.circa || false;
 
-        if (persons.length === 0) {
-            resultsDiv.innerHTML = '<p class="text-muted">No persons found.</p>';
-            return;
-        }
-
-        resultsDiv.innerHTML = persons.map(p => this.renderPersonCard(p)).join('');
-
-        // Add click handlers
-        resultsDiv.querySelectorAll('.person-card').forEach(card => {
-            card.addEventListener('click', () => {
-                const personId = card.dataset.personId;
-                this.showPersonDetail(personId);
-            });
-        });
-    },
-
-    // Show duplicate/similar person suggestions
-    showNameSuggestions(inputValue) {
-        const suggestionsDiv = document.getElementById('name-suggestions');
-
-        if (!inputValue || inputValue.length < 2) {
-            suggestionsDiv.innerHTML = '';
-            suggestionsDiv.style.display = 'none';
-            return;
-        }
-
-        // Search for similar names
-        const exactMatches = Database.searchPersons({ name: inputValue, usePhonetic: false });
-        const phoneticMatches = Database.searchPersons({ name: inputValue, usePhonetic: true });
-
-        // Combine and deduplicate
-        const allMatches = [...exactMatches];
-        phoneticMatches.forEach(pm => {
-            if (!allMatches.find(am => am.id === pm.id)) {
-                allMatches.push(pm);
-            }
-        });
-
-        // Don't show the current person being edited
-        const matches = allMatches.filter(p => p.id !== this.currentPersonId);
-
-        if (matches.length === 0) {
-            suggestionsDiv.innerHTML = '';
-            suggestionsDiv.style.display = 'none';
-            return;
-        }
-
-        // Build suggestions HTML
-        let html = '<div class="suggestions-header">';
-        html += '<strong>⚠️ Possible duplicates found:</strong>';
-        html += '</div>';
-        html += '<div class="suggestions-list">';
-
-        matches.forEach(person => {
-            const dateRange = Database.formatDateRange(
-                person.lifeEvents?.birth,
-                person.lifeEvents?.death
-            );
-            const soundexCode = Database.soundex(person.standardizedName);
-            const inputSoundex = Database.soundex(inputValue);
-            const isPhoneticMatch = soundexCode === inputSoundex;
-            const genderIcon = this.getGenderIcon(person.gender);
-
-            html += `
-                <div class="suggestion-item" data-person-id="${person.id}">
-                    <div class="suggestion-main">
-                        <strong>${person.standardizedName}</strong>
-                        <span class="gender-indicator">${genderIcon}</span>
-                        ${isPhoneticMatch ? '<span class="phonetic-badge">Sounds similar</span>' : ''}
-                    </div>
-                    <div class="suggestion-details">
-                        ${dateRange} • ID: ${person.id}${person.nationality ? ' • ' + person.nationality : ''}
-                    </div>
-                    ${person.nameVariants && person.nameVariants.length > 0 ? 
-                        `<div class="suggestion-variants">Variants: ${person.nameVariants.map(v => v.fullName).join(', ')}</div>` 
-                        : ''}
-                    <div class="suggestion-actions">
-                        <button type="button" class="btn-view-suggestion" data-person-id="${person.id}">View Details</button>
-                        <button type="button" class="btn-load-suggestion" data-person-id="${person.id}">Edit This Person</button>
-                    </div>
-                </div>
-            `;
-        });
-
-        html += '</div>';
-        suggestionsDiv.innerHTML = html;
-        suggestionsDiv.style.display = 'block';
-
-        // Add event listeners to suggestion buttons
-        suggestionsDiv.querySelectorAll('.btn-view-suggestion').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                e.preventDefault();
-                const personId = btn.dataset.personId;
-                this.showPersonDetail(personId);
-            });
-        });
-
-        suggestionsDiv.querySelectorAll('.btn-load-suggestion').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                e.preventDefault();
-                const personId = btn.dataset.personId;
-                if (confirm('Load this person for editing? Any unsaved changes will be lost.')) {
-                    this.loadPersonIntoForm(personId);
-                    document.getElementById('name-suggestions').style.display = 'none';
+                    console.log('✓ Death date:', death.date.year, death.date.month, death.date.day);
                 }
-            });
-        });
-    },
-
-    // Initialize name suggestion functionality
-    initNameSuggestions() {
-        const nameInput = document.getElementById('standardized-name');
-        let debounceTimer;
-
-        nameInput.addEventListener('input', (e) => {
-            clearTimeout(debounceTimer);
-            debounceTimer = setTimeout(() => {
-                this.showNameSuggestions(e.target.value);
-            }, 300);
-        });
-
-        nameInput.addEventListener('focus', (e) => {
-            if (e.target.value.length >= 2) {
-                this.showNameSuggestions(e.target.value);
+                var deathPlaceEl = document.getElementById('death-place');
+                var deathCertaintyEl = document.getElementById('death-certainty');
+                if (deathPlaceEl) deathPlaceEl.value = death.place || '';
+                if (deathCertaintyEl) deathCertaintyEl.value = death.certainty || 'certain';
+            } else {
+                console.log('No death data');
+                this.clearLifeEventFields('death');
             }
-        });
 
-        // Hide suggestions when clicking outside
-        document.addEventListener('click', (e) => {
-            const suggestionsDiv = document.getElementById('name-suggestions');
-            if (!nameInput.contains(e.target) && !suggestionsDiv.contains(e.target)) {
-                suggestionsDiv.style.display = 'none';
-            }
-        });
-    },
+            // Additional info
+            var occupationsEl = document.getElementById('occupations');
+            var biographyEl = document.getElementById('biography');
 
-    // Render person detail in modal
-    showPersonDetail(personId) {
-        const person = Database.getPersonById(personId);
-        if (!person) return;
-
-        this.currentPersonId = personId;
-
-        const genderIcon = this.getGenderIcon(person.gender);
-        const genderLabel = person.gender ? person.gender.charAt(0).toUpperCase() + person.gender.slice(1) : 'Unknown';
-
-        let html = `<h2>${person.standardizedName}</h2>`;
-
-        html += '<div class="detail-basic-info">';
-        if (person.gender) {
-            html += `<p><strong>Gender:</strong> ${genderIcon} ${genderLabel}</p>`;
-        }
-        if (person.nationality) {
-            html += `<p><strong>Nationality:</strong> ${person.nationality}</p>`;
-        }
-        html += '</div>';
-
-        // Name variants
-        if (person.nameVariants && person.nameVariants.length > 0) {
-            html += '<div class="detail-section"><h3>Name Variants</h3><ul class="variant-list">';
-            person.nameVariants.forEach(v => {
-                html += `<li><strong>${v.fullName}</strong>`;
-                if (v.firstName) html += `<br>First: ${v.firstName}`;
-                if (v.lastName) html += `, Last: ${v.lastName}`;
-                if (v.patronym) html += `, Patronym: ${v.patronym}`;
-                if (v.sources && v.sources.length > 0) {
-                    html += `<br><span class="source-ref">Sources: ${v.sources.map(s => s.citation).join('; ')}</span>`;
+            if (occupationsEl) {
+                if (person.occupations && person.occupations.length > 0) {
+                    occupationsEl.value = person.occupations.join(', ');
+                } else {
+                    occupationsEl.value = '';
                 }
-                html += '</li>';
-            });
-            html += '</ul></div>';
-        }
-
-        // Life events
-        html += '<div class="detail-section"><h3>Life Events</h3>';
-        if (person.lifeEvents?.birth?.date) {
-            const birth = person.lifeEvents.birth;
-            html += `<p><strong>Birth:</strong> ${Database.formatDate(birth.date)}`;
-            if (birth.place) html += ` in ${birth.place}`;
-            html += ` (${birth.certainty || 'unknown certainty'})`;
-            if (birth.sources && birth.sources.length > 0) {
-                html += `<br><span class="source-ref">${birth.sources[0].citation}</span>`;
+                console.log('✓ Set occupations');
             }
-            html += '</p>';
-        }
-        if (person.lifeEvents?.death?.date) {
-            const death = person.lifeEvents.death;
-            html += `<p><strong>Death:</strong> ${Database.formatDate(death.date)}`;
-            if (death.place) html += ` in ${death.place}`;
-            html += ` (${death.certainty || 'unknown certainty'})`;
-            if (death.sources && death.sources.length > 0) {
-                html += `<br><span class="source-ref">${death.sources[0].citation}</span>`;
+
+            if (biographyEl) {
+                biographyEl.value = person.biography || '';
+                console.log('✓ Set biography');
             }
-            html += '</p>';
-        }
-        html += '</div>';
 
-        // Attestations
-        if (person.attestations && person.attestations.length > 0) {
-            html += '<div class="detail-section"><h3>Attestations</h3><ul class="attestation-list">';
-            person.attestations.forEach(a => {
-                html += `<li><strong>${Database.formatDate(a.date)}</strong> - ${a.place || 'unknown place'}<br>`;
-                html += `Activity: ${a.activity || 'not specified'}<br>`;
-                if (a.personNameUsed) html += `Name used: ${a.personNameUsed}<br>`;
-                if (a.context) html += `Context: ${a.context}<br>`;
-                if (a.sourceId) html += `<span class="source-ref">Source ID: ${a.sourceId}</span>`;
-                html += '</li>';
-            });
-            html += '</ul></div>';
-        }
+            // Clear dynamic fields
+            console.log('Clearing dynamic fields...');
+            var variantsContainer = document.getElementById('name-variants-container');
+            var attestationsContainer = document.getElementById('attestations-container');
+            var relationshipsContainer = document.getElementById('relationships-container');
 
-        // Relationships
-        if (person.relationships && person.relationships.length > 0) {
-            html += '<div class="detail-section"><h3>Relationships</h3><ul class="relationship-list">';
-            person.relationships.forEach(r => {
-                const relatedPerson = Database.getPersonById(r.personId);
-                const relatedName = relatedPerson ? relatedPerson.standardizedName : r.personId;
-                html += `<li><strong>${r.type}</strong>: ${relatedName} (${r.certainty || 'unknown certainty'})`;
-                if (r.sources && r.sources.length > 0) {
-                    html += `<br><span class="source-ref">${r.sources[0].citation}</span>`;
-                }
-                html += '</li>';
-            });
-            html += '</ul></div>';
-        }
+            if (variantsContainer) variantsContainer.innerHTML = '';
+            if (attestationsContainer) attestationsContainer.innerHTML = '';
+            if (relationshipsContainer) relationshipsContainer.innerHTML = '';
 
-        // Occupations
-        if (person.occupation && person.occupation.length > 0) {
-            html += `<div class="detail-section"><h3>Occupations</h3><p>${person.occupation.join(', ')}</p></div>`;
-        }
+            this.variantCounter = 0;
+            this.attestationCounter = 0;
+            this.relationshipCounter = 0;
 
-        // Biography
-        if (person.biography) {
-            html += `<div class="detail-section"><h3>Biography/Notes</h3><p>${person.biography}</p></div>`;
-        }
+            // Load name variants
+            console.log('Loading name variants...');
+            if (person.nameVariants && person.nameVariants.length > 0) {
+                console.log('Found', person.nameVariants.length, 'variants');
+                person.nameVariants.forEach(function(variant) {
+                    UI.addNameVariantField(variant);
+                });
+                console.log('✓ Loaded variants');
+            }
 
-        document.getElementById('detail-content').innerHTML = html;
-        document.getElementById('detail-modal').classList.add('active');
+            // Load attestations
+            console.log('Loading attestations...');
+            if (person.attestations && person.attestations.length > 0) {
+                console.log('Found', person.attestations.length, 'attestations');
+                person.attestations.forEach(function(attestation) {
+                    UI.addAttestationField(attestation);
+                });
+                console.log('✓ Loaded attestations');
+            }
+
+            // Load relationships
+            console.log('Loading relationships...');
+            if (person.relationships && person.relationships.length > 0) {
+                console.log('Found', person.relationships.length, 'relationships');
+                person.relationships.forEach(function(relationship) {
+                    UI.addRelationshipField(relationship);
+                });
+                console.log('✓ Loaded relationships');
+            }
+
+            console.log('✓ loadPersonIntoForm completed successfully');
+            console.log('Now switching to add-view...');
+
+            // Switch to form view
+            this.switchView('add-view');
+
+            console.log('=== loadPersonIntoForm finished ===');
+
+        } catch (error) {
+            console.error('ERROR in loadPersonIntoForm:', error);
+            console.error('Error stack:', error.stack);
+            alert('Error loading person data: ' + error.message);
+        }
     },
 
-    // Load person into form for editing
-    loadPersonIntoForm(personId) {
-        const person = Database.getPersonById(personId);
-        if (!person) return;
+    // Helper to clear life event fields
+    clearLifeEventFields: function(eventType) {
+        var prefix = eventType; // 'birth' or 'death'
+        var yearEl = document.getElementById(prefix + '-year');
+        var monthEl = document.getElementById(prefix + '-month');
+        var dayEl = document.getElementById(prefix + '-day');
+        var circaEl = document.getElementById(prefix + '-circa');
+        var placeEl = document.getElementById(prefix + '-place');
+        var certaintyEl = document.getElementById(prefix + '-certainty');
 
-        this.currentPersonId = personId;
-        document.getElementById('form-title').textContent = 'Edit Person';
-        document.getElementById('person-id').value = personId;
-        document.getElementById('standardized-name').value = person.standardizedName || '';
-        document.getElementById('nationality').value = person.nationality || '';
-        document.getElementById('gender').value = person.gender || 'unknown';
-
-        // Hide suggestions when loading a person
-        document.getElementById('name-suggestions').style.display = 'none';
-        document.getElementById('nationality-suggestions').style.display = 'none';
-
-        // Load life events
-        if (person.lifeEvents?.birth) {
-            const birth = person.lifeEvents.birth;
-            document.getElementById('birth-year').value = birth.date?.year || '';
-            document.getElementById('birth-month').value = birth.date?.month || '';
-            document.getElementById('birth-day').value = birth.date?.day || '';
-            document.getElementById('birth-circa').checked = birth.date?.circa || false;
-            document.getElementById('birth-place').value = birth.place || '';
-            document.getElementById('birth-certainty').value = birth.certainty || 'certain';
-        }
-
-        if (person.lifeEvents?.death) {
-            const death = person.lifeEvents.death;
-            document.getElementById('death-year').value = death.date?.year || '';
-            document.getElementById('death-month').value = death.date?.month || '';
-            document.getElementById('death-day').value = death.date?.day || '';
-            document.getElementById('death-circa').checked = death.date?.circa || false;
-            document.getElementById('death-place').value = death.place || '';
-            document.getElementById('death-certainty').value = death.certainty || 'certain';
-        }
-
-        // Load name variants
-        const variantsContainer = document.getElementById('name-variants-container');
-        variantsContainer.innerHTML = '';
-        if (person.nameVariants) {
-            person.nameVariants.forEach(variant => {
-                this.addNameVariantField(variant);
-            });
-        }
-
-        // Load attestations
-        const attestationsContainer = document.getElementById('attestations-container');
-        attestationsContainer.innerHTML = '';
-        if (person.attestations) {
-            person.attestations.forEach(attestation => {
-                this.addAttestationField(attestation);
-            });
-        }
-
-        // Load relationships
-        const relationshipsContainer = document.getElementById('relationships-container');
-        relationshipsContainer.innerHTML = '';
-        if (person.relationships) {
-            person.relationships.forEach(relationship => {
-                this.addRelationshipField(relationship);
-            });
-        }
-
-        // Load additional info
-        document.getElementById('occupations').value = person.occupation?.join(', ') || '';
-        document.getElementById('biography').value = person.biography || '';
-
-        // Show form view
-        this.showView('add-view');
-    },
-
-    // Add name variant field
-    addNameVariantField(data = null) {
-        const container = document.getElementById('name-variants-container');
-        const index = container.children.length;
-
-        const div = document.createElement('div');
-        div.className = 'variant-item';
-        div.innerHTML = `
-            <button type="button" class="remove-btn" onclick="this.parentElement.remove()">×</button>
-            <label>First Name: <input type="text" name="variant-first-${index}" value="${data?.firstName || ''}"></label>
-            <label>Last Name: <input type="text" name="variant-last-${index}" value="${data?.lastName || ''}"></label>
-            <label>Patronym: <input type="text" name="variant-patronym-${index}" value="${data?.patronym || ''}"></label>
-            <label>Full Name: <input type="text" name="variant-full-${index}" value="${data?.fullName || ''}"></label>
-            <label>Source Citation: <input type="text" name="variant-source-${index}" value="${data?.sources?.[0]?.citation || ''}"></label>
-        `;
-        container.appendChild(div);
-    },
-
-    // Add attestation field
-    addAttestationField(data = null) {
-        const container = document.getElementById('attestations-container');
-        const index = container.children.length;
-
-        const div = document.createElement('div');
-        div.className = 'attestation-item';
-        div.innerHTML = `
-            <button type="button" class="remove-btn" onclick="this.parentElement.remove()">×</button>
-            <label>Year: <input type="number" name="att-year-${index}" value="${data?.date?.year || ''}"></label>
-            <label>Month: <input type="number" name="att-month-${index}" min="1" max="12" value="${data?.date?.month || ''}"></label>
-            <label>Day: <input type="number" name="att-day-${index}" min="1" max="31" value="${data?.date?.day || ''}"></label>
-            <label><input type="checkbox" name="att-circa-${index}" ${data?.date?.circa ? 'checked' : ''}> Circa</label>
-            <label>Place: <input type="text" name="att-place-${index}" value="${data?.place || ''}"></label>
-            <label>Activity: <input type="text" name="att-activity-${index}" value="${data?.activity || ''}"></label>
-            <label>Name Used: <input type="text" name="att-name-${index}" value="${data?.personNameUsed || ''}"></label>
-            <label>Context: <input type="text" name="att-context-${index}" value="${data?.context || ''}"></label>
-            <label>Source ID: <input type="text" name="att-source-${index}" value="${data?.sourceId || ''}"></label>
-        `;
-        container.appendChild(div);
-    },
-
-    // Add relationship field
-    addRelationshipField(data = null) {
-        const container = document.getElementById('relationships-container');
-        const index = container.children.length;
-
-        const div = document.createElement('div');
-        div.className = 'relationship-item';
-        div.innerHTML = `
-            <button type="button" class="remove-btn" onclick="this.parentElement.remove()">×</button>
-            <label>Relationship Type: 
-                <select name="rel-type-${index}">
-                    <option value="father" ${data?.type === 'father' ? 'selected' : ''}>Father</option>
-                    <option value="mother" ${data?.type === 'mother' ? 'selected' : ''}>Mother</option>
-                    <option value="son" ${data?.type === 'son' ? 'selected' : ''}>Son</option>
-                    <option value="daughter" ${data?.type === 'daughter' ? 'selected' : ''}>Daughter</option>
-                    <option value="sibling" ${data?.type === 'sibling' ? 'selected' : ''}>Sibling</option>
-                    <option value="brother" ${data?.type === 'brother' ? 'selected' : ''}>Brother</option>
-                    <option value="sister" ${data?.type === 'sister' ? 'selected' : ''}>Sister</option>
-                    <option value="spouse" ${data?.type === 'spouse' ? 'selected' : ''}>Spouse</option>
-                    <option value="nephew" ${data?.type === 'nephew' ? 'selected' : ''}>Nephew</option>
-                    <option value="niece" ${data?.type === 'niece' ? 'selected' : ''}>Niece</option>
-                    <option value="uncle" ${data?.type === 'uncle' ? 'selected' : ''}>Uncle</option>
-                    <option value="aunt" ${data?.type === 'aunt' ? 'selected' : ''}>Aunt</option>
-                    <option value="cousin" ${data?.type === 'cousin' ? 'selected' : ''}>Cousin</option>
-                </select>
-            </label>
-            <label>Person ID: <input type="text" name="rel-person-${index}" value="${data?.personId || ''}" placeholder="e.g., p001"></label>
-            <label>Certainty: 
-                <select name="rel-certainty-${index}">
-                    <option value="certain" ${data?.certainty === 'certain' ? 'selected' : ''}>Certain</option>
-                    <option value="probable" ${data?.certainty === 'probable' ? 'selected' : ''}>Probable</option>
-                    <option value="possible" ${data?.certainty === 'possible' ? 'selected' : ''}>Possible</option>
-                    <option value="uncertain" ${data?.certainty === 'uncertain' ? 'selected' : ''}>Uncertain</option>
-                </select>
-            </label>
-            <label>Source Citation: <input type="text" name="rel-source-${index}" value="${data?.sources?.[0]?.citation || ''}"></label>
-        `;
-        container.appendChild(div);
+        if (yearEl) yearEl.value = '';
+        if (monthEl) monthEl.value = '';
+        if (dayEl) dayEl.value = '';
+        if (circaEl) circaEl.checked = false;
+        if (placeEl) placeEl.value = '';
+        if (certaintyEl) certaintyEl.value = 'certain';
     },
 
     // Clear form
-    clearForm() {
-        this.currentPersonId = null;
+    clearForm: function() {
+        console.log('Clearing form...');
+        this.currentEditId = null;
         document.getElementById('form-title').textContent = 'Add New Person';
         document.getElementById('person-form').reset();
         document.getElementById('person-id').value = '';
-        document.getElementById('gender').value = 'unknown';
+
         document.getElementById('name-variants-container').innerHTML = '';
         document.getElementById('attestations-container').innerHTML = '';
         document.getElementById('relationships-container').innerHTML = '';
-        document.getElementById('name-suggestions').innerHTML = '';
-        document.getElementById('name-suggestions').style.display = 'none';
-        document.getElementById('nationality-suggestions').innerHTML = '';
-        document.getElementById('nationality-suggestions').style.display = 'none';
+
+        this.variantCounter = 0;
+        this.attestationCounter = 0;
+        this.relationshipCounter = 0;
+        console.log('✓ Form cleared');
     },
 
-    // Show specific view
-    showView(viewId) {
-        document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
-        document.getElementById(viewId).classList.add('active');
+    // Render person card
+    renderPersonCard: function(person) {
+        var html = '<div class="person-card" data-id="' + person.id + '">';
+        html += '<h3>';
+        html += person.standardizedName;
 
-        document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
-        const navBtnId = 'nav-' + viewId.replace('-view', '');
-        const navBtn = document.getElementById(navBtnId);
-        if (navBtn) navBtn.classList.add('active');
+        var badges = [];
+        if (person.nationality) {
+            badges.push('<span class="badge nationality-badge">' + person.nationality + '</span>');
+        }
+
+        if (person.religion) {
+            var certaintyLabel = person.religionCertainty === 'certain' ? '' : ' (' + person.religionCertainty + ')';
+            badges.push('<span class="badge" style="background: #9b59b6; color: white;">' + person.religion + certaintyLabel + '</span>');
+        }
+
+        var genderIcon = person.gender === 'male' ? '♂' : person.gender === 'female' ? '♀' : '⚪';
+        var genderClass = 'gender-' + person.gender;
+        badges.push('<span class="badge gender-badge ' + genderClass + '">' + genderIcon + '</span>');
+
+        if (badges.length > 0) {
+            html += ' ' + badges.join(' ');
+        }
+
+        html += '</h3>';
+
+        if (person.lifeEvents && (person.lifeEvents.birth || person.lifeEvents.death)) {
+            var birthYear = person.lifeEvents.birth && person.lifeEvents.birth.date ? person.lifeEvents.birth.date.year || '?' : '?';
+            var deathYear = person.lifeEvents.death && person.lifeEvents.death.date ? person.lifeEvents.death.date.year || '?' : '?';
+            html += '<div class="dates">(' + birthYear + ' - ' + deathYear + ')</div>';
+        }
+
+        if (person.nameVariants && person.nameVariants.length > 0) {
+            var variantNames = person.nameVariants.map(function(v) {
+                return v.fullName || (v.firstName + ' ' + v.lastName);
+            }).join(', ');
+            html += '<div class="variants">Also known as: ' + variantNames + '</div>';
+        }
+
+        if (person.attestations && person.attestations.length > 0) {
+            html += '<div class="attestations-count">' + person.attestations.length + ' attestation(s)</div>';
+        }
+
+        html += '</div>';
+        return html;
+    },
+
+    // Display search results
+    displaySearchResults: function(results) {
+        var container = document.getElementById('search-results');
+
+        if (results.length === 0) {
+            container.innerHTML = '<p>No results found.</p>';
+            return;
+        }
+
+        var html = '';
+        results.forEach(function(person) {
+            html += UI.renderPersonCard(person);
+        });
+
+        container.innerHTML = html;
+
+        container.querySelectorAll('.person-card').forEach(function(card) {
+            card.addEventListener('click', function() {
+                var id = card.dataset.id;
+                UI.showPersonDetail(id);
+            });
+        });
+    },
+
+    // Display browse results
+    displayBrowseResults: function() {
+        var container = document.getElementById('browse-results');
+        var sortBy = document.getElementById('sort-by').value;
+
+        var persons = Database.getAllPersons();
+
+        if (sortBy === 'birth') {
+            persons.sort(function(a, b) {
+                var aYear = a.lifeEvents && a.lifeEvents.birth && a.lifeEvents.birth.date ? a.lifeEvents.birth.date.year || 9999 : 9999;
+                var bYear = b.lifeEvents && b.lifeEvents.birth && b.lifeEvents.birth.date ? b.lifeEvents.birth.date.year || 9999 : 9999;
+                return aYear - bYear;
+            });
+        } else if (sortBy === 'death') {
+            persons.sort(function(a, b) {
+                var aYear = a.lifeEvents && a.lifeEvents.death && a.lifeEvents.death.date ? a.lifeEvents.death.date.year || 9999 : 9999;
+                var bYear = b.lifeEvents && b.lifeEvents.death && b.lifeEvents.death.date ? b.lifeEvents.death.date.year || 9999 : 9999;
+                return aYear - bYear;
+            });
+        } else {
+            persons.sort(function(a, b) {
+                return a.standardizedName.localeCompare(b.standardizedName);
+            });
+        }
+
+        var html = '';
+        persons.forEach(function(person) {
+            html += UI.renderPersonCard(person);
+        });
+
+        container.innerHTML = html;
+
+        container.querySelectorAll('.person-card').forEach(function(card) {
+            card.addEventListener('click', function() {
+                var id = card.dataset.id;
+                UI.showPersonDetail(id);
+            });
+        });
+    },
+
+    // Show person detail modal - WITH ENHANCED EDIT BUTTON
+    showPersonDetail: function(id) {
+        console.log('showPersonDetail called for ID:', id);
+
+        var person = Database.getPersonById(id);
+        if (!person) {
+            console.error('Person not found:', id);
+            return;
+        }
+
+        console.log('Person found:', person);
+
+        var modal = document.getElementById('detail-modal');
+        var content = document.getElementById('detail-content');
+
+        var html = '<h2>' + person.standardizedName + '</h2>';
+
+        html += '<div class="detail-basic-info">';
+        if (person.nationality) {
+            html += '<p><strong>Nationality:</strong> ' + person.nationality + '</p>';
+        }
+        if (person.gender) {
+            html += '<p><strong>Gender:</strong> ' + person.gender + '</p>';
+        }
+        if (person.religion) {
+            html += '<p><strong>Religion:</strong> ' + person.religion;
+            if (person.religionCertainty && person.religionCertainty !== 'certain') {
+                html += ' <em>(' + person.religionCertainty + ')</em>';
+            }
+            html += '</p>';
+        }
+        html += '</div>';
+
+        if (person.lifeEvents) {
+            html += '<h3>Life Events</h3>';
+
+            if (person.lifeEvents.birth) {
+                var birth = person.lifeEvents.birth;
+                html += '<p><strong>Birth:</strong> ';
+                if (birth.date) {
+                    if (birth.date.circa) html += 'circa ';
+                    html += birth.date.year || '';
+                    if (birth.date.month) html += '-' + birth.date.month;
+                    if (birth.date.day) html += '-' + birth.date.day;
+                }
+                if (birth.place) html += ' in ' + birth.place;
+                if (birth.certainty && birth.certainty !== 'certain') {
+                    html += ' <em>(' + birth.certainty + ')</em>';
+                }
+                html += '</p>';
+            }
+
+            if (person.lifeEvents.death) {
+                var death = person.lifeEvents.death;
+                html += '<p><strong>Death:</strong> ';
+                if (death.date) {
+                    if (death.date.circa) html += 'circa ';
+                    html += death.date.year || '';
+                    if (death.date.month) html += '-' + death.date.month;
+                    if (death.date.day) html += '-' + death.date.day;
+                }
+                if (death.place) html += ' in ' + death.place;
+                if (death.certainty && death.certainty !== 'certain') {
+                    html += ' <em>(' + death.certainty + ')</em>';
+                }
+                html += '</p>';
+            }
+        }
+
+        if (person.nameVariants && person.nameVariants.length > 0) {
+            html += '<h3>Name Variants</h3>';
+            html += '<ul class="variant-list">';
+            person.nameVariants.forEach(function(variant) {
+                html += '<li>';
+                html += variant.fullName || (variant.firstName + ' ' + variant.lastName);
+                if (variant.notes) {
+                    html += ' <em>(' + variant.notes + ')</em>';
+                }
+                if (variant.sources && variant.sources.length > 0) {
+                    html += '<br><span class="source-ref">Source: ';
+                    var sourceParts = [];
+                    variant.sources.forEach(function(source) {
+                        if (source.documentName) {
+                            var srcText = source.documentName;
+                            if (source.location) srcText += ', ' + source.location;
+                            sourceParts.push(srcText);
+                        } else if (source.citation) {
+                            sourceParts.push(source.citation);
+                        }
+                    });
+                    html += sourceParts.join('; ');
+                    html += '</span>';
+                }
+                html += '</li>';
+            });
+            html += '</ul>';
+        }
+
+        if (person.attestations && person.attestations.length > 0) {
+            html += '<h3>Attestations</h3>';
+            html += '<ul class="attestation-list">';
+            person.attestations.forEach(function(att) {
+                html += '<li>';
+                if (att.date) {
+                    html += '<strong>' + (att.date.year || '') + '</strong> ';
+                }
+                if (att.place) {
+                    html += 'in ' + att.place + ': ';
+                }
+                if (att.event) {
+                    html += att.event;
+                }
+                if (att.notes) {
+                    html += ' <em>(' + att.notes + ')</em>';
+                }
+                if (att.sources && att.sources.length > 0) {
+                    html += '<br><span class="source-ref">Source: ';
+                    var sourceParts = [];
+                    att.sources.forEach(function(source) {
+                        if (source.documentName) {
+                            var srcText = source.documentName;
+                            if (source.location) srcText += ', ' + source.location;
+                            sourceParts.push(srcText);
+                        } else if (source.citation) {
+                            sourceParts.push(source.citation);
+                        }
+                    });
+                    html += sourceParts.join('; ');
+                    html += '</span>';
+                }
+                html += '</li>';
+            });
+            html += '</ul>';
+        }
+
+        if (person.relationships && person.relationships.length > 0) {
+            html += '<h3>Relationships</h3>';
+            html += '<ul class="relationship-list">';
+            person.relationships.forEach(function(rel) {
+                html += '<li>';
+                html += '<strong>' + rel.type + ':</strong> ' + rel.relatedPerson;
+                if (rel.notes) {
+                    html += ' <em>(' + rel.notes + ')</em>';
+                }
+                if (rel.sources && rel.sources.length > 0) {
+                    html += '<br><span class="source-ref">Source: ';
+                    var sourceParts = [];
+                    rel.sources.forEach(function(source) {
+                        if (source.documentName) {
+                            var srcText = source.documentName;
+                            if (source.location) srcText += ', ' + source.location;
+                            sourceParts.push(srcText);
+                        } else if (source.citation) {
+                            sourceParts.push(source.citation);
+                        }
+                    });
+                    html += sourceParts.join('; ');
+                    html += '</span>';
+                }
+                html += '</li>';
+            });
+            html += '</ul>';
+        }
+
+        if (person.occupations && person.occupations.length > 0) {
+            html += '<h3>Occupations</h3>';
+            html += '<p>' + person.occupations.join(', ') + '</p>';
+        }
+
+        if (person.biography) {
+            html += '<h3>Biography / Notes</h3>';
+            html += '<p>' + person.biography + '</p>';
+        }
+
+        content.innerHTML = html;
+        modal.classList.add('active');
+
+        console.log('Modal displayed');
+
+        // Bind close button
+        var closeBtn = modal.querySelector('.close');
+        if (closeBtn) {
+            closeBtn.onclick = function() {
+                console.log('Close button clicked');
+                modal.classList.remove('active');
+            };
+        }
+
+        // Bind edit button - ENHANCED
+        var editBtn = document.getElementById('btn-edit-person');
+        if (editBtn) {
+            console.log('Edit button found, binding click handler');
+            // Remove any existing listeners
+            var newEditBtn = editBtn.cloneNode(true);
+            editBtn.parentNode.replaceChild(newEditBtn, editBtn);
+
+            newEditBtn.addEventListener('click', function() {
+                console.log('=== EDIT BUTTON CLICKED ===');
+                console.log('Closing modal...');
+                modal.classList.remove('active');
+
+                console.log('Loading person into form...');
+                setTimeout(function() {
+                    UI.loadPersonIntoForm(person);
+                }, 100); // Small delay to ensure modal closes first
+            });
+        } else {
+            console.error('Edit button not found!');
+        }
+
+        // Bind delete button
+        var deleteBtn = document.getElementById('btn-delete-person');
+        if (deleteBtn) {
+            // Remove any existing listeners
+            var newDeleteBtn = deleteBtn.cloneNode(true);
+            deleteBtn.parentNode.replaceChild(newDeleteBtn, deleteBtn);
+
+            newDeleteBtn.addEventListener('click', function() {
+                if (confirm('Are you sure you want to delete ' + person.standardizedName + '?')) {
+                    Database.deletePerson(id);
+                    modal.classList.remove('active');
+                    UI.displayBrowseResults();
+                    UI.displayStatistics();
+                }
+            });
+        }
+
+        // Close on background click
+        window.onclick = function(event) {
+            if (event.target == modal) {
+                modal.classList.remove('active');
+            }
+        };
     },
 
     // Display statistics
-    displayStatistics() {
-        const stats = Database.getStatistics();
-        const statsDiv = document.getElementById('stats-display');
+    displayStatistics: function() {
+        var stats = Database.getStatistics();
+        var statsDiv = document.getElementById('stats-display');
 
-        statsDiv.innerHTML = `
-            <div class="stat-card">
-                <div class="number">${stats.totalPersons}</div>
-                <div class="label">Total Persons</div>
-            </div>
-            <div class="stat-card">
-                <div class="number">${stats.maleCount}</div>
-                <div class="label">Male</div>
-            </div>
-            <div class="stat-card">
-                <div class="number">${stats.femaleCount}</div>
-                <div class="label">Female</div>
-            </div>
-            <div class="stat-card">
-                <div class="number">${stats.totalAttestations}</div>
-                <div class="label">Total Attestations</div>
-            </div>
-            <div class="stat-card">
-                <div class="number">${stats.totalRelationships}</div>
-                <div class="label">Total Relationships</div>
-            </div>
-            <div class="stat-card">
-                <div class="number">${stats.personsWithBirth}</div>
-                <div class="label">Persons with Birth Data</div>
-            </div>
-            <div class="stat-card">
-                <div class="number">${stats.personsWithDeath}</div>
-                <div class="label">Persons with Death Data</div>
-            </div>
-            <div class="stat-card">
-                <div class="number">${stats.totalNationalities}</div>
-                <div class="label">Unique Nationalities</div>
-            </div>
-        `;
+        if (!statsDiv) return;
+
+        var html = '';
+        html += '<div class="stat-card"><div class="number">' + stats.totalPersons + '</div><div class="label">Total Persons</div></div>';
+        html += '<div class="stat-card"><div class="number">' + stats.totalAttestations + '</div><div class="label">Total Attestations</div></div>';
+        html += '<div class="stat-card"><div class="number">' + stats.totalRelationships + '</div><div class="label">Total Relationships</div></div>';
+        html += '<div class="stat-card"><div class="number">' + stats.personsWithBirth + '</div><div class="label">With Birth Data</div></div>';
+        html += '<div class="stat-card"><div class="number">' + stats.personsWithDeath + '</div><div class="label">With Death Data</div></div>';
+        html += '<div class="stat-card"><div class="number">' + (stats.uniqueNationalities || 0) + '</div><div class="label">Nationalities</div></div>';
+        html += '<div class="stat-card"><div class="number">' + (stats.uniqueReligions || 0) + '</div><div class="label">Religions</div></div>';
+        html += '<div class="stat-card"><div class="number">' + stats.maleCount + '</div><div class="label">Male</div></div>';
+        html += '<div class="stat-card"><div class="number">' + stats.femaleCount + '</div><div class="label">Female</div></div>';
+        html += '<div class="stat-card"><div class="number">' + (stats.unknownGenderCount || 0) + '</div><div class="label">Unknown Gender</div></div>';
+
+        statsDiv.innerHTML = html;
     }
 };
+
+console.log('UI module loaded successfully');

@@ -1,253 +1,327 @@
-// GitHub synchronization module v3.0
-(function() {
-    'use strict';
+// GitHub Sync Module - Handles synchronization with GitHub repository
+var GitHubSync = {
+    config: {
+        token: '',
+        owner: 'lvansnippenburg',
+        repo: 'JsonDataStorage',
+        filepath: 'prosopography-database.json',
+        branch: 'main'
+    },
 
-    var SETTINGS_KEY = 'github_settings';
-    var OWNER = 'lvansnippenburg';
-    var REPO = 'JsonDataStorage';
+    // Initialize GitHub settings from localStorage
+    init: function() {
+        this.loadSettings();
+        this.updateStatus();
+        this.bindEvents();
+    },
 
-    function getSettings() {
-        var settings = localStorage.getItem(SETTINGS_KEY);
-        if (!settings) {
-            return null;
+    // Load settings from localStorage
+    loadSettings: function() {
+        var token = localStorage.getItem('github_token');
+        var filepath = localStorage.getItem('github_filepath');
+        var branch = localStorage.getItem('github_branch');
+
+        if (token) this.config.token = token;
+        if (filepath) this.config.filepath = filepath;
+        if (branch) this.config.branch = branch;
+
+        // Load settings into form
+        if (document.getElementById('github-token')) {
+            document.getElementById('github-token').value = token || '';
         }
-        try {
-            return JSON.parse(settings);
-        } catch (e) {
-            console.error('Failed to parse GitHub settings:', e);
-            return null;
+        if (document.getElementById('github-filepath')) {
+            document.getElementById('github-filepath').value = filepath || 'prosopography-database.json';
         }
-    }
+        if (document.getElementById('github-branch')) {
+            document.getElementById('github-branch').value = branch || 'main';
+        }
+    },
 
-    function saveSettings(token, filepath, branch) {
-        var settingsObj = {
-            token: token,
-            filepath: filepath || 'prosopography-database.json',
-            branch: branch || 'main'
-        };
-        localStorage.setItem(SETTINGS_KEY, JSON.stringify(settingsObj));
-        updateConnectionStatus();
-    }
+    // Save settings to localStorage
+    saveSettings: function() {
+        var token = document.getElementById('github-token').value.trim();
+        var filepath = document.getElementById('github-filepath').value.trim();
+        var branch = document.getElementById('github-branch').value.trim();
 
-    function clearSettings() {
-        localStorage.removeItem(SETTINGS_KEY);
-        updateConnectionStatus();
-    }
+        if (token) {
+            localStorage.setItem('github_token', token);
+            this.config.token = token;
+        }
 
-    function isConfigured() {
-        var settings = getSettings();
-        return settings && settings.token && settings.filepath && settings.branch;
-    }
+        if (filepath) {
+            localStorage.setItem('github_filepath', filepath);
+            this.config.filepath = filepath;
+        }
 
-    function updateConnectionStatus() {
+        if (branch) {
+            localStorage.setItem('github_branch', branch);
+            this.config.branch = branch;
+        }
+
+        this.updateStatus();
+        alert('GitHub settings saved successfully');
+    },
+
+    // Clear settings
+    clearSettings: function() {
+        if (confirm('Are you sure you want to clear GitHub settings?')) {
+            localStorage.removeItem('github_token');
+            localStorage.removeItem('github_filepath');
+            localStorage.removeItem('github_branch');
+
+            this.config.token = '';
+            this.config.filepath = 'prosopography-database.json';
+            this.config.branch = 'main';
+
+            document.getElementById('github-token').value = '';
+            document.getElementById('github-filepath').value = 'prosopography-database.json';
+            document.getElementById('github-branch').value = 'main';
+
+            this.updateStatus();
+            alert('GitHub settings cleared');
+        }
+    },
+
+    // Update connection status display
+    updateStatus: function() {
         var statusEl = document.getElementById('github-status');
         var pushBtn = document.getElementById('btn-push-github');
         var pullBtn = document.getElementById('btn-pull-github');
 
-        if (!statusEl) {
+        if (!statusEl) return;
+
+        if (this.config.token) {
+            statusEl.innerHTML = '✓ Connected to GitHub repository: <strong>' + 
+                this.config.owner + '/' + this.config.repo + '</strong><br>' +
+                'File: ' + this.config.filepath + ' (branch: ' + this.config.branch + ')';
+            statusEl.className = 'github-status connected';
+
+            if (pushBtn) pushBtn.disabled = false;
+            if (pullBtn) pullBtn.disabled = false;
+        } else {
+            statusEl.innerHTML = '✗ Not connected to GitHub. Please configure settings below.';
+            statusEl.className = 'github-status disconnected';
+
+            if (pushBtn) pushBtn.disabled = true;
+            if (pullBtn) pullBtn.disabled = true;
+        }
+    },
+
+    // Bind event handlers
+    bindEvents: function() {
+        var self = this;
+
+        var saveBtn = document.getElementById('btn-save-settings');
+        if (saveBtn) {
+            saveBtn.addEventListener('click', function() {
+                self.saveSettings();
+            });
+        }
+
+        var clearBtn = document.getElementById('btn-clear-settings');
+        if (clearBtn) {
+            clearBtn.addEventListener('click', function() {
+                self.clearSettings();
+            });
+        }
+
+        var testBtn = document.getElementById('btn-test-connection');
+        if (testBtn) {
+            testBtn.addEventListener('click', function() {
+                self.testConnection();
+            });
+        }
+
+        var pushBtn = document.getElementById('btn-push-github');
+        if (pushBtn) {
+            pushBtn.addEventListener('click', function() {
+                self.pushToGitHub();
+            });
+        }
+
+        var pullBtn = document.getElementById('btn-pull-github');
+        if (pullBtn) {
+            pullBtn.addEventListener('click', function() {
+                self.pullFromGitHub();
+            });
+        }
+
+        var historyBtn = document.getElementById('btn-view-history');
+        if (historyBtn) {
+            historyBtn.addEventListener('click', function() {
+                self.viewHistory();
+            });
+        }
+    },
+
+    // Test GitHub connection
+    testConnection: function() {
+        if (!this.config.token) {
+            alert('Please enter a GitHub token first');
             return;
         }
 
-        if (isConfigured()) {
-            var settings = getSettings();
-            statusEl.innerHTML = 'Connected to ' + OWNER + '/' + REPO;
-            statusEl.className = 'github-status connected';
-            if (pushBtn) {
-                pushBtn.disabled = false;
+        var statusEl = document.getElementById('connection-status');
+        statusEl.innerHTML = '<div class="status-progress">Testing connection...</div>';
+        statusEl.style.display = 'block';
+
+        var url = 'https://api.github.com/repos/' + this.config.owner + '/' + this.config.repo;
+
+        fetch(url, {
+            headers: {
+                'Authorization': 'token ' + this.config.token,
+                'Accept': 'application/vnd.github.v3+json'
             }
-            if (pullBtn) {
-                pullBtn.disabled = false;
+        })
+        .then(function(response) {
+            if (response.ok) {
+                statusEl.innerHTML = '<div class="status-success">✓ Connection successful! Repository found.</div>';
+            } else {
+                statusEl.innerHTML = '<div class="status-error">✗ Connection failed: ' + response.status + ' ' + response.statusText + '</div>';
             }
-        } else {
-            statusEl.innerHTML = 'Not connected to GitHub';
-            statusEl.className = 'github-status disconnected';
-            if (pushBtn) {
-                pushBtn.disabled = true;
-            }
-            if (pullBtn) {
-                pullBtn.disabled = true;
-            }
-        }
-    }
+        })
+        .catch(function(error) {
+            statusEl.innerHTML = '<div class="status-error">✗ Connection error: ' + error.message + '</div>';
+        });
+    },
 
-    function githubRequest(endpoint, method, body) {
-        method = method || 'GET';
-        body = body || null;
-
-        var settings = getSettings();
-        if (!settings || !settings.token) {
-            return Promise.reject(new Error('GitHub not configured'));
-        }
-
-        var url = 'https://api.github.com/repos/' + OWNER + '/' + REPO + endpoint;
-        var headers = {
-            'Authorization': 'token ' + settings.token,
-            'Accept': 'application/vnd.github.v3+json',
-            'Content-Type': 'application/json'
-        };
-
-        var options = {
-            method: method,
-            headers: headers
-        };
-
-        if (body) {
-            options.body = JSON.stringify(body);
+    // Push data to GitHub
+    pushToGitHub: function() {
+        if (!this.config.token) {
+            alert('Please configure GitHub settings first');
+            return;
         }
 
-        return fetch(url, options).then(function(response) {
-            if (!response.ok) {
-                return response.json().then(function(error) {
-                    throw new Error(error.message || 'GitHub API error: ' + response.status);
+        if (!confirm('Push local database to GitHub? This will overwrite the remote file.')) {
+            return;
+        }
+
+        var statusEl = document.getElementById('sync-status');
+        statusEl.innerHTML = '<div class="sync-progress">Pushing to GitHub...</div>';
+        statusEl.style.display = 'block';
+
+        var self = this;
+        var content = Database.exportJSON();
+        var message = 'Update prosopography database - ' + new Date().toISOString();
+
+        // Get current file SHA (required for update)
+        var getUrl = 'https://api.github.com/repos/' + this.config.owner + '/' + this.config.repo + 
+                     '/contents/' + this.config.filepath + '?ref=' + this.config.branch;
+
+        fetch(getUrl, {
+            headers: {
+                'Authorization': 'token ' + this.config.token,
+                'Accept': 'application/vnd.github.v3+json'
+            }
+        })
+        .then(function(response) {
+            if (response.ok) {
+                return response.json();
+            } else if (response.status === 404) {
+                return null; // File doesn't exist yet
+            } else {
+                throw new Error('Failed to get file info: ' + response.statusText);
+            }
+        })
+        .then(function(fileData) {
+            var sha = fileData ? fileData.sha : null;
+
+            // Update or create file
+            var putUrl = 'https://api.github.com/repos/' + self.config.owner + '/' + self.config.repo + 
+                         '/contents/' + self.config.filepath;
+
+            var body = {
+                message: message,
+                content: btoa(unescape(encodeURIComponent(content))),
+                branch: self.config.branch
+            };
+
+            if (sha) {
+                body.sha = sha;
+            }
+
+            return fetch(putUrl, {
+                method: 'PUT',
+                headers: {
+                    'Authorization': 'token ' + self.config.token,
+                    'Accept': 'application/vnd.github.v3+json',
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(body)
+            });
+        })
+        .then(function(response) {
+            if (response.ok) {
+                statusEl.innerHTML = '<div class="sync-success">✓ Successfully pushed to GitHub!</div>';
+            } else {
+                return response.json().then(function(data) {
+                    throw new Error(data.message || 'Push failed');
                 });
             }
-            return response.json();
+        })
+        .catch(function(error) {
+            statusEl.innerHTML = '<div class="sync-error">✗ Push failed: ' + error.message + '</div>';
         });
-    }
+    },
 
-    function testConnection() {
-        return githubRequest('').then(function(repo) {
-            return {
-                success: true,
-                message: 'Successfully connected to ' + repo.full_name
-            };
-        }).catch(function(error) {
-            return {
-                success: false,
-                message: 'Connection failed: ' + error.message
-            };
-        });
-    }
+    // Pull data from GitHub
+    pullFromGitHub: function() {
+        if (!this.config.token) {
+            alert('Please configure GitHub settings first');
+            return;
+        }
 
-    function getFile() {
-        var settings = getSettings();
-        var endpoint = '/contents/' + settings.filepath + '?ref=' + settings.branch;
+        if (!confirm('Pull database from GitHub? This will overwrite your local data.')) {
+            return;
+        }
 
-        return githubRequest(endpoint).then(function(data) {
-            var content = atob(data.content.replace(/\s/g, ''));
-            return {
-                content: content,
-                sha: data.sha
-            };
-        }).catch(function(error) {
-            if (error.message.includes('404')) {
-                return null;
+        var statusEl = document.getElementById('sync-status');
+        statusEl.innerHTML = '<div class="sync-progress">Pulling from GitHub...</div>';
+        statusEl.style.display = 'block';
+
+        var url = 'https://api.github.com/repos/' + this.config.owner + '/' + this.config.repo + 
+                  '/contents/' + this.config.filepath + '?ref=' + this.config.branch;
+
+        fetch(url, {
+            headers: {
+                'Authorization': 'token ' + this.config.token,
+                'Accept': 'application/vnd.github.v3+json'
             }
-            throw error;
-        });
-    }
-
-    function push(commitMessage) {
-        var settings = getSettings();
-        var dbContent = Database.exportJSON();
-
-        return getFile().then(function(existing) {
-            var bodyObj = {
-                message: commitMessage || 'Update prosopography database - ' + new Date().toISOString(),
-                content: btoa(unescape(encodeURIComponent(dbContent))),
-                branch: settings.branch
-            };
-
-            if (existing && existing.sha) {
-                bodyObj.sha = existing.sha;
-            }
-
-            return githubRequest('/contents/' + settings.filepath, 'PUT', bodyObj);
-        }).then(function() {
-            return {
-                success: true,
-                message: 'Database successfully pushed to GitHub!'
-            };
-        });
-    }
-
-    function pull() {
-        return getFile().then(function(fileData) {
-            if (!fileData) {
-                throw new Error('No database file found in GitHub repository.');
-            }
-
-            var success = Database.importJSON(fileData.content);
-
-            if (!success) {
-                throw new Error('Failed to import database from GitHub. Invalid format.');
-            }
-
-            return {
-                success: true,
-                message: 'Database successfully pulled from GitHub!'
-            };
-        });
-    }
-
-    function getHistory(limit) {
-        limit = limit || 10;
-        var settings = getSettings();
-        var endpoint = '/commits?path=' + settings.filepath + '&sha=' + settings.branch + '&per_page=' + limit;
-
-        return githubRequest(endpoint).then(function(commits) {
-            return commits.map(function(commit) {
-                return {
-                    sha: commit.sha.substring(0, 7),
-                    message: commit.commit.message,
-                    author: commit.commit.author.name,
-                    date: new Date(commit.commit.author.date),
-                    url: commit.html_url
-                };
-            });
-        });
-    }
-
-    function showHistory() {
-        getHistory(20).then(function(history) {
-            var html = '<div class="history-modal-content">';
-            html += '<h3>Recent Changes on GitHub</h3>';
-
-            if (history.length === 0) {
-                html += '<p>No commits found for this file.</p>';
+        })
+        .then(function(response) {
+            if (response.ok) {
+                return response.json();
             } else {
-                html += '<ul class="commit-list">';
-                for (var i = 0; i < history.length; i++) {
-                    var commit = history[i];
-                    html += '<li class="commit-item">';
-                    html += '<div class="commit-header">';
-                    html += '<strong>' + commit.message + '</strong>';
-                    html += '<span class="commit-sha">' + commit.sha + '</span>';
-                    html += '</div>';
-                    html += '<div class="commit-meta">';
-                    html += 'by ' + commit.author + ' on ' + commit.date.toLocaleString();
-                    html += '</div>';
-                    html += '<a href="' + commit.url + '" target="_blank" class="commit-link">View on GitHub</a>';
-                    html += '</li>';
-                }
-                html += '</ul>';
+                throw new Error('Failed to fetch file: ' + response.statusText);
             }
+        })
+        .then(function(data) {
+            var content = decodeURIComponent(escape(atob(data.content)));
+            var success = Database.importJSON(content);
 
-            html += '</div>';
-
-            var historyDiv = document.getElementById('sync-status');
-            if (historyDiv) {
-                historyDiv.innerHTML = html;
-                historyDiv.style.display = 'block';
+            if (success) {
+                statusEl.innerHTML = '<div class="sync-success">✓ Successfully pulled from GitHub!</div>';
+                UI.displayStatistics();
+                UI.displayBrowseResults();
+            } else {
+                throw new Error('Invalid database format');
             }
-        }).catch(function(error) {
-            alert('Failed to load history: ' + error.message);
+        })
+        .catch(function(error) {
+            statusEl.innerHTML = '<div class="sync-error">✗ Pull failed: ' + error.message + '</div>';
         });
+    },
+
+    // View commit history
+    viewHistory: function() {
+        alert('Commit history viewer - Coming soon!\n\nFor now, visit:\nhttps://github.com/' + 
+              this.config.owner + '/' + this.config.repo + '/commits/' + this.config.branch + '/' + this.config.filepath);
     }
+};
 
-    // Create and expose GitHubSync global object
-    window.GitHubSync = {
-        getSettings: getSettings,
-        saveSettings: saveSettings,
-        clearSettings: clearSettings,
-        isConfigured: isConfigured,
-        updateConnectionStatus: updateConnectionStatus,
-        testConnection: testConnection,
-        push: push,
-        pull: pull,
-        showHistory: showHistory
-    };
+// Initialize when settings view is loaded
+document.addEventListener('DOMContentLoaded', function() {
+    GitHubSync.init();
+});
 
-    console.log('GitHubSync module v3.0 loaded successfully');
-    console.log('Available methods:', Object.keys(window.GitHubSync));
-})();
+console.log('GitHub Sync module loaded successfully');

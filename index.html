@@ -3,14 +3,47 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>17th Century Prosopography Database</title>
-    <link rel="stylesheet" href="styles.css?v=3">
+    <title>Turncoats and Apostates</title>
+
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="manifest.json">
+
+    <!-- Theme colors -->
+    <meta name="theme-color" content="#C41E3A">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Livorno DB">
+
+    <!-- Icons -->
+    <link rel="apple-touch-icon" href="icons/icon-152x152.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="icons/icon-32x32.png">
+    <link rel="icon" type="image/png" href="icons/favicon-96x96.png" sizes="96x96" />
+    <link rel="icon" type="image/svg+xml" href="icons/favicon.svg" />
+    <link rel="shortcut icon" href="icons/favicon.ico" />
+    <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-title" content="Turncoats and Apostates" />
+    <link rel="manifest" href="icons/site.webmanifest" />
+
+    <!-- Favicon links -->
+    <link rel="icon" type="image/x-icon" href="icons/favicon.ico">
+    <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32x32.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png">
+
+    <link rel="stylesheet" href="styles.css?v=10">
 </head>
 <body>
     <div class="container">
         <header>
-            <h1>17th Century Prosopography Database</h1>
-            <nav>
+            <div class="header-content">
+                <img src="livorno-header.png" alt="Livorno Coat of Arms" class="header-logo">
+                <h1>Turncoats and Apostates</h1>
+                <button id="hamburger-btn" class="hamburger-btn" aria-label="Menu">
+                    <span class="hamburger-line"></span>
+                    <span class="hamburger-line"></span>
+                    <span class="hamburger-line"></span>
+                </button>
+            </div>
+            <nav id="main-nav" class="main-nav">
                 <button id="nav-search" class="nav-btn active">Search</button>
                 <button id="nav-add" class="nav-btn">Add Person</button>
                 <button id="nav-browse" class="nav-btn">Browse All</button>
@@ -23,6 +56,7 @@
             <!-- Search View -->
             <section id="search-view" class="view active">
                 <h2>Search Persons</h2>
+
                 <div class="search-form">
                     <input type="text" id="search-name" placeholder="Search by name (any variant)">
                     <input type="text" id="search-place" placeholder="Search by place">
@@ -38,6 +72,12 @@
                 </div>
                 <div id="search-info" class="search-info"></div>
                 <div id="search-results"></div>
+
+                <!-- Database Statistics at bottom -->
+                <div class="stats-section">
+                    <h3>Database Overview</h3>
+                    <div id="stats-display"></div>
+                </div>
             </section>
 
             <!-- Add/Edit Person View -->
@@ -71,6 +111,26 @@
                                     <option value="unknown">Unknown</option>
                                     <option value="male">Male</option>
                                     <option value="female">Female</option>
+                                </select>
+                            </label>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="autocomplete-wrapper">
+                                <label>
+                                    Religion:
+                                    <input type="text" id="religion" autocomplete="off" placeholder="e.g., Catholic, Protestant, Jewish">
+                                </label>
+                                <div id="religion-suggestions" class="autocomplete-dropdown"></div>
+                            </div>
+
+                            <label>
+                                Religion Certainty:
+                                <select id="religion-certainty">
+                                    <option value="certain">Certain</option>
+                                    <option value="probable">Probable</option>
+                                    <option value="possible">Possible</option>
+                                    <option value="unknown">Unknown</option>
                                 </select>
                             </label>
                         </div>
@@ -189,11 +249,6 @@
                         <button id="btn-import-json">Import JSON</button>
                     </div>
                 </div>
-
-                <div class="stats-section">
-                    <h3>Database Statistics</h3>
-                    <div id="stats-display"></div>
-                </div>
             </section>
 
             <!-- Settings View -->
@@ -250,8 +305,8 @@
 
                 <div class="settings-section">
                     <h3>About</h3>
-                    <p><strong>17th Century Prosopography Database</strong></p>
-                    <p>A specialized tool for managing historical prosopographical research with support for name variants, attestations, relationships, and phonetic matching.</p>
+                    <p><strong>Turncoats and Apostates</strong></p>
+                    <p>A specialized tool for managing historical prosopographical research with support for name variants, attestations, relationships, and phonetic matching. The coat of arms represents the city of Livorno, a key location in the study of religious conversion and migration in early modern Europe.</p>
                     <p>Repository: <a href="https://github.com/lvansnippenburg/JsonDataStorage" target="_blank">lvansnippenburg/JsonDataStorage</a></p>
                 </div>
             </section>
@@ -271,9 +326,22 @@
     </div>
 
     <!-- Scripts with cache busters to force reload -->
-    <script src="database.js?v=3"></script>
-    <script src="github-sync.js?v=3"></script>
-    <script src="ui.js?v=3"></script>
-    <script src="app.js?v=3"></script>
+    <script src="database.js?v=10"></script>
+    <script src="github-sync.js?v=10"></script>
+    <script src="ui.js?v=10"></script>
+    <script src="app.js?v=10"></script>
+
+    <!-- Service Worker Registration -->
+    <script>
+    if ('serviceWorker' in navigator) {
+    window.addEventListener('load', function() {
+        navigator.serviceWorker.register('./service-worker.js')
+        .then(function(registration) {
+            console.log('ServiceWorker registered:', registration.scope);
+        });
+    });
+    }
+    </script>
+
 </body>
 </html>

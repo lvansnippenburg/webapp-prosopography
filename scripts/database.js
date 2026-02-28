@@ -1,7 +1,7 @@
 // Database Module - Handles all data storage and retrieval via IndexedDB
 const Database = {
   DB_NAME: "prosopographyDB",
-  DB_VERSION: 3,
+  DB_VERSION: 4,
   STORE_NAME: "persons",
   _db: null,
 
@@ -39,13 +39,17 @@ const Database = {
           var store = db.createObjectStore(self.STORE_NAME, { keyPath: "uuid" });
           store.createIndex("standardizedName", "standardizedName", { unique: false });
           store.createIndex("modifiedAt", "modifiedAt", { unique: false });
+          store.createIndex("deletedAt", "deletedAt", { unique: false });
           console.log("IndexedDB: object store created");
         } else {
-          // Store already exists; make sure the modifiedAt index exists
+          // Store already exists; make sure all indexes exist
           var tx = event.target.transaction;
           var store = tx.objectStore(self.STORE_NAME);
           if (!store.indexNames.contains("modifiedAt")) {
             store.createIndex("modifiedAt", "modifiedAt", { unique: false });
+          }
+          if (!store.indexNames.contains("deletedAt")) {
+            store.createIndex("deletedAt", "deletedAt", { unique: false });
           }
 
           // ── Re-migration: fix any records where id !== uuid ──────────
@@ -156,8 +160,19 @@ const Database = {
 
   // ── CRUD ──────────────────────────────────────────────────────────────────
 
-  // Returns Promise<Person[]>
+  // Returns Promise<Person[]> — excludes soft-deleted records
   getAllPersons: function () {
+    return this._txRead(function (store) {
+      return store.getAll();
+    }).then(function (all) {
+      return all.filter(function (p) {
+        return !p.deletedAt;
+      });
+    });
+  },
+
+  // Returns Promise<Person[]> — includes tombstones; used by sync only
+  getAllPersonsIncludingDeleted: function () {
     return this._txRead(function (store) {
       return store.getAll();
     });
@@ -231,8 +246,29 @@ const Database = {
     });
   },
 
+  // Soft-delete: stamps deletedAt + modifiedAt onto the record and keeps it
+  // in IndexedDB so the tombstone can be pushed to GitHub and propagated to
+  // other devices on pull/autoSync.
   // Returns Promise<void>
   deletePerson: function (id) {
+    var self = this;
+    return this.getPersonByUUID(id).then(function (existing) {
+      if (!existing) return; // already gone
+      var now = new Date().toISOString();
+      existing.deletedAt = now;
+      existing.modifiedAt = now;
+      existing.updatedAt = now;
+      return self._txWrite(function (store) {
+        return store.put(existing);
+      });
+    });
+  },
+
+  // Hard-delete: permanently removes the record from IndexedDB.
+  // Only used internally after a remote tombstone has been applied and
+  // confirmed on both sides (optional housekeeping).
+  // Returns Promise<void>
+  hardDeletePerson: function (id) {
     return this._txWrite(function (store) {
       return store.delete(id);
     });
@@ -261,16 +297,24 @@ const Database = {
   // Upsert a person by uuid (used by import / GitHub pull).
   // If a record with this uuid already exists and the incoming modifiedAt is
   // not newer, the existing record is left untouched.
-  // Returns Promise<'inserted'|'updated'|'skipped'>
+  // If the incoming record carries deletedAt it is treated as a tombstone:
+  // the local record is soft-deleted when the incoming version is newer.
+  // Returns Promise<'inserted'|'updated'|'deleted'|'skipped'>
   upsertPerson: function (person) {
     var self = this;
     if (!person.uuid) {
       person.uuid = this.generateUUID();
       person.id = person.uuid;
     }
-    return this.getPersonByUUID(person.uuid).then(function (existing) {
+    // Use the including-deleted variant so tombstones don't get re-inserted
+    return this.getAllPersonsIncludingDeleted().then(function (all) {
+      var existing = all.find(function (p) {
+        return p.uuid === person.uuid || p.id === person.uuid;
+      });
+
       if (!existing) {
-        // New record
+        // Brand-new record (or tombstone for something we never had — store it
+        // so we have a record of the deletion if it ever syncs back)
         var now = new Date().toISOString();
         if (!person.modifiedAt) person.modifiedAt = now;
         if (!person.createdAt) person.createdAt = now;
@@ -280,7 +324,7 @@ const Database = {
             return store.put(person);
           })
           .then(function () {
-            return "inserted";
+            return person.deletedAt ? "deleted" : "inserted";
           });
       }
 
@@ -299,14 +343,14 @@ const Database = {
           return store.put(person);
         })
         .then(function () {
-          return "updated";
+          return person.deletedAt ? "deleted" : "updated";
         });
     });
   },
 
   // ── Search ────────────────────────────────────────────────────────────────
 
-  // Returns Promise<Person[]>
+  // Returns Promise<Person[]> — never returns soft-deleted records
   searchPersons: function (criteria) {
     return this.getAllPersons().then(function (persons) {
       var results = persons;
@@ -488,7 +532,7 @@ const Database = {
 
   // ── Export / Import (local JSON) ─────────────────────────────────────────
 
-  // Returns Promise<string>  (pretty-printed JSON)
+  // Returns Promise<string>  (pretty-printed JSON, excludes tombstones)
   exportJSON: function () {
     return this.getAllPersons().then(function (persons) {
       var db = {

@@ -1,5 +1,5 @@
 // Service Worker for Livorno Prosopography Database
-const CACHE_NAME = "livorno-prosopography-v2";
+const CACHE_NAME = "livorno-prosopography-v3";
 const urlsToCache = [
   "./",
   "./index.html",

@@ -1139,11 +1139,18 @@ var UI = {
       deleteBtn.parentNode.replaceChild(newDeleteBtn, deleteBtn);
 
       newDeleteBtn.addEventListener("click", function () {
-        if (confirm("Are you sure you want to delete " + person.standardizedName + "?")) {
-          Database.deletePerson(id);
-          modal.classList.remove("active");
-          UI.displayBrowseResults();
-          UI.displayStatistics();
+        if (
+          confirm(
+            "Are you sure you want to delete " +
+              person.standardizedName +
+              "?\n\nThe record will be marked for deletion and removed from GitHub on the next push.",
+          )
+        ) {
+          Database.deletePerson(id).then(function () {
+            modal.classList.remove("active");
+            UI.displayBrowseResults();
+            UI.displayStatistics();
+          });
         }
       });
     }

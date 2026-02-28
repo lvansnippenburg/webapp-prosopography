@@ -298,17 +298,18 @@ var GitHubSync = {
 
     showBanner("Syncing with GitHub…", "progress");
 
-    // Step 1 – fetch all remote records in parallel with local records
-    Promise.all([Database.getAllPersons(), self._listRemoteRecords()])
+    // Step 1 – fetch all records (including tombstones) and the remote listing
+    Promise.all([Database.getAllPersonsIncludingDeleted(), self._listRemoteRecords()])
       .then(function (results) {
         var localPersons = results[0];
         var remoteFiles = results[1];
 
-        // Build lookup maps
-        var localByUUID = {};
+        // Build lookup maps (includes tombstones — getAllPersonsIncludingDeleted was used)
+        var localByUUIDAll = {};
         localPersons.forEach(function (p) {
-          if (p.uuid) localByUUID[p.uuid] = p;
+          if (p.uuid) localByUUIDAll[p.uuid] = p;
         });
+        var localByUUID = localByUUIDAll;
 
         var remoteByUUID = {};
         remoteFiles.forEach(function (f) {
@@ -343,7 +344,14 @@ var GitHubSync = {
 
           var toUpload = []; // { person, sha|null }  local → remote
           var conflicts = []; // { local, remote }
-          var summary = { inserted: 0, updated: 0, uploaded: 0, skipped: 0, conflicts: 0 };
+          var summary = {
+            inserted: 0,
+            updated: 0,
+            uploaded: 0,
+            deleted: 0,
+            skipped: 0,
+            conflicts: 0,
+          };
 
           // --- Evaluate remote records ---
           var applyRemote = remoteUUIDs.reduce(function (chain, uuid) {
@@ -352,16 +360,17 @@ var GitHubSync = {
               if (!remote) return; // fetch failed, skip
 
               var local = localByUUID[uuid];
+              var remoteDate = remote.modifiedAt ? new Date(remote.modifiedAt) : new Date(0);
 
               if (!local) {
-                // Remote only → insert locally
-                return Database.upsertPerson(remote).then(function () {
-                  summary.inserted++;
+                // Remote only → apply locally (upsertPerson handles tombstones)
+                return Database.upsertPerson(remote).then(function (result) {
+                  if (result === "deleted") summary.deleted++;
+                  else summary.inserted++;
                 });
               }
 
               var localDate = local.modifiedAt ? new Date(local.modifiedAt) : new Date(0);
-              var remoteDate = remote.modifiedAt ? new Date(remote.modifiedAt) : new Date(0);
 
               if (localDate.getTime() === remoteDate.getTime()) {
                 summary.skipped++;
@@ -369,27 +378,47 @@ var GitHubSync = {
               }
 
               if (remoteDate > localDate) {
-                // Remote is simply newer → update local
-                return Database.upsertPerson(remote).then(function () {
-                  summary.updated++;
+                // Remote is newer → apply locally.
+                // If the remote is a tombstone, soft-delete locally.
+                // If the local is already soft-deleted and the remote is also a
+                // tombstone (or vice-versa) upsertPerson handles it correctly.
+                return Database.upsertPerson(remote).then(function (result) {
+                  if (result === "deleted") summary.deleted++;
+                  else summary.updated++;
                 });
               }
 
-              // localDate > remoteDate → local is newer; but we need to check
-              // whether the remote was independently edited (true conflict) or
-              // was just never pushed (local-only edit).
-              // We detect a true conflict by checking whether remote.modifiedAt
-              // differs from the last known-pushed timestamp stored locally.
-              // As a pragmatic heuristic: if the remote record exists and its
-              // modifiedAt is more recent than local.createdAt, it was edited
-              // on the remote side too → conflict.
+              // localDate > remoteDate — local is newer.
+              // Special case: if the local is a tombstone but the remote is not,
+              // we want to push the deletion to GitHub rather than treat it as a
+              // conflict — queue it for upload.
+              if (local.deletedAt && !remote.deletedAt) {
+                toUpload.push({
+                  person: local,
+                  sha: remote._remoteFileSha || null,
+                  filePath: self.config.folder + "/" + uuid + ".json",
+                });
+                return;
+              }
+
+              // Both sides are live records — check for true conflict vs. simple
+              // local-only edit (remote has been changed since the record was created).
               var localCreated = local.createdAt ? new Date(local.createdAt) : new Date(0);
               if (remoteDate > localCreated) {
                 // Both sides have been edited after the record was first created → conflict
-                conflicts.push({ local: local, remote: remote });
-                summary.conflicts++;
+                // Skip conflict UI for tombstones — local deletion wins silently.
+                if (local.deletedAt) {
+                  toUpload.push({
+                    person: local,
+                    sha: remote._remoteFileSha || null,
+                    filePath: self.config.folder + "/" + uuid + ".json",
+                  });
+                } else {
+                  conflicts.push({ local: local, remote: remote });
+                  summary.conflicts++;
+                }
               } else {
-                // Remote is just the original unedited version → safe to overwrite
+                // Remote is the original unedited version → safe to push local
                 toUpload.push({
                   person: local,
                   sha: remote._remoteFileSha || null,
@@ -404,6 +433,8 @@ var GitHubSync = {
             localPersons.forEach(function (local) {
               if (!local.uuid) return;
               if (!remoteRecordByUUID[local.uuid]) {
+                // Don't push a tombstone for something GitHub has never seen
+                if (local.deletedAt) return;
                 toUpload.push({
                   person: local,
                   sha: null,
@@ -446,6 +477,7 @@ var GitHubSync = {
                 var parts = [];
                 if (summary.inserted) parts.push(summary.inserted + " imported");
                 if (summary.updated) parts.push(summary.updated + " updated");
+                if (summary.deleted) parts.push(summary.deleted + " deleted");
                 if (summary.uploaded) parts.push(summary.uploaded + " uploaded");
                 if (summary.skipped) parts.push(summary.skipped + " unchanged");
                 var msg = parts.length
@@ -789,7 +821,7 @@ var GitHubSync = {
     statusEl.innerHTML = '<div class="sync-progress">Preparing push...</div>';
     statusEl.style.display = "block";
 
-    Database.getAllPersons()
+    Database.getAllPersonsIncludingDeleted()
       .then(function (localPersons) {
         if (localPersons.length === 0) {
           statusEl.innerHTML =
@@ -836,9 +868,16 @@ var GitHubSync = {
               var remote = remoteMap[person.uuid];
 
               if (!remote) {
+                // Don't bother pushing a tombstone for something GitHub has never seen
+                if (person.deletedAt) {
+                  done++;
+                  skipCount++;
+                  updateProgress();
+                  return;
+                }
                 var content = JSON.stringify(person, null, 2);
-                var msg =
-                  "Add record " + person.uuid + " (" + (person.standardizedName || "unknown") + ")";
+                var label = person.standardizedName || "unknown";
+                var msg = "Add record " + person.uuid + " (" + label + ")";
                 return self._putFile(filePath, content, msg, null).then(function () {
                   uploadCount++;
                   done++;
@@ -865,8 +904,10 @@ var GitHubSync = {
                 }
 
                 var content = JSON.stringify(person, null, 2);
+                var verb = person.deletedAt ? "Delete (tombstone)" : "Update";
                 var msg =
-                  "Update record " +
+                  verb +
+                  " record " +
                   person.uuid +
                   " (" +
                   (person.standardizedName || "unknown") +
@@ -978,7 +1019,12 @@ var GitHubSync = {
               return Database.upsertPerson(person).then(function (result) {
                 if (result === "inserted") insertCount++;
                 else if (result === "updated") updateCount++;
-                else skipCount++;
+                else if (result === "deleted") {
+                  // Count deletions separately — reuse updateCount for display
+                  updateCount++;
+                } else {
+                  skipCount++;
+                }
                 done++;
                 updateProgress();
               });

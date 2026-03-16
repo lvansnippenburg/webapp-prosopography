@@ -43,6 +43,11 @@ let editingUUID = null;
 let showDeleted = false;
 let sortCol = "lastname";
 let sortAsc = true;
+let searchScopes = ["all"]; // Multiple scopes for search
+let regexMode = false;
+let advancedMode = false;
+let searchHistory = [];
+const MAX_SEARCH_HISTORY = 20;
 
 // ── Settings ───────────────────────────────────────────────────────
 
@@ -87,6 +92,84 @@ function updateSyncTimestamps() {
   if (lastPullEl) {
     lastPullEl.textContent = s.lastSyncPull ? new Date(s.lastSyncPull).toLocaleString() : "Never";
   }
+}
+
+// ── Search History ─────────────────────────────────────────────────
+
+function loadSearchHistory() {
+  const stored = localStorage.getItem("searchHistory");
+  if (stored) {
+    try {
+      searchHistory = JSON.parse(stored);
+    } catch {
+      searchHistory = [];
+    }
+  }
+}
+
+function saveSearchHistory() {
+  localStorage.setItem("searchHistory", JSON.stringify(searchHistory));
+}
+
+function addToSearchHistory(query, scopes) {
+  if (!query.trim()) return;
+
+  // Remove duplicate if exists
+  searchHistory = searchHistory.filter(
+    (item) => !(item.query === query && JSON.stringify(item.scopes) === JSON.stringify(scopes)),
+  );
+
+  // Add to front
+  searchHistory.unshift({
+    query,
+    scopes: [...scopes],
+    timestamp: new Date().toISOString(),
+  });
+
+  // Limit size
+  if (searchHistory.length > MAX_SEARCH_HISTORY) {
+    searchHistory = searchHistory.slice(0, MAX_SEARCH_HISTORY);
+  }
+
+  saveSearchHistory();
+}
+
+function showSearchHistory() {
+  const dropdown = document.getElementById("search-history-dropdown");
+  const searchInput = document.getElementById("search-input");
+
+  if (searchHistory.length === 0) {
+    dropdown.innerHTML =
+      '<div style="padding:12px;color:var(--mid-grey);font-size:12px;">No search history</div>';
+  } else {
+    dropdown.innerHTML = "";
+    searchHistory.forEach((item) => {
+      const div = document.createElement("div");
+      div.className = "lookup-item";
+      div.innerHTML = `
+        <div style="font-weight:500;">${item.query}</div>
+        <div style="font-size:10px;color:var(--mid-grey);">
+          ${item.scopes.join(", ")} • ${new Date(item.timestamp).toLocaleDateString()}
+        </div>
+      `;
+      div.addEventListener("click", () => {
+        searchInput.value = item.query;
+        searchScopes = [...item.scopes];
+        updateScopeDisplay();
+        dropdown.classList.add("hidden");
+        refreshRecords(item.query);
+      });
+      dropdown.appendChild(div);
+    });
+  }
+
+  // Position dropdown
+  const rect = searchInput.getBoundingClientRect();
+  dropdown.style.position = "absolute";
+  dropdown.style.top = `${rect.bottom}px`;
+  dropdown.style.left = `${rect.left}px`;
+  dropdown.style.width = `${rect.width}px`;
+  dropdown.classList.remove("hidden");
 }
 
 // ── Utilities ──────────────────────────────────────────────────────
@@ -682,29 +765,36 @@ async function refreshRecords(query = "") {
   let filtered = showDeleted ? allRecords : allRecords.filter((r) => !r.deletedAt);
 
   if (query.trim()) {
-    const q = query.toLowerCase();
-    filtered = filtered.filter((r) => {
-      const names = [
-        r.lastname,
-        r.firstname,
-        r.patronymic,
-        ...(r.lastnameVariations || []),
-        ...(r.firstnameVariations || []),
-      ].map((s) => (s || "").toLowerCase());
-      if (names.some((n) => n.includes(q))) return true;
-      const refs = [...(r.zotero || []), ...(r.archief || [])].map((ref) =>
-        ref.reference.toLowerCase(),
-      );
-      if (refs.some((n) => n.includes(q))) return true;
-      if (r.notes?.toLowerCase().includes(q)) return true;
-      if (r.origin?.toLowerCase().includes(q)) return true;
-      if (r.city?.toLowerCase().includes(q)) return true;
-      if (r.profession?.toLowerCase().includes(q)) return true;
-      // Gender matching: "male" matches "M", "female" matches "F"
-      const genderLabel = r.gender === "F" ? "female" : "male";
-      if (genderLabel.includes(q)) return true;
-      return false;
-    });
+    // Add to search history
+    addToSearchHistory(query, searchScopes);
+
+    // Advanced query syntax: field:value AND/OR field:value
+    if (advancedMode && (query.includes(" AND ") || query.includes(" OR "))) {
+      filtered = filtered.filter((r) => evaluateAdvancedQuery(r, query));
+    } else {
+      // Standard search with multiple scopes and optional regex
+      filtered = filtered.filter((r) => {
+        // If "all" is in scopes, search all fields
+        if (searchScopes.includes("all")) {
+          return searchInRecord(r, query, [
+            "lastname",
+            "firstname",
+            "patronymic",
+            "origin",
+            "city",
+            "profession",
+            "religion",
+            "notes",
+            "references",
+            "relationships",
+            "name",
+          ]);
+        }
+
+        // Search only selected scopes (OR logic - match any scope)
+        return searchScopes.some((scope) => searchInRecord(r, query, [scope]));
+      });
+    }
   }
 
   // Sort
@@ -718,12 +808,184 @@ async function refreshRecords(query = "") {
   renderTable(filtered);
 }
 
+function searchInRecord(record, query, scopes) {
+  const q = regexMode ? query : query.toLowerCase();
+
+  // Helper to test a value against query
+  const matches = (value) => {
+    if (!value) return false;
+    const v = regexMode ? value : value.toLowerCase();
+    if (regexMode) {
+      try {
+        return new RegExp(q, "i").test(v);
+      } catch {
+        return false; // Invalid regex
+      }
+    }
+    return v.includes(q);
+  };
+
+  // Test each scope
+  for (const scope of scopes) {
+    switch (scope) {
+      case "lastname":
+        if (matches(record.lastname)) return true;
+        if ((record.lastnameVariations || []).some((v) => matches(v))) return true;
+        break;
+
+      case "firstname":
+        if (matches(record.firstname)) return true;
+        if ((record.firstnameVariations || []).some((v) => matches(v))) return true;
+        break;
+
+      case "patronymic":
+        if (matches(record.patronymic)) return true;
+        break;
+
+      case "name":
+        const names = [
+          record.lastname,
+          record.firstname,
+          record.patronymic,
+          ...(record.lastnameVariations || []),
+          ...(record.firstnameVariations || []),
+        ];
+        if (names.some((n) => matches(n || ""))) return true;
+        break;
+
+      case "origin":
+        if (matches(record.origin)) return true;
+        break;
+
+      case "city":
+        if (matches(record.city)) return true;
+        break;
+
+      case "profession":
+        if (matches(record.profession)) return true;
+        break;
+
+      case "religion":
+        if (matches(record.religion)) return true;
+        break;
+
+      case "notes":
+        if (matches(record.notes)) return true;
+        break;
+
+      case "references":
+        const refs = [...(record.zotero || []), ...(record.archief || [])];
+        if (refs.some((ref) => matches(ref.reference))) return true;
+        break;
+
+      case "relationships":
+        const rels = record.relationships || [];
+        if (rels.some((rel) => matches(rel.personName) || matches(rel.type))) return true;
+        break;
+    }
+  }
+
+  return false;
+}
+
+function evaluateAdvancedQuery(record, query) {
+  // Parse advanced query syntax: field:value AND/OR field:value
+  // Split by AND/OR while preserving the operator
+  const tokens = query.split(/\s+(AND|OR)\s+/i);
+  const conditions = [];
+  const operators = [];
+
+  for (let i = 0; i < tokens.length; i++) {
+    if (i % 2 === 0) {
+      // Condition
+      conditions.push(tokens[i].trim());
+    } else {
+      // Operator
+      operators.push(tokens[i].toUpperCase());
+    }
+  }
+
+  // Evaluate each condition
+  const results = conditions.map((condition) => {
+    const match = condition.match(/^(\w+):(.+)$/);
+    if (!match) {
+      // No field specified, search all
+      return searchInRecord(record, condition, [
+        "lastname",
+        "firstname",
+        "patronymic",
+        "origin",
+        "city",
+        "profession",
+        "religion",
+        "notes",
+        "references",
+        "relationships",
+      ]);
+    }
+
+    const [, field, value] = match;
+    return searchInRecord(record, value, [field.toLowerCase()]);
+  });
+
+  // Apply operators
+  if (results.length === 1) return results[0];
+
+  let result = results[0];
+  for (let i = 0; i < operators.length; i++) {
+    if (operators[i] === "AND") {
+      result = result && results[i + 1];
+    } else if (operators[i] === "OR") {
+      result = result || results[i + 1];
+    }
+  }
+
+  return result;
+}
+
+function updateScopeDisplay() {
+  const display = document.getElementById("scope-display");
+  if (searchScopes.includes("all")) {
+    display.textContent = "All";
+  } else if (searchScopes.length === 0) {
+    display.textContent = "None";
+  } else if (searchScopes.length === 1) {
+    const labels = {
+      name: "Name",
+      lastname: "Lastname",
+      firstname: "Firstname",
+      patronymic: "Patronymic",
+      origin: "Origin",
+      city: "City",
+      profession: "Profession",
+      religion: "Religion",
+      notes: "Notes",
+      references: "Refs",
+      relationships: "Rels",
+    };
+    display.textContent = labels[searchScopes[0]] || searchScopes[0];
+  } else {
+    display.textContent = `${searchScopes.length} fields`;
+  }
+}
+
 function renderStats(records) {
   // Only count non-deleted records
   const active = records.filter((r) => !r.deletedAt);
   const total = active.length;
   const male = active.filter((r) => r.gender === "M").length;
   const female = active.filter((r) => r.gender === "F").length;
+
+  // Count relationships
+  let totalRelationships = 0;
+  const relationshipTypeCounts = {};
+  active.forEach((r) => {
+    const rels = r.relationships || [];
+    totalRelationships += rels.length;
+    rels.forEach((rel) => {
+      relationshipTypeCounts[rel.type] = (relationshipTypeCounts[rel.type] || 0) + 1;
+    });
+  });
 
   // Collect unique origins and their counts
   const originCounts = {};
@@ -734,13 +996,32 @@ function renderStats(records) {
     }
   });
 
-  // Sort origins alphabetically
+  // Collect unique religions and their counts
+  const religionCounts = {};
+  active.forEach((r) => {
+    const religion = (r.religion || "").trim();
+    if (religion) {
+      religionCounts[religion] = (religionCounts[religion] || 0) + 1;
+    }
+  });
+
+  // Sort origins and religions alphabetically
   const sortedOrigins = Object.keys(originCounts).sort();
+  const sortedReligions = Object.keys(religionCounts).sort();
 
   // Update total/gender stats
   document.getElementById("stat-total").textContent = total;
   document.getElementById("stat-male").textContent = male;
   document.getElementById("stat-female").textContent = female;
+
+  // Update relationships stat (if element exists)
+  const relStat = document.getElementById("stat-relationships");
+  if (relStat) {
+    relStat.textContent = totalRelationships;
+    relStat.title = Object.entries(relationshipTypeCounts)
+      .map(([type, count]) => `${type}: ${count}`)
+      .join(", ");
+  }
 
   // Dynamically populate origin stats
   const originContainer = document.getElementById("origin-stats-container");
@@ -755,10 +1036,34 @@ function renderStats(records) {
     card.addEventListener("click", () => {
       const searchInput = document.getElementById("search-input");
       searchInput.value = origin;
+      searchScopes = ["origin"];
+      updateScopeDisplay();
       refreshRecords(origin);
     });
     originContainer.appendChild(card);
   });
+
+  // Dynamically populate religion stats
+  const religionContainer = document.getElementById("religion-stats-container");
+  if (religionContainer) {
+    religionContainer.innerHTML = "";
+    sortedReligions.forEach((religion) => {
+      const card = document.createElement("div");
+      card.className = "stat-card stat-card--clickable";
+      card.innerHTML = `
+        <span class="stat-value">${religionCounts[religion]}</span>
+        <span class="stat-label">${religion}</span>
+      `;
+      card.addEventListener("click", () => {
+        const searchInput = document.getElementById("search-input");
+        searchInput.value = religion;
+        searchScopes = ["religion"];
+        updateScopeDisplay();
+        refreshRecords(religion);
+      });
+      religionContainer.appendChild(card);
+    });
+  }
 }
 
 function renderTable(records) {
@@ -770,7 +1075,7 @@ function renderTable(records) {
 
   if (!records.length) {
     tbody.innerHTML =
-      '<tr><td colspan="11" style="text-align:center;padding:30px;color:#999;">No records found</td></tr>';
+      '<tr><td colspan="12" style="text-align:center;padding:30px;color:#999;">No records found</td></tr>';
     return;
   }
 
@@ -781,6 +1086,7 @@ function renderTable(records) {
 
     const zoteroCount = (r.zotero || []).length;
     const archiefCount = (r.archief || []).length;
+    const relationshipCount = (r.relationships || []).length;
     const lnVars = (r.lastnameVariations || [])
       .map((v) => `<span class="tag">${v}</span>`)
       .join("");
@@ -804,6 +1110,7 @@ function renderTable(records) {
             <td>${r.lastseen || ""}</td>
             <td>${zoteroCount ? `<span class="tag">${zoteroCount} ref${zoteroCount > 1 ? "s" : ""}</span>` : ""}</td>
             <td>${archiefCount ? `<span class="tag">${archiefCount} ref${archiefCount > 1 ? "s" : ""}</span>` : ""}</td>
+            <td>${relationshipCount ? `<span class="tag">${relationshipCount} rel${relationshipCount > 1 ? "s" : ""}</span>` : ""}</td>
             <td>
                 <button class="btn-ghost btn-small btn-edit" data-uuid="${r.uuid}">Edit</button>
             </td>
@@ -948,6 +1255,284 @@ function collectRefs(containerId) {
     .filter((r) => r.reference);
 }
 
+function showPersonPicker() {
+  return new Promise((resolve) => {
+    const modal = document.getElementById("person-picker-modal");
+    const searchInput = document.getElementById("person-picker-search");
+    const resultsDiv = document.getElementById("person-picker-results");
+    const closeBtn = document.getElementById("person-picker-close");
+
+    // Clear previous state
+    searchInput.value = "";
+    resultsDiv.innerHTML = "";
+
+    // Render all persons initially
+    const renderResults = async (query = "") => {
+      const records = await idbGetAll();
+      const filtered = records
+        .filter((r) => !r.deletedAt)
+        .filter((r) => {
+          if (!query) return true;
+          const q = query.toLowerCase();
+          return (
+            r.lastname.toLowerCase().includes(q) ||
+            r.firstname.toLowerCase().includes(q) ||
+            (r.patronymic && r.patronymic.toLowerCase().includes(q))
+          );
+        })
+        .sort((a, b) => a.lastname.localeCompare(b.lastname));
+
+      resultsDiv.innerHTML = "";
+      if (filtered.length === 0) {
+        resultsDiv.innerHTML =
+          '<p style="text-align:center;color:var(--mid-grey);padding:20px;">No persons found</p>';
+        return;
+      }
+
+      filtered.forEach((r) => {
+        const item = document.createElement("div");
+        item.className = "person-picker-item";
+        item.innerHTML = `
+          <div style="font-weight:600;">${r.firstname} ${r.lastname}</div>
+          <div style="font-size:11px;color:var(--mid-grey);">${r.patronymic || ""} ${r.yob ? `(${r.yob})` : ""} ${r.origin || ""}</div>
+        `;
+        item.addEventListener("click", () => {
+          modal.classList.add("hidden");
+          resolve({ uuid: r.uuid, name: `${r.firstname} ${r.lastname}` });
+        });
+        resultsDiv.appendChild(item);
+      });
+    };
+
+    // Search on input
+    let debounce;
+    searchInput.addEventListener("input", (e) => {
+      clearTimeout(debounce);
+      debounce = setTimeout(() => renderResults(e.target.value), 200);
+    });
+
+    // Close handlers
+    const cancel = () => {
+      modal.classList.add("hidden");
+      resolve(null);
+    };
+    closeBtn.onclick = cancel;
+    modal.addEventListener("click", (e) => {
+      if (e.target === modal) cancel();
+    });
+
+    // Show modal and render initial results
+    modal.classList.remove("hidden");
+    renderResults();
+    searchInput.focus();
+  });
+}
+
+function makeRelationshipItem(rel = {}) {
+  const div = document.createElement("div");
+  div.className = "array-item";
+  div.innerHTML = `
+        <div class="array-item-fields">
+            <input type="text" class="rel-person-name" value="${rel.personName || ""}" placeholder="Click to select person" readonly style="cursor:pointer;background:var(--ice-blue);">
+            <input type="hidden" class="rel-person-uuid" value="${rel.personUuid || ""}">
+            <select class="rel-type">
+                <option value="father" ${rel.type === "father" ? "selected" : ""}>Father</option>
+                <option value="mother" ${rel.type === "mother" ? "selected" : ""}>Mother</option>
+                <option value="son" ${rel.type === "son" ? "selected" : ""}>Son</option>
+                <option value="daughter" ${rel.type === "daughter" ? "selected" : ""}>Daughter</option>
+                <option value="husband" ${rel.type === "husband" ? "selected" : ""}>Husband</option>
+                <option value="wife" ${rel.type === "wife" ? "selected" : ""}>Wife</option>
+                <option value="brother" ${rel.type === "brother" ? "selected" : ""}>Brother</option>
+                <option value="sister" ${rel.type === "sister" ? "selected" : ""}>Sister</option>
+                <option value="associate" ${rel.type === "associate" ? "selected" : ""}>Associate</option>
+                <option value="business" ${rel.type === "business" ? "selected" : ""}>Business</option>
+                <option value="friend" ${rel.type === "friend" ? "selected" : ""}>Friend</option>
+                <option value="neighbour" ${rel.type === "neighbour" ? "selected" : ""}>Neighbour</option>
+                <option value="other" ${rel.type === "other" ? "selected" : ""}>Other</option>
+            </select>
+        </div>
+        <button class="btn-danger btn-small remove-item" style="align-self:flex-start;">✕</button>
+    `;
+
+  const nameInput = div.querySelector(".rel-person-name");
+  const uuidInput = div.querySelector(".rel-person-uuid");
+
+  // Click to open person picker
+  nameInput.addEventListener("click", async () => {
+    const selected = await showPersonPicker();
+    if (selected) {
+      nameInput.value = selected.name;
+      uuidInput.value = selected.uuid;
+    }
+  });
+
+  div.querySelector(".remove-item").addEventListener("click", () => div.remove());
+  return div;
+}
+
+function collectRelationships(containerId) {
+  return [...document.getElementById(containerId).querySelectorAll(".array-item")]
+    .map((item) => ({
+      personUuid: item.querySelector(".rel-person-uuid")?.value.trim() || "",
+      personName: item.querySelector(".rel-person-name")?.value.trim() || "",
+      type: item.querySelector(".rel-type")?.value || "other",
+    }))
+    .filter((r) => r.personUuid);
+}
+
+function renderRelationshipSummary(record) {
+  const container = document.getElementById("relationship-summary");
+  if (!container) return;
+
+  const rels = record.relationships || [];
+  if (rels.length === 0) {
+    container.innerHTML =
+      '<p style="color:var(--mid-grey);font-size:12px;">No relationships defined</p>';
+    return;
+  }
+
+  // Group by type
+  const grouped = {};
+  rels.forEach((rel) => {
+    if (!grouped[rel.type]) grouped[rel.type] = [];
+    grouped[rel.type].push(rel);
+  });
+
+  let html = '<div style="display:flex;flex-wrap:wrap;gap:8px;">';
+  for (const [type, persons] of Object.entries(grouped)) {
+    persons.forEach((rel) => {
+      html += `
+        <div class="relationship-chip" data-uuid="${rel.personUuid}" style="cursor:pointer;">
+          <span class="rel-type-badge">${type}</span>
+          <span class="rel-person-name">${rel.personName}</span>
+        </div>
+      `;
+    });
+  }
+  html += "</div>";
+  container.innerHTML = html;
+
+  // Add click handlers to open related person
+  container.querySelectorAll(".relationship-chip").forEach((chip) => {
+    chip.addEventListener("click", async (e) => {
+      e.preventDefault();
+      const uuid = chip.dataset.uuid;
+      // Save current person first if modified
+      document.getElementById("person-modal").classList.add("hidden");
+      await openEditModal(uuid);
+    });
+  });
+}
+
+function getReciprocalRelationType(type) {
+  const reciprocals = {
+    father: "son",
+    mother: "daughter",
+    son: "father",
+    daughter: "mother",
+    husband: "wife",
+    wife: "husband",
+    brother: "brother",
+    sister: "sister",
+    friend: "friend",
+    associate: "associate",
+    business: "business",
+    neighbour: "neighbour",
+    other: "other",
+  };
+  return reciprocals[type] || "other";
+}
+
+async function updateBidirectionalRelationships(record, oldRelationships = []) {
+  const newRels = record.relationships || [];
+  const oldRels = oldRelationships || [];
+
+  // Track which relationships to add/remove for each related person
+  const updates = {};
+
+  // Process removed relationships
+  for (const oldRel of oldRels) {
+    const found = newRels.find((r) => r.personUuid === oldRel.personUuid && r.type === oldRel.type);
+    if (!found) {
+      // Relationship was removed, remove reciprocal
+      if (!updates[oldRel.personUuid]) updates[oldRel.personUuid] = { add: [], remove: [] };
+      updates[oldRel.personUuid].remove.push({
+        personUuid: record.uuid,
+        personName: `${record.firstname} ${record.lastname}`,
+        type: getReciprocalRelationType(oldRel.type),
+      });
+    }
+  }
+
+  // Process added/existing relationships
+  for (const newRel of newRels) {
+    const wasExisting = oldRels.find(
+      (r) => r.personUuid === newRel.personUuid && r.type === newRel.type,
+    );
+    if (!wasExisting) {
+      // New relationship, add reciprocal
+      if (!updates[newRel.personUuid]) updates[newRel.personUuid] = { add: [], remove: [] };
+      updates[newRel.personUuid].add.push({
+        personUuid: record.uuid,
+        personName: `${record.firstname} ${record.lastname}`,
+        type: getReciprocalRelationType(newRel.type),
+      });
+    }
+  }
+
+  // Apply updates to related persons
+  for (const [uuid, changes] of Object.entries(updates)) {
+    const relatedPerson = await idbGet(uuid);
+    if (!relatedPerson) continue;
+
+    let rels = relatedPerson.relationships || [];
+
+    // Remove relationships
+    for (const toRemove of changes.remove) {
+      rels = rels.filter(
+        (r) => !(r.personUuid === toRemove.personUuid && r.type === toRemove.type),
+      );
+    }
+
+    // Add relationships (avoid duplicates)
+    for (const toAdd of changes.add) {
+      const exists = rels.find((r) => r.personUuid === toAdd.personUuid && r.type === toAdd.type);
+      if (!exists) {
+        rels.push(toAdd);
+      }
+    }
+
+    // Save updated related person
+    relatedPerson.relationships = rels;
+    relatedPerson.modifiedAt = now();
+    await idbPut(relatedPerson);
+  }
+}
+
+function validateRelationships(record) {
+  const warnings = [];
+  const rels = record.relationships || [];
+
+  // Check for self-reference
+  rels.forEach((rel) => {
+    if (rel.personUuid === record.uuid) {
+      warnings.push(`Warning: Person cannot have a relationship with themselves (${rel.type})`);
+    }
+  });
+
+  // Check for duplicate relationships
+  const seen = new Set();
+  rels.forEach((rel) => {
+    const key = `${rel.personUuid}:${rel.type}`;
+    if (seen.has(key)) {
+      warnings.push(`Warning: Duplicate ${rel.type} relationship with ${rel.personName}`);
+    }
+    seen.add(key);
+  });
+
+  return warnings;
+}
+
 function openNewModal() {
   editingUUID = null;
   document.getElementById("modal-title").textContent = "New Person";
@@ -993,6 +1578,7 @@ function clearForm() {
   document.getElementById("firstname-variations-container").innerHTML = "";
   document.getElementById("zotero-container").innerHTML = "";
   document.getElementById("archief-container").innerHTML = "";
+  document.getElementById("relationships-container").innerHTML = "";
 }
 
 function populateForm(r) {
@@ -1033,6 +1619,13 @@ function populateForm(r) {
   const ac = document.getElementById("archief-container");
   ac.innerHTML = "";
   (r.archief || []).forEach((ref) => ac.appendChild(makeRefItem(ref)));
+
+  const rc = document.getElementById("relationships-container");
+  rc.innerHTML = "";
+  (r.relationships || []).forEach((rel) => rc.appendChild(makeRelationshipItem(rel)));
+
+  // Add relationship summary display above the form
+  renderRelationshipSummary(r);
 }
 
 async function savePerson() {
@@ -1046,6 +1639,7 @@ async function savePerson() {
   const isNew = !editingUUID;
   const ts = now();
   const existing = editingUUID ? await idbGet(editingUUID) : null;
+  const oldRelationships = existing?.relationships || [];
 
   const record = {
     uuid: editingUUID || generateUUID(),
@@ -1072,9 +1666,23 @@ async function savePerson() {
     yod: document.getElementById("field-yod").value.trim(),
     diedin: document.getElementById("field-diedin").value.trim(),
     notes: document.getElementById("field-notes").value.trim(),
+    relationships: collectRelationships("relationships-container"),
     zotero: collectRefs("zotero-container"),
     archief: collectRefs("archief-container"),
   };
+
+  // Validate relationships
+  const warnings = validateRelationships(record);
+  if (warnings.length > 0) {
+    const proceed = await showDialog("Relationship Warnings", warnings.join("\n\n"), [
+      { label: "Save Anyway", cls: "btn-primary", value: true },
+      { label: "Go Back", cls: "btn-secondary", value: false },
+    ]);
+    if (!proceed) return;
+  }
+
+  // Update bidirectional relationships
+  await updateBidirectionalRelationships(record, oldRelationships);
 
   await idbPut(record);
   document.getElementById("person-modal").classList.add("hidden");
@@ -1109,6 +1717,9 @@ async function deletePerson() {
 async function boot() {
   db = await openDatabase();
   const records = await idbGetAll();
+
+  // Load search history
+  loadSearchHistory();
 
   // Populate settings UI
   const s = loadSettings();
@@ -1168,27 +1779,106 @@ async function boot() {
 function attachEventListeners() {
   // Search
   let searchDebounce;
-  document.getElementById("search-input").addEventListener("input", (e) => {
+  const searchInput = document.getElementById("search-input");
+
+  searchInput.addEventListener("input", (e) => {
     clearTimeout(searchDebounce);
     searchDebounce = setTimeout(() => refreshRecords(e.target.value), 280);
   });
 
+  // Search scope selector
+  document.getElementById("btn-search-scope").addEventListener("click", () => {
+    const modal = document.getElementById("search-scope-modal");
+
+    // Populate checkboxes with current state
+    const checkboxes = modal.querySelectorAll(".scope-checkbox");
+    checkboxes.forEach((cb) => {
+      cb.checked = searchScopes.includes(cb.value);
+    });
+
+    modal.classList.remove("hidden");
+  });
+
+  document.getElementById("btn-scope-cancel").addEventListener("click", () => {
+    document.getElementById("search-scope-modal").classList.add("hidden");
+  });
+
+  document.getElementById("btn-scope-apply").addEventListener("click", () => {
+    const modal = document.getElementById("search-scope-modal");
+    const checkboxes = modal.querySelectorAll(".scope-checkbox:checked");
+    searchScopes = Array.from(checkboxes).map((cb) => cb.value);
+
+    if (searchScopes.length === 0) {
+      searchScopes = ["all"];
+    }
+
+    updateScopeDisplay();
+    modal.classList.add("hidden");
+    refreshRecords(searchInput.value);
+  });
+
+  // Handle "All Fields" checkbox toggle
+  document.getElementById("search-scope-modal").addEventListener("change", (e) => {
+    if (e.target.classList.contains("scope-checkbox") && e.target.value === "all") {
+      const checkboxes = document.querySelectorAll(".scope-checkbox");
+      checkboxes.forEach((cb) => {
+        if (cb.value !== "all") cb.checked = false;
+      });
+    } else if (e.target.classList.contains("scope-checkbox") && e.target.value !== "all") {
+      const allCheckbox = document.querySelector('.scope-checkbox[value="all"]');
+      if (allCheckbox) allCheckbox.checked = false;
+    }
+  });
+
+  // Regex toggle
+  document.getElementById("btn-toggle-regex").addEventListener("click", function () {
+    regexMode = !regexMode;
+    this.style.background = regexMode ? "var(--ice-blue-dark)" : "";
+    this.style.color = regexMode ? "var(--white)" : "";
+    refreshRecords(searchInput.value);
+  });
+
+  // Advanced query toggle
+  document.getElementById("btn-toggle-advanced").addEventListener("click", function () {
+    advancedMode = !advancedMode;
+    this.style.background = advancedMode ? "var(--ice-blue-dark)" : "";
+    this.style.color = advancedMode ? "var(--white)" : "";
+    refreshRecords(searchInput.value);
+  });
+
+  // Search history
+  document.getElementById("btn-search-history").addEventListener("click", () => {
+    showSearchHistory();
+  });
+
+  // Close history dropdown when clicking outside
+  document.addEventListener("click", (e) => {
+    const historyBtn = document.getElementById("btn-search-history");
+    const historyDropdown = document.getElementById("search-history-dropdown");
+    if (!historyBtn.contains(e.target) && !historyDropdown.contains(e.target)) {
+      historyDropdown.classList.add("hidden");
+    }
+  });
+
   // Stat card filters
   document.getElementById("stat-card-total").addEventListener("click", () => {
-    const searchInput = document.getElementById("search-input");
     searchInput.value = "";
+    searchScopes = ["all"];
+    updateScopeDisplay();
     refreshRecords("");
   });
 
   document.getElementById("stat-card-male").addEventListener("click", () => {
-    const searchInput = document.getElementById("search-input");
     searchInput.value = "Male";
+    searchScopes = ["all"];
+    updateScopeDisplay();
     refreshRecords("Male");
   });
 
   document.getElementById("stat-card-female").addEventListener("click", () => {
-    const searchInput = document.getElementById("search-input");
     searchInput.value = "Female";
+    searchScopes = ["all"];
+    updateScopeDisplay();
     refreshRecords("Female");
   });
 
@@ -1332,6 +2022,10 @@ function attachEventListeners() {
   });
   document.getElementById("add-archief").addEventListener("click", () => {
     document.getElementById("archief-container").appendChild(makeRefItem());
+  });
+
+  document.getElementById("add-relationship").addEventListener("click", () => {
+    document.getElementById("relationships-container").appendChild(makeRelationshipItem());
   });
 
   // Lastname fuzzy lookup

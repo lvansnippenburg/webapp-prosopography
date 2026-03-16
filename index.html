@@ -65,11 +65,47 @@
 
             <!-- Toolbar -->
             <div id="toolbar">
-                <input
-                    type="text"
-                    id="search-input"
-                    placeholder="Search by name, variations, references..."
-                />
+                <div style="display: flex; gap: 10px; flex: 1; align-items: center">
+                    <button class="btn-ghost btn-small" id="btn-search-scope">
+                        Scope: <span id="scope-display">All</span> ▼
+                    </button>
+                    <button
+                        class="btn-ghost btn-small"
+                        id="btn-toggle-regex"
+                        title="Toggle regex search"
+                    >
+                        .*
+                    </button>
+                    <button
+                        class="btn-ghost btn-small"
+                        id="btn-toggle-advanced"
+                        title="Toggle advanced query syntax"
+                    >
+                        AND/OR
+                    </button>
+                    <div style="position: relative; flex: 1">
+                        <input
+                            type="text"
+                            id="search-input"
+                            placeholder="Search all fields..."
+                            style="width: 100%; padding-right: 100px"
+                        />
+                        <button
+                            class="btn-ghost btn-small"
+                            id="btn-search-history"
+                            title="Search history"
+                            style="
+                                position: absolute;
+                                right: 8px;
+                                top: 50%;
+                                transform: translateY(-50%);
+                                padding: 4px 8px;
+                            "
+                        >
+                            ⏱
+                        </button>
+                    </div>
+                </div>
                 <button class="btn-primary" id="btn-new">+ New Person</button>
             </div>
 
@@ -87,8 +123,14 @@
                     <span class="stat-value" id="stat-female">—</span>
                     <span class="stat-label">Female</span>
                 </div>
+                <div class="stat-card" id="stat-card-relationships" style="cursor: help">
+                    <span class="stat-value" id="stat-relationships">—</span>
+                    <span class="stat-label">Relationships</span>
+                </div>
                 <div class="stat-divider"></div>
                 <div id="origin-stats-container"></div>
+                <div class="stat-divider"></div>
+                <div id="religion-stats-container"></div>
             </div>
 
             <!-- Records table -->
@@ -107,6 +149,7 @@
                             <th data-col="lastseen">Through</th>
                             <th data-col="zotero">Zotero</th>
                             <th data-col="archief">Archief</th>
+                            <th>Relationships</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
@@ -123,6 +166,18 @@
                     <button class="modal-close" id="modal-close-btn">✕</button>
                 </div>
                 <div class="modal-body">
+                    <!-- Relationship Summary -->
+                    <div
+                        id="relationship-summary"
+                        style="
+                            margin-bottom: 20px;
+                            padding: 12px;
+                            background: var(--pale-grey);
+                            border-radius: 4px;
+                            border: 1px solid var(--light-grey);
+                        "
+                    ></div>
+
                     <div class="form-grid">
                         <!-- Lastname -->
                         <div class="form-group">
@@ -253,6 +308,15 @@
                             <input type="text" id="field-diedin" />
                         </div>
 
+                        <!-- Relationships -->
+                        <div class="form-group full-width">
+                            <label>Relationships</label>
+                            <div class="array-field" id="relationships-container"></div>
+                            <button class="btn-ghost add-item-btn" id="add-relationship">
+                                + Add relationship
+                            </button>
+                        </div>
+
                         <!-- Notes -->
                         <div class="form-group full-width">
                             <label>Opmerkingen / Notes</label>
@@ -324,6 +388,101 @@
                 <p id="progress-details" style="font-size: 12px; color: var(--mid-grey)"></p>
             </div>
         </div>
+
+        <!-- Person picker modal -->
+        <div id="person-picker-modal" class="modal-overlay hidden">
+            <div class="modal">
+                <div class="modal-header">
+                    <h2>Select Person</h2>
+                    <button class="modal-close" id="person-picker-close">✕</button>
+                </div>
+                <div class="modal-body">
+                    <input
+                        type="text"
+                        id="person-picker-search"
+                        placeholder="Search by name..."
+                        style="
+                            width: 100%;
+                            padding: 8px;
+                            margin-bottom: 12px;
+                            border: 1px solid var(--light-grey);
+                            border-radius: 4px;
+                        "
+                    />
+                    <div
+                        id="person-picker-results"
+                        style="max-height: 400px; overflow-y: auto"
+                    ></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Search scope selector modal -->
+        <div id="search-scope-modal" class="modal-overlay hidden">
+            <div class="dialog-box" style="max-width: 400px">
+                <h3>Search Scope</h3>
+                <p style="margin-bottom: 16px; font-size: 12px; color: var(--mid-grey)">
+                    Select which fields to search:
+                </p>
+                <div style="max-height: 300px; overflow-y: auto">
+                    <label style="display: block; margin-bottom: 8px; cursor: pointer">
+                        <input type="checkbox" class="scope-checkbox" value="all" checked />
+                        All Fields
+                    </label>
+                    <label style="display: block; margin-bottom: 8px; cursor: pointer">
+                        <input type="checkbox" class="scope-checkbox" value="name" />
+                        Name (all name fields)
+                    </label>
+                    <label style="display: block; margin-bottom: 8px; cursor: pointer">
+                        <input type="checkbox" class="scope-checkbox" value="lastname" />
+                        Lastname
+                    </label>
+                    <label style="display: block; margin-bottom: 8px; cursor: pointer">
+                        <input type="checkbox" class="scope-checkbox" value="firstname" />
+                        Firstname
+                    </label>
+                    <label style="display: block; margin-bottom: 8px; cursor: pointer">
+                        <input type="checkbox" class="scope-checkbox" value="patronymic" />
+                        Patronymic
+                    </label>
+                    <label style="display: block; margin-bottom: 8px; cursor: pointer">
+                        <input type="checkbox" class="scope-checkbox" value="origin" />
+                        Origin
+                    </label>
+                    <label style="display: block; margin-bottom: 8px; cursor: pointer">
+                        <input type="checkbox" class="scope-checkbox" value="city" />
+                        City
+                    </label>
+                    <label style="display: block; margin-bottom: 8px; cursor: pointer">
+                        <input type="checkbox" class="scope-checkbox" value="profession" />
+                        Profession
+                    </label>
+                    <label style="display: block; margin-bottom: 8px; cursor: pointer">
+                        <input type="checkbox" class="scope-checkbox" value="religion" />
+                        Religion
+                    </label>
+                    <label style="display: block; margin-bottom: 8px; cursor: pointer">
+                        <input type="checkbox" class="scope-checkbox" value="notes" />
+                        Notes
+                    </label>
+                    <label style="display: block; margin-bottom: 8px; cursor: pointer">
+                        <input type="checkbox" class="scope-checkbox" value="references" />
+                        References
+                    </label>
+                    <label style="display: block; margin-bottom: 8px; cursor: pointer">
+                        <input type="checkbox" class="scope-checkbox" value="relationships" />
+                        Relationships
+                    </label>
+                </div>
+                <div style="margin-top: 16px; display: flex; gap: 10px; justify-content: flex-end">
+                    <button class="btn-secondary btn-small" id="btn-scope-cancel">Cancel</button>
+                    <button class="btn-primary btn-small" id="btn-scope-apply">Apply</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Search history dropdown -->
+        <div id="search-history-dropdown" class="lookup-dropdown hidden"></div>
 
         <!-- Notification -->
         <div id="notification"></div>

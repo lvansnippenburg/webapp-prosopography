@@ -40,6 +40,21 @@
                         <input type="text" id="setting-branch" placeholder="main" />
                     </div>
                 </div>
+                <div
+                    style="
+                        margin-top: 14px;
+                        padding: 10px;
+                        background: var(--ice-blue);
+                        border-radius: 4px;
+                        font-size: 12px;
+                        color: var(--mid-grey);
+                    "
+                >
+                    <div><strong>Last Push:</strong> <span id="last-push-time">Never</span></div>
+                    <div style="margin-top: 4px">
+                        <strong>Last Pull:</strong> <span id="last-pull-time">Never</span>
+                    </div>
+                </div>
                 <div style="margin-top: 14px; display: flex; gap: 10px">
                     <button class="btn-primary" id="btn-save-settings">Save Settings</button>
                     <button class="btn-secondary" id="btn-import">⬆ Import Excel</button>
@@ -85,11 +100,11 @@
                             <th data-col="lastname">Lastname</th>
                             <th data-col="firstname">Firstname</th>
                             <th data-col="patronymic">Patronymic</th>
-                            <th data-col="gender">Gender</th>
+                            <th data-col="gender">&#x2640;/&#x2642;</th>
                             <th data-col="city">City</th>
                             <th data-col="profession">Profession</th>
-                            <th data-col="yob">YOB</th>
-                            <th data-col="yod">YOD</th>
+                            <th data-col="firstseen">From</th>
+                            <th data-col="lastseen">Through</th>
                             <th data-col="zotero">Zotero</th>
                             <th data-col="archief">Archief</th>
                             <th>Actions</th>
@@ -279,6 +294,34 @@
                 <h3 id="dialog-title"></h3>
                 <p id="dialog-message"></p>
                 <div class="dialog-buttons" id="dialog-buttons"></div>
+            </div>
+        </div>
+
+        <!-- Progress dialog overlay -->
+        <div id="progress-overlay" class="modal-overlay hidden">
+            <div class="dialog-box">
+                <h3 id="progress-title">Syncing...</h3>
+                <p id="progress-message">Preparing...</p>
+                <div
+                    style="
+                        background: var(--pale-grey);
+                        border-radius: 4px;
+                        height: 8px;
+                        overflow: hidden;
+                        margin: 16px 0;
+                    "
+                >
+                    <div
+                        id="progress-bar"
+                        style="
+                            background: var(--ice-blue-dark);
+                            height: 100%;
+                            width: 0%;
+                            transition: width 0.2s;
+                        "
+                    ></div>
+                </div>
+                <p id="progress-details" style="font-size: 12px; color: var(--mid-grey)"></p>
             </div>
         </div>
 

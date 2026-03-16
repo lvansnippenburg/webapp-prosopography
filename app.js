@@ -52,7 +52,18 @@ function loadSettings() {
     owner: localStorage.getItem("cb_owner") || "",
     repo: localStorage.getItem("cb_repo") || "",
     branch: localStorage.getItem("cb_branch") || "main",
+    lastSyncPush: localStorage.getItem("cb_lastSyncPush") || null,
+    lastSyncPull: localStorage.getItem("cb_lastSyncPull") || null,
   };
+}
+
+function loadSHACache() {
+  const cache = localStorage.getItem("cb_sha_cache");
+  return cache ? JSON.parse(cache) : {};
+}
+
+function saveSHACache(cache) {
+  localStorage.setItem("cb_sha_cache", JSON.stringify(cache));
 }
 
 function saveSettings(s) {
@@ -60,6 +71,22 @@ function saveSettings(s) {
   localStorage.setItem("cb_owner", s.owner);
   localStorage.setItem("cb_repo", s.repo);
   localStorage.setItem("cb_branch", s.branch);
+  if (s.lastSyncPush) localStorage.setItem("cb_lastSyncPush", s.lastSyncPush);
+  if (s.lastSyncPull) localStorage.setItem("cb_lastSyncPull", s.lastSyncPull);
+}
+
+function updateSyncTimestamps() {
+  const s = loadSettings();
+  const lastPushEl = document.getElementById("last-push-time");
+  const lastPullEl = document.getElementById("last-pull-time");
+
+  if (lastPushEl) {
+    lastPushEl.textContent = s.lastSyncPush ? new Date(s.lastSyncPush).toLocaleString() : "Never";
+  }
+
+  if (lastPullEl) {
+    lastPullEl.textContent = s.lastSyncPull ? new Date(s.lastSyncPull).toLocaleString() : "Never";
+  }
 }
 
 // ── Utilities ──────────────────────────────────────────────────────
@@ -102,6 +129,25 @@ function showDialog(title, message, buttons) {
     });
     document.getElementById("dialog-overlay").classList.remove("hidden");
   });
+}
+
+function showProgress(title, message) {
+  document.getElementById("progress-title").textContent = title;
+  document.getElementById("progress-message").textContent = message;
+  document.getElementById("progress-details").textContent = "";
+  document.getElementById("progress-bar").style.width = "0%";
+  document.getElementById("progress-overlay").classList.remove("hidden");
+}
+
+function updateProgress(current, total, details = "") {
+  const percent = total > 0 ? Math.round((current / total) * 100) : 0;
+  document.getElementById("progress-bar").style.width = `${percent}%`;
+  document.getElementById("progress-message").textContent = `Processing ${current} of ${total}`;
+  document.getElementById("progress-details").textContent = details;
+}
+
+function hideProgress() {
+  document.getElementById("progress-overlay").classList.add("hidden");
 }
 
 // ── Soundex ────────────────────────────────────────────────────────
@@ -413,7 +459,7 @@ async function getAllRepoFiles() {
   return res.tree.filter((i) => i.type === "blob" && i.path.endsWith(".json")).map((i) => i.path);
 }
 
-async function pushToCodeberg() {
+async function pushToCodeberg(fullSync = false) {
   const s = loadSettings();
   const records = await idbGetAll();
   if (!records.length) {
@@ -421,61 +467,164 @@ async function pushToCodeberg() {
     return;
   }
 
-  notify("Pushing to Codeberg…", "info", 60000);
-  let pushed = 0,
-    skipped = 0,
-    errors = 0;
+  // Filter records by timestamp if not doing full sync
+  let recordsToCheck = records;
+  if (!fullSync && s.lastSyncPush) {
+    const lastSync = new Date(s.lastSyncPush);
+    recordsToCheck = records.filter((r) => {
+      const created = new Date(r.createdAt);
+      const modified = new Date(r.modifiedAt);
+      const deleted = r.deletedAt ? new Date(r.deletedAt) : null;
+      return created > lastSync || modified > lastSync || (deleted && deleted > lastSync);
+    });
 
-  for (const record of records) {
-    try {
-      const endpoint = `/repos/${s.owner}/${s.repo}/contents/${record.uuid}.json`;
-      const existing = await codebergRequest("GET", `${endpoint}?ref=${s.branch}`);
+    if (recordsToCheck.length === 0) {
+      notify("No records have changed since last push.", "info");
+      return;
+    }
+  }
 
-      if (existing) {
-        const remote = decodeContent(existing.content);
-        if (new Date(remote.modifiedAt) >= new Date(record.modifiedAt)) {
-          skipped++;
-          continue;
+  showProgress(
+    fullSync ? "Full Sync - Pushing to Codeberg" : "Pushing to Codeberg",
+    fullSync ? "Checking all records..." : `Pushing ${recordsToCheck.length} changed records...`,
+  );
+
+  const shaCache = loadSHACache();
+  const recordsToPush = [];
+
+  // For quick sync, use cached SHAs; for full sync, fetch from Codeberg
+  if (fullSync) {
+    // Full sync: check each record against Codeberg
+    for (let i = 0; i < recordsToCheck.length; i++) {
+      const record = recordsToCheck[i];
+      updateProgress(i + 1, recordsToCheck.length, `Checking ${record.uuid.substring(0, 8)}...`);
+
+      try {
+        const endpoint = `/repos/${s.owner}/${s.repo}/contents/${record.uuid}.json`;
+        const existing = await codebergRequest("GET", `${endpoint}?ref=${s.branch}`);
+
+        if (existing) {
+          const remote = decodeContent(existing.content);
+          if (new Date(remote.modifiedAt) < new Date(record.modifiedAt)) {
+            recordsToPush.push({ record, endpoint, sha: existing.sha, action: "update" });
+          }
+        } else {
+          recordsToPush.push({ record, endpoint, sha: null, action: "create" });
         }
-        await codebergRequest("PUT", endpoint, {
+      } catch {
+        // File doesn't exist, needs to be created
+        const endpoint = `/repos/${s.owner}/${s.repo}/contents/${record.uuid}.json`;
+        recordsToPush.push({ record, endpoint, sha: null, action: "create" });
+      }
+    }
+  } else {
+    // Quick sync: use cached SHAs, assume all filtered records need pushing
+    for (const record of recordsToCheck) {
+      const endpoint = `/repos/${s.owner}/${s.repo}/contents/${record.uuid}.json`;
+      const cachedSHA = shaCache[record.uuid];
+      recordsToPush.push({
+        record,
+        endpoint,
+        sha: cachedSHA || null,
+        action: cachedSHA ? "update" : "create",
+      });
+    }
+  }
+
+  if (recordsToPush.length === 0) {
+    hideProgress();
+    notify("All records are up to date. Nothing to push.", "info");
+    return;
+  }
+
+  // Push records
+  let pushed = 0;
+  let errors = 0;
+
+  for (let i = 0; i < recordsToPush.length; i++) {
+    const { record, endpoint, sha, action } = recordsToPush[i];
+    updateProgress(
+      i + 1,
+      recordsToPush.length,
+      `${action === "create" ? "Creating" : "Updating"} ${record.uuid.substring(0, 8)}...`,
+    );
+
+    try {
+      let result;
+      if (action === "update" && sha) {
+        result = await codebergRequest("PUT", endpoint, {
           message: `update: ${record.uuid}`,
           content: encodeContent(record),
-          sha: existing.sha,
+          sha: sha,
           branch: s.branch,
         });
       } else {
-        await codebergRequest("POST", endpoint, {
-          message: `create: ${record.uuid}`,
-          content: encodeContent(record),
-          branch: s.branch,
-        });
+        // For creates or updates without SHA, try PUT first with fetch of current SHA
+        try {
+          const existing = await codebergRequest("GET", `${endpoint}?ref=${s.branch}`);
+          result = await codebergRequest("PUT", endpoint, {
+            message: `update: ${record.uuid}`,
+            content: encodeContent(record),
+            sha: existing.sha,
+            branch: s.branch,
+          });
+        } catch {
+          // Doesn't exist, create it
+          result = await codebergRequest("POST", endpoint, {
+            message: `create: ${record.uuid}`,
+            content: encodeContent(record),
+            branch: s.branch,
+          });
+        }
       }
+
+      // Cache the new SHA
+      if (result?.content?.sha) {
+        shaCache[record.uuid] = result.content.sha;
+      }
+
       pushed++;
     } catch {
       errors++;
     }
   }
 
+  // Save SHA cache and sync timestamp
+  saveSHACache(shaCache);
+  s.lastSyncPush = now();
+  saveSettings(s);
+  updateSyncTimestamps();
+
+  hideProgress();
+  const skipped = recordsToCheck.length - recordsToPush.length;
   notify(
     `Push done. Pushed: ${pushed}, Skipped: ${skipped}, Errors: ${errors}`,
     errors ? "error" : "success",
   );
 }
 
-async function pullFromCodeberg() {
-  notify("Pulling from Codeberg…", "info", 60000);
+async function pullFromCodeberg(fullSync = false) {
   const files = await getAllRepoFiles();
   if (!files.length) {
     notify("No files found in repository.", "info");
     return;
   }
 
+  showProgress(
+    fullSync ? "Full Sync - Pulling from Codeberg" : "Pulling from Codeberg",
+    "Fetching remote records...",
+  );
+
   const s = loadSettings();
+  const shaCache = loadSHACache();
   let pulled = 0,
     skipped = 0,
     errors = 0;
 
-  for (const path of files) {
+  for (let i = 0; i < files.length; i++) {
+    const path = files[i];
+    updateProgress(i + 1, files.length, `Checking ${path.substring(0, 20)}...`);
+
     try {
       const fd = await codebergRequest(
         "GET",
@@ -483,18 +632,42 @@ async function pullFromCodeberg() {
       );
       if (!fd?.content) continue;
       const remote = decodeContent(fd.content);
+
+      // If not full sync and we have a last pull timestamp, skip old records
+      if (!fullSync && s.lastSyncPull) {
+        const lastSync = new Date(s.lastSyncPull);
+        const remoteModified = new Date(remote.modifiedAt);
+        if (remoteModified <= lastSync) {
+          skipped++;
+          continue;
+        }
+      }
+
       const local = await idbGet(remote.uuid);
       if (local && new Date(local.modifiedAt) >= new Date(remote.modifiedAt)) {
         skipped++;
         continue;
       }
       await idbPut(remote);
+
+      // Cache the SHA
+      if (fd.sha) {
+        shaCache[remote.uuid] = fd.sha;
+      }
+
       pulled++;
     } catch {
       errors++;
     }
   }
 
+  // Save SHA cache and sync timestamp
+  saveSHACache(shaCache);
+  s.lastSyncPull = now();
+  saveSettings(s);
+  updateSyncTimestamps();
+
+  hideProgress();
   notify(
     `Pull done. Pulled: ${pulled}, Skipped: ${skipped}, Errors: ${errors}`,
     errors ? "error" : "success",
@@ -614,17 +787,21 @@ function renderTable(records) {
     const fnVars = (r.firstnameVariations || [])
       .map((v) => `<span class="tag">${v}</span>`)
       .join("");
-    const genderLabel = r.gender === "F" ? "Female" : "Male";
+    const genderLabel = r.gender === "F" ? "&#x2640;" : "&#x2642;";
+    let cityLabel = "";
+    if (r.city !== "Livorno") {
+      cityLabel = "!";
+    }
 
     tr.innerHTML = `
             <td>${r.lastname || ""}${lnVars}</td>
             <td>${r.firstname || ""}${fnVars}</td>
             <td>${r.patronymic || ""}</td>
             <td>${genderLabel}</td>
-            <td>${r.city || ""}</td>
+            <td>${cityLabel}</td>
             <td>${r.profession || ""}</td>
-            <td>${r.yob || ""}</td>
-            <td>${r.yod || ""}</td>
+            <td>${r.firstseen || ""}</td>
+            <td>${r.lastseen || ""}</td>
             <td>${zoteroCount ? `<span class="tag">${zoteroCount} ref${zoteroCount > 1 ? "s" : ""}</span>` : ""}</td>
             <td>${archiefCount ? `<span class="tag">${archiefCount} ref${archiefCount > 1 ? "s" : ""}</span>` : ""}</td>
             <td>
@@ -939,6 +1116,7 @@ async function boot() {
   document.getElementById("setting-owner").value = s.owner;
   document.getElementById("setting-repo").value = s.repo;
   document.getElementById("setting-branch").value = s.branch;
+  updateSyncTimestamps();
 
   // First-time import prompt or pull prompt
   if (records.length === 0) {
@@ -1082,23 +1260,37 @@ function attachEventListeners() {
 
   // Codeberg sync
   document.getElementById("btn-sync-push").addEventListener("click", async () => {
-    const confirm = await showDialog("Push to Codeberg", "Push all local records to Codeberg?", [
-      { label: "Push", cls: "btn-primary", value: true },
-      { label: "Cancel", cls: "btn-secondary", value: false },
+    const s = loadSettings();
+    const lastPush = s.lastSyncPush ? new Date(s.lastSyncPush).toLocaleString() : "Never";
+    const message = s.lastSyncPush
+      ? `Quick sync: only push records changed since ${lastPush}\n\nOr do a full sync to check all records?`
+      : "No previous sync found. A full sync will be performed.";
+
+    const choice = await showDialog("Push to Codeberg", message, [
+      { label: "Quick Sync", cls: "btn-primary", value: "quick" },
+      { label: "Full Sync", cls: "btn-secondary", value: "full" },
+      { label: "Cancel", cls: "btn-ghost", value: false },
     ]);
-    if (confirm) await pushToCodeberg();
+
+    if (choice === "quick") await pushToCodeberg(false);
+    else if (choice === "full") await pushToCodeberg(true);
   });
 
   document.getElementById("btn-sync-pull").addEventListener("click", async () => {
-    const confirm = await showDialog(
-      "Pull from Codeberg",
-      "Pull updates from Codeberg into local database?",
-      [
-        { label: "Pull", cls: "btn-primary", value: true },
-        { label: "Cancel", cls: "btn-secondary", value: false },
-      ],
-    );
-    if (confirm) await pullFromCodeberg();
+    const s = loadSettings();
+    const lastPull = s.lastSyncPull ? new Date(s.lastSyncPull).toLocaleString() : "Never";
+    const message = s.lastSyncPull
+      ? `Quick sync: only pull records changed since ${lastPull}\n\nOr do a full sync to check all records?`
+      : "No previous sync found. A full sync will be performed.";
+
+    const choice = await showDialog("Pull from Codeberg", message, [
+      { label: "Quick Sync", cls: "btn-primary", value: "quick" },
+      { label: "Full Sync", cls: "btn-secondary", value: "full" },
+      { label: "Cancel", cls: "btn-ghost", value: false },
+    ]);
+
+    if (choice === "quick") await pullFromCodeberg(false);
+    else if (choice === "full") await pullFromCodeberg(true);
   });
 
   // Settings

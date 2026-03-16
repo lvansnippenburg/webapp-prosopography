@@ -1,0 +1,272 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Livorno prosopography</title>
+        <link rel="stylesheet" href="styles.css" />
+        <!-- SheetJS for Excel import -->
+        <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+    </head>
+    <body>
+        <header>
+            <h1>Person Records</h1>
+            <div style="display: flex; gap: 10px">
+                <button class="btn-ghost btn-small" id="btn-sync-pull">↓ Pull from Codeberg</button>
+                <button class="btn-ghost btn-small" id="btn-sync-push">↑ Push to Codeberg</button>
+                <button class="btn-ghost btn-small" id="btn-settings-toggle">⚙ Settings</button>
+            </div>
+        </header>
+
+        <div id="app">
+            <!-- Settings panel -->
+            <div id="settings-panel">
+                <h3>Settings</h3>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>Codeberg API Token</label>
+                        <input type="text" id="setting-token" placeholder="your_api_token" />
+                    </div>
+                    <div class="form-group">
+                        <label>Codeberg Username</label>
+                        <input type="text" id="setting-owner" placeholder="your_username" />
+                    </div>
+                    <div class="form-group">
+                        <label>Repository Name</label>
+                        <input type="text" id="setting-repo" placeholder="your_repo" />
+                    </div>
+                    <div class="form-group">
+                        <label>Branch</label>
+                        <input type="text" id="setting-branch" placeholder="main" />
+                    </div>
+                </div>
+                <div style="margin-top: 14px; display: flex; gap: 10px">
+                    <button class="btn-primary" id="btn-save-settings">Save Settings</button>
+                </div>
+            </div>
+
+            <!-- Toolbar -->
+            <div id="toolbar">
+                <input
+                    type="text"
+                    id="search-input"
+                    placeholder="Search by name, variations, references..."
+                />
+                <button class="btn-primary" id="btn-new">+ New Person</button>
+                <button class="btn-secondary" id="btn-import">⬆ Import Excel</button>
+                <input type="file" id="file-input" accept=".xlsx,.xls" class="hidden" />
+                <button class="btn-ghost" id="btn-show-deleted">Show Deleted</button>
+            </div>
+
+            <!-- Records table -->
+            <div id="records-container">
+                <div id="records-count">Loading...</div>
+                <table id="records-table">
+                    <thead>
+                        <tr>
+                            <th data-col="lastname">Lastname</th>
+                            <th data-col="firstname">Firstname</th>
+                            <th data-col="patronymic">Patronymic</th>
+                            <th data-col="gender">Gender</th>
+                            <th data-col="city">City</th>
+                            <th data-col="profession">Profession</th>
+                            <th data-col="yob">YOB</th>
+                            <th data-col="yod">YOD</th>
+                            <th data-col="zotero">Zotero</th>
+                            <th data-col="archief">Archief</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="records-tbody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Person Form Modal -->
+        <div id="person-modal" class="modal-overlay hidden">
+            <div class="modal">
+                <div class="modal-header">
+                    <h2 id="modal-title">New Person</h2>
+                    <button class="modal-close" id="modal-close-btn">✕</button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-grid">
+                        <!-- Lastname -->
+                        <div class="form-group">
+                            <label>Lastname *</label>
+                            <div class="lookup-wrapper">
+                                <input
+                                    type="text"
+                                    id="field-lastname"
+                                    placeholder="Primary lastname"
+                                    autocomplete="off"
+                                />
+                                <div id="lastname-lookup" class="lookup-dropdown hidden"></div>
+                            </div>
+                        </div>
+
+                        <!-- Firstname -->
+                        <div class="form-group">
+                            <label>Firstname *</label>
+                            <input
+                                type="text"
+                                id="field-firstname"
+                                placeholder="Primary firstname"
+                            />
+                        </div>
+
+                        <!-- Lastname variations -->
+                        <div class="form-group full-width">
+                            <label>Lastname Variations</label>
+                            <div class="array-field" id="lastname-variations-container"></div>
+                            <button class="btn-ghost add-item-btn" id="add-lastname-variation">
+                                + Add variation
+                            </button>
+                        </div>
+
+                        <!-- Firstname variations -->
+                        <div class="form-group full-width">
+                            <label>Firstname Variations</label>
+                            <div class="array-field" id="firstname-variations-container"></div>
+                            <button class="btn-ghost add-item-btn" id="add-firstname-variation">
+                                + Add variation
+                            </button>
+                        </div>
+
+                        <!-- Patronymic -->
+                        <div class="form-group">
+                            <label>Patronymic</label>
+                            <input type="text" id="field-patronymic" />
+                        </div>
+
+                        <!-- Gender -->
+                        <div class="form-group">
+                            <label>Gender</label>
+                            <select id="field-gender">
+                                <option value="M">Male</option>
+                                <option value="F">Female</option>
+                            </select>
+                        </div>
+
+                        <!-- City -->
+                        <div class="form-group">
+                            <label>City</label>
+                            <input type="text" id="field-city" />
+                        </div>
+
+                        <!-- Profession -->
+                        <div class="form-group">
+                            <label>Profession</label>
+                            <input type="text" id="field-profession" />
+                        </div>
+
+                        <!-- Origin -->
+                        <div class="form-group">
+                            <label>Origin</label>
+                            <input type="text" id="field-origin" />
+                        </div>
+
+                        <!-- First seen -->
+                        <div class="form-group">
+                            <label>First Seen</label>
+                            <input type="text" id="field-firstseen" />
+                        </div>
+
+                        <!-- Last seen -->
+                        <div class="form-group">
+                            <label>Last Seen</label>
+                            <input type="text" id="field-lastseen" />
+                        </div>
+
+                        <!-- Lasting -->
+                        <div class="form-group">
+                            <label>Lasting</label>
+                            <input type="text" id="field-lasting" />
+                        </div>
+
+                        <!-- MoCO-A since -->
+                        <div class="form-group">
+                            <label>MoCO-A Since</label>
+                            <input type="text" id="field-mocosince" />
+                        </div>
+
+                        <!-- Religion -->
+                        <div class="form-group">
+                            <label>Religion</label>
+                            <input type="text" id="field-religion" />
+                        </div>
+
+                        <!-- Year of birth -->
+                        <div class="form-group">
+                            <label>Year of Birth</label>
+                            <input type="text" id="field-yob" />
+                        </div>
+
+                        <!-- Born in -->
+                        <div class="form-group">
+                            <label>Born In</label>
+                            <input type="text" id="field-bornin" />
+                        </div>
+
+                        <!-- Year of death -->
+                        <div class="form-group">
+                            <label>Year of Death</label>
+                            <input type="text" id="field-yod" />
+                        </div>
+
+                        <!-- Died in -->
+                        <div class="form-group">
+                            <label>Died In</label>
+                            <input type="text" id="field-diedin" />
+                        </div>
+
+                        <!-- Notes -->
+                        <div class="form-group full-width">
+                            <label>Opmerkingen / Notes</label>
+                            <textarea id="field-notes"></textarea>
+                        </div>
+
+                        <!-- Zotero references -->
+                        <div class="form-group full-width">
+                            <label>Zotero References</label>
+                            <div class="array-field" id="zotero-container"></div>
+                            <button class="btn-ghost add-item-btn" id="add-zotero">
+                                + Add Zotero reference
+                            </button>
+                        </div>
+
+                        <!-- Archief references -->
+                        <div class="form-group full-width">
+                            <label>Archief References</label>
+                            <div class="array-field" id="archief-container"></div>
+                            <button class="btn-ghost add-item-btn" id="add-archief">
+                                + Add Archief reference
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn-danger btn-small hidden" id="btn-delete-person">
+                        Delete
+                    </button>
+                    <button class="btn-secondary" id="btn-cancel-modal">Cancel</button>
+                    <button class="btn-primary" id="btn-save-person">Save</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Generic dialog overlay -->
+        <div id="dialog-overlay" class="modal-overlay hidden">
+            <div class="dialog-box">
+                <h3 id="dialog-title"></h3>
+                <p id="dialog-message"></p>
+                <div class="dialog-buttons" id="dialog-buttons"></div>
+            </div>
+        </div>
+
+        <!-- Notification -->
+        <div id="notification"></div>
+
+        <script src="app.js"></script>
+    </body>
+</html>

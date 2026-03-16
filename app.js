@@ -882,9 +882,68 @@ function searchInRecord(record, query, scopes) {
         const rels = record.relationships || [];
         if (rels.some((rel) => matches(rel.personName) || matches(rel.type))) return true;
         break;
+
+      case "timespan":
+        // Support: year, year-year range, or year:value in advanced mode
+        const timespanMatch = matchTimespan(record, q);
+        if (timespanMatch) return true;
+        break;
     }
   }
 
+  return false;
+}
+
+function matchTimespan(record, query) {
+  // Extract years from firstseen and lastseen fields
+  const extractYear = (value) => {
+    if (!value) return null;
+    const match = value.match(/\b(\d{4})\b/);
+    return match ? parseInt(match[1], 10) : null;
+  };
+
+  const firstseen = extractYear(record.firstseen);
+  const lastseen = extractYear(record.lastseen);
+
+  // Parse query - can be: "1650", "1650-1660", or text containing years
+  const yearMatch = query.match(/\b(\d{4})\b/);
+  const rangeMatch = query.match(/\b(\d{4})\s*-\s*(\d{4})\b/);
+
+  if (rangeMatch) {
+    // Query is a range: "1650-1660"
+    const queryStart = parseInt(rangeMatch[1], 10);
+    const queryEnd = parseInt(rangeMatch[2], 10);
+
+    // Check if person's timespan overlaps with query range
+    // Overlap if: person_start <= query_end AND person_end >= query_start
+    if (firstseen && lastseen) {
+      return firstseen <= queryEnd && lastseen >= queryStart;
+    }
+    if (firstseen) {
+      return firstseen <= queryEnd;
+    }
+    if (lastseen) {
+      return lastseen >= queryStart;
+    }
+    return false;
+  } else if (yearMatch) {
+    // Query is a single year: "1650"
+    const queryYear = parseInt(yearMatch[1], 10);
+
+    // Check if query year is within person's timespan
+    if (firstseen && lastseen) {
+      return queryYear >= firstseen && queryYear <= lastseen;
+    }
+    if (firstseen) {
+      return queryYear >= firstseen;
+    }
+    if (lastseen) {
+      return queryYear <= lastseen;
+    }
+    return false;
+  }
+
+  // No year found in query, fall back to text matching
   return false;
 }
 
@@ -918,6 +977,7 @@ function evaluateAdvancedQuery(record, query) {
         "city",
         "profession",
         "religion",
+        "timespan",
         "notes",
         "references",
         "relationships",
@@ -962,6 +1022,7 @@ function updateScopeDisplay() {
       notes: "Notes",
       references: "Refs",
       relationships: "Rels",
+      timespan: "Timespan",
     };
     display.textContent = labels[searchScopes[0]] || searchScopes[0];
   } else {
@@ -1108,11 +1169,11 @@ function renderTable(records) {
             <td>${r.profession || ""}</td>
             <td>${r.firstseen || ""}</td>
             <td>${r.lastseen || ""}</td>
-            <td>${zoteroCount ? `<span class="tag">${zoteroCount} ref${zoteroCount > 1 ? "s" : ""}</span>` : ""}</td>
-            <td>${archiefCount ? `<span class="tag">${archiefCount} ref${archiefCount > 1 ? "s" : ""}</span>` : ""}</td>
-            <td>${relationshipCount ? `<span class="tag">${relationshipCount} rel${relationshipCount > 1 ? "s" : ""}</span>` : ""}</td>
+            <td>${zoteroCount ? `<span class="tag">${zoteroCount}&nbsp;ref${zoteroCount > 1 ? "s" : ""}</span>` : ""}</td>
+            <td>${archiefCount ? `<span class="tag">${archiefCount}&nbsp;ref${archiefCount > 1 ? "s" : ""}</span>` : ""}</td>
+            <td>${relationshipCount ? `<span class="tag">${relationshipCount}&nbsp;rel${relationshipCount > 1 ? "s" : ""}</span>` : ""}</td>
             <td>
-                <button class="btn-ghost btn-small btn-edit" data-uuid="${r.uuid}">Edit</button>
+                <button class="btn-ghost btn-small btn-edit" data-uuid="${r.uuid}">&#x270E;</button>
             </td>
         `;
     tbody.appendChild(tr);

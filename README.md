@@ -87,6 +87,7 @@ Scopes limit your search to specific fields, making searches faster and more pre
 | **City** | City of residence |
 | **Profession** | Occupation/profession |
 | **Religion** | Religious affiliation |
+| **Timespan** | Firstseen-Lastseen date range (supports year queries) |
 | **Notes** | Notes/remarks field |
 | **References** | Zotero and Archief references |
 | **Relationships** | Related persons' names + relationship types |
@@ -217,6 +218,7 @@ Use the lowercase scope names as field names:
 - `city:value`
 - `profession:value`
 - `religion:value`
+- `timespan:value` (year or year-range)
 - `notes:value`
 - `references:value`
 - `relationships:value`
@@ -465,6 +467,89 @@ Result: References with years 1650-1659
 ```
 Result: Persons in any of the three cities
 
+### Example 8: Timespan Searches
+
+**Find persons active in 1650:**
+```
+1. Click "Scope" → Select "Timespan"
+2. Type: 1650
+```
+Result: Persons where firstseen ≤ 1650 ≤ lastseen
+
+**Find persons active between 1650-1660:**
+```
+1. Click "Scope" → Select "Timespan"
+2. Type: 1650-1660
+```
+Result: Persons whose timespan overlaps with 1650-1660
+
+**Advanced timespan query:**
+```
+1. Click "AND/OR"
+2. Type: timespan:1650-1660 AND profession:merchant
+```
+Result: Merchants active during 1650-1660
+
+---
+
+## Timespan Search Details
+
+### How Timespan Search Works
+
+The **Timespan** scope searches the `firstseen` and `lastseen` fields to find persons active during specific time periods.
+
+### Query Formats
+
+**Single Year:**
+```
+1650
+```
+Finds persons where: `firstseen ≤ 1650 ≤ lastseen`
+
+**Year Range:**
+```
+1650-1660
+```
+Finds persons whose timespan **overlaps** with the query range.
+
+Overlap logic: `person.firstseen ≤ 1660 AND person.lastseen ≥ 1650`
+
+### Examples
+
+**Person Record:**
+```
+Firstseen: 1645
+Lastseen: 1670
+```
+
+**Query Results:**
+- `1650` → ✓ Match (1645 ≤ 1650 ≤ 1670)
+- `1640-1650` → ✓ Match (overlaps)
+- `1650-1660` → ✓ Match (overlaps)
+- `1671-1680` → ✗ No match (no overlap)
+- `1640` → ✗ No match (before firstseen)
+
+### Edge Cases
+
+**Incomplete Data:**
+- If only `firstseen` exists: Matches if query year ≥ firstseen
+- If only `lastseen` exists: Matches if query year ≤ lastseen
+- If neither exists: No match
+
+**Year Extraction:**
+- Automatically extracts 4-digit years from field text
+- `"circa 1650"` → extracts 1650
+- `"1650-1651"` → extracts first year (1650)
+- `"early 17th century"` → no extraction, no match
+
+### Use Cases
+
+**Research Applications:**
+1. **Historical events:** Find persons active during specific events
+2. **Generational studies:** Identify contemporaries
+3. **Career analysis:** Track professional activity periods
+4. **Migration patterns:** Correlate movement with time periods
+
 ---
 
 ## Tips & Best Practices
@@ -690,6 +775,7 @@ Planned enhancements:
 - ✅ Advanced query syntax (AND/OR)
 - ✅ Search history (20 entries)
 - ✅ Religion statistics
+- ✅ Timespan search (firstseen-lastseen)
 - ✅ Comprehensive search guide
 
 ### Previous Versions

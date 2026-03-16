@@ -127,6 +127,7 @@
                     <span class="stat-value" id="stat-relationships">—</span>
                     <span class="stat-label">Relationships</span>
                 </div>
+
                 <div class="stat-divider"></div>
                 <div id="origin-stats-container"></div>
                 <div class="stat-divider"></div>
@@ -145,12 +146,12 @@
                             <th data-col="gender">&#x2640;/&#x2642;</th>
                             <th data-col="city">City</th>
                             <th data-col="profession">Profession</th>
-                            <th data-col="firstseen">From</th>
-                            <th data-col="lastseen">Through</th>
-                            <th data-col="zotero">Zotero</th>
-                            <th data-col="archief">Archief</th>
-                            <th>Relationships</th>
-                            <th>Actions</th>
+                            <th data-col="firstseen">1st</th>
+                            <th data-col="lastseen">Lst</th>
+                            <th data-col="zotero">Lit.</th>
+                            <th data-col="archief">Arc.</th>
+                            <th>Relations</th>
+                            <th>&nbsp;</th>
                         </tr>
                     </thead>
                     <tbody id="records-tbody"></tbody>
@@ -472,6 +473,10 @@
                     <label style="display: block; margin-bottom: 8px; cursor: pointer">
                         <input type="checkbox" class="scope-checkbox" value="relationships" />
                         Relationships
+                    </label>
+                    <label style="display: block; margin-bottom: 8px; cursor: pointer">
+                        <input type="checkbox" class="scope-checkbox" value="timespan" />
+                        Timespan (Firstseen-Lastseen)
                     </label>
                 </div>
                 <div style="margin-top: 16px; display: flex; gap: 10px; justify-content: flex-end">

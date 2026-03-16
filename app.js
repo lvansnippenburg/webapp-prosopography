@@ -524,6 +524,12 @@ async function refreshRecords(query = "") {
       );
       if (refs.some((n) => n.includes(q))) return true;
       if (r.notes?.toLowerCase().includes(q)) return true;
+      if (r.origin?.toLowerCase().includes(q)) return true;
+      if (r.city?.toLowerCase().includes(q)) return true;
+      if (r.profession?.toLowerCase().includes(q)) return true;
+      // Gender matching: "male" matches "M", "female" matches "F"
+      const genderLabel = r.gender === "F" ? "female" : "male";
+      if (genderLabel.includes(q)) return true;
       return false;
     });
   }
@@ -535,7 +541,51 @@ async function refreshRecords(query = "") {
     return sortAsc ? av.localeCompare(bv) : bv.localeCompare(av);
   });
 
+  renderStats(allRecords);
   renderTable(filtered);
+}
+
+function renderStats(records) {
+  // Only count non-deleted records
+  const active = records.filter((r) => !r.deletedAt);
+  const total = active.length;
+  const male = active.filter((r) => r.gender === "M").length;
+  const female = active.filter((r) => r.gender === "F").length;
+
+  // Collect unique origins and their counts
+  const originCounts = {};
+  active.forEach((r) => {
+    const origin = (r.origin || "").trim();
+    if (origin) {
+      originCounts[origin] = (originCounts[origin] || 0) + 1;
+    }
+  });
+
+  // Sort origins alphabetically
+  const sortedOrigins = Object.keys(originCounts).sort();
+
+  // Update total/gender stats
+  document.getElementById("stat-total").textContent = total;
+  document.getElementById("stat-male").textContent = male;
+  document.getElementById("stat-female").textContent = female;
+
+  // Dynamically populate origin stats
+  const originContainer = document.getElementById("origin-stats-container");
+  originContainer.innerHTML = "";
+  sortedOrigins.forEach((origin) => {
+    const card = document.createElement("div");
+    card.className = "stat-card stat-card--clickable";
+    card.innerHTML = `
+      <span class="stat-value">${originCounts[origin]}</span>
+      <span class="stat-label">${origin}</span>
+    `;
+    card.addEventListener("click", () => {
+      const searchInput = document.getElementById("search-input");
+      searchInput.value = origin;
+      refreshRecords(origin);
+    });
+    originContainer.appendChild(card);
+  });
 }
 
 function renderTable(records) {
@@ -943,6 +993,25 @@ function attachEventListeners() {
   document.getElementById("search-input").addEventListener("input", (e) => {
     clearTimeout(searchDebounce);
     searchDebounce = setTimeout(() => refreshRecords(e.target.value), 280);
+  });
+
+  // Stat card filters
+  document.getElementById("stat-card-total").addEventListener("click", () => {
+    const searchInput = document.getElementById("search-input");
+    searchInput.value = "";
+    refreshRecords("");
+  });
+
+  document.getElementById("stat-card-male").addEventListener("click", () => {
+    const searchInput = document.getElementById("search-input");
+    searchInput.value = "Male";
+    refreshRecords("Male");
+  });
+
+  document.getElementById("stat-card-female").addEventListener("click", () => {
+    const searchInput = document.getElementById("search-input");
+    searchInput.value = "Female";
+    refreshRecords("Female");
   });
 
   // New person

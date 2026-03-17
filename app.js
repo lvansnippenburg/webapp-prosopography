@@ -50,6 +50,15 @@ let advancedMode = false;
 let searchHistory = [];
 const MAX_SEARCH_HISTORY = 20;
 
+// ── Entity Types ───────────────────────────────────────────────────
+
+const ENTITY_TYPES = {
+  person: "Person",
+  association: "Association",
+  institution: "Institution",
+  company: "Company",
+};
+
 // ── Relationship Network Configuration ────────────────────────────
 
 const RELATIONSHIP_COLORS = {
@@ -65,11 +74,14 @@ const RELATIONSHIP_COLORS = {
   business: "#27AE60",
   friend: "#F39C12",
   neighbour: "#E67E22",
+  member: "#16A085",
+  employed: "#D35400",
   other: "#95A5A6",
 };
 
 const RELATIONSHIP_GROUPS = {
   family: ["father", "mother", "son", "daughter", "husband", "wife", "brother", "sister"],
+  organizational: ["member", "employed"],
   other: ["associate", "business", "friend", "neighbour", "other"],
 };
 
@@ -426,98 +438,215 @@ async function importExcel(file, deleteExisting = false) {
       try {
         const wb = XLSX.read(e.target.result, { type: "array" });
         const ws = wb.Sheets[wb.SheetNames[0]];
-        const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
 
-        if (rows.length < 2) {
-          reject(new Error("Sheet appears to be empty."));
-          return;
+        // Try to read as JSON (with headers) first
+        const jsonData = XLSX.utils.sheet_to_json(ws, { defval: "" });
+
+        if (jsonData.length > 0 && jsonData[0].UUID) {
+          // This is an exported format with headers
+          let imported = 0;
+          let updated = 0;
+
+          for (const row of jsonData) {
+            // Skip empty rows
+            if (!row.Lastname && !row.Firstname) continue;
+
+            const uuid = row.UUID && row.UUID.trim() ? row.UUID.trim() : generateUUID();
+            const existing = await idbGet(uuid);
+            const isUpdate = !!existing;
+
+            // Parse variations from semicolon-separated strings
+            const lastnameVariations = row["Lastname Variations"]
+              ? String(row["Lastname Variations"])
+                  .split(";")
+                  .map((v) => v.trim())
+                  .filter(Boolean)
+              : [];
+            const firstnameVariations = row["Firstname Variations"]
+              ? String(row["Firstname Variations"])
+                  .split(";")
+                  .map((v) => v.trim())
+                  .filter(Boolean)
+              : [];
+
+            // Parse relationships
+            const relationships = row.Relationships
+              ? String(row.Relationships)
+                  .split(";")
+                  .map((r) => {
+                    const parts = r.trim().split(":");
+                    if (parts.length === 2) {
+                      return {
+                        type: parts[0].trim(),
+                        personName: parts[1].trim(),
+                        personUuid: "", // Will need to be resolved later
+                      };
+                    }
+                    return null;
+                  })
+                  .filter(Boolean)
+              : [];
+
+            // Parse zotero and archief references
+            const zotero = row.Zotero
+              ? String(row.Zotero)
+                  .split(";")
+                  .map((ref) => ({
+                    reference: ref.trim(),
+                    year: "",
+                    remarks: "",
+                  }))
+                  .filter((r) => r.reference)
+              : [];
+
+            const archief = row.Archief
+              ? String(row.Archief)
+                  .split(";")
+                  .map((ref) => ({
+                    reference: ref.trim(),
+                    year: "",
+                    remarks: "",
+                  }))
+                  .filter((r) => r.reference)
+              : [];
+
+            const record = {
+              uuid: uuid,
+              createdAt: existing?.createdAt || row["Created At"] || now(),
+              modifiedAt: now(),
+              deletedAt: row["Deleted At"] || null,
+
+              entityType: String(row["Entity Type"] || "person")
+                .trim()
+                .toLowerCase(),
+              lastname: String(row.Lastname || "").trim(),
+              lastnameVariations: lastnameVariations,
+              firstname: String(row.Firstname || "").trim(),
+              firstnameVariations: firstnameVariations,
+              patronymic: String(row.Patronymic || "").trim(),
+              gender: String(row.Gender || "M").trim(),
+              city: String(row.City || "").trim(),
+              profession: String(row.Profession || "").trim(),
+              origin: String(row.Origin || "").trim(),
+              firstseen: String(row["First Seen"] || "").trim(),
+              lastseen: String(row["Last Seen"] || "").trim(),
+              mocosince: String(row["Moco Since"] || "").trim(),
+              religion: String(row.Religion || "").trim(),
+              yob: String(row["Year of Birth"] || "").trim(),
+              bornin: String(row["Born In"] || "").trim(),
+              yod: String(row["Year of Death"] || "").trim(),
+              diedin: String(row["Died In"] || "").trim(),
+              notes: String(row.Notes || "").trim(),
+              relationships: relationships,
+              zotero: zotero,
+              archief: archief,
+            };
+
+            await idbPut(record);
+            if (isUpdate) {
+              updated++;
+            } else {
+              imported++;
+            }
+          }
+
+          resolve({ imported, updated, total: imported + updated });
+        } else {
+          // Original format (no headers, positional columns)
+          const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
+
+          if (rows.length < 2) {
+            reject(new Error("Sheet appears to be empty."));
+            return;
+          }
+
+          // Optionally wipe existing records
+          if (deleteExisting) await clearAllRecords();
+
+          // First row = headers, skip it
+          const dataRows = rows.slice(1);
+          let imported = 0;
+
+          for (const row of dataRows) {
+            // Skip completely empty rows
+            if (row.every((c) => c === "" || c == null)) continue;
+
+            const lastnameData = parseNameWithVariations(row[0]);
+            const firstnameData = parseNameWithVariations(row[1]);
+
+            const record = {
+              uuid: generateUUID(),
+              createdAt: now(),
+              modifiedAt: now(),
+              deletedAt: null,
+
+              entityType: "person", // Default for original format
+              // Col 0 — Lastname (with variations)
+              lastname: lastnameData.primary,
+              lastnameVariations: lastnameData.variations,
+
+              // Col 1 — Firstname (with variations)
+              firstname: firstnameData.primary,
+              firstnameVariations: firstnameData.variations,
+
+              // Col 2 — Patronymic
+              patronymic: String(row[2] || "").trim(),
+
+              // Col 3 — Gender: Male unless F present
+              gender: parseGender(row[3]),
+
+              // Col 4 — City
+              city: String(row[4] || "").trim(),
+
+              // Col 5 — Profession
+              profession: String(row[5] || "").trim(),
+
+              // Col 6 — Origin
+              origin: String(row[6] || "").trim(),
+
+              // Col 7 — First seen
+              firstseen: String(row[7] || "").trim(),
+
+              // Col 8 — Last seen
+              lastseen: String(row[8] || "").trim(),
+
+              // Col 9 — Lasting
+              lasting: String(row[9] || "").trim(),
+
+              // Col 10 — MoCO-A since
+              mocosince: String(row[10] || "").trim(),
+
+              // Col 11 — Religion
+              religion: String(row[11] || "").trim(),
+
+              // Col 12 — Year of birth
+              yob: String(row[12] || "").trim(),
+
+              // Col 13 — Born in
+              bornin: String(row[13] || "").trim(),
+
+              // Col 14 — Year of death
+              yod: String(row[14] || "").trim(),
+
+              // Col 15 — Died in
+              diedin: String(row[15] || "").trim(),
+
+              // Col 16 — Zotero (semicolon-separated refs)
+              zotero: parseRefArray(row[16]),
+
+              // Col 17 — Archief (semicolon-separated refs)
+              archief: parseRefArray(row[17]),
+
+              // Col 18 — Notes / Opmerkingen
+              notes: String(row[18] || "").trim(),
+            };
+
+            await idbPut(record);
+            imported++;
+          }
+
+          resolve({ imported, updated: 0, total: imported });
         }
-
-        // Optionally wipe existing records
-        if (deleteExisting) await clearAllRecords();
-
-        // First row = headers, skip it
-        const dataRows = rows.slice(1);
-        let imported = 0;
-
-        for (const row of dataRows) {
-          // Skip completely empty rows
-          if (row.every((c) => c === "" || c == null)) continue;
-
-          const lastnameData = parseNameWithVariations(row[0]);
-          const firstnameData = parseNameWithVariations(row[1]);
-
-          const record = {
-            uuid: generateUUID(),
-            createdAt: now(),
-            modifiedAt: now(),
-            deletedAt: null,
-
-            // Col 0 — Lastname (with variations)
-            lastname: lastnameData.primary,
-            lastnameVariations: lastnameData.variations,
-
-            // Col 1 — Firstname (with variations)
-            firstname: firstnameData.primary,
-            firstnameVariations: firstnameData.variations,
-
-            // Col 2 — Patronymic
-            patronymic: String(row[2] || "").trim(),
-
-            // Col 3 — Gender: Male unless F present
-            gender: parseGender(row[3]),
-
-            // Col 4 — City
-            city: String(row[4] || "").trim(),
-
-            // Col 5 — Profession
-            profession: String(row[5] || "").trim(),
-
-            // Col 6 — Origin
-            origin: String(row[6] || "").trim(),
-
-            // Col 7 — First seen
-            firstseen: String(row[7] || "").trim(),
-
-            // Col 8 — Last seen
-            lastseen: String(row[8] || "").trim(),
-
-            // Col 9 — Lasting
-            lasting: String(row[9] || "").trim(),
-
-            // Col 10 — MoCO-A since
-            mocosince: String(row[10] || "").trim(),
-
-            // Col 11 — Religion
-            religion: String(row[11] || "").trim(),
-
-            // Col 12 — Year of birth
-            yob: String(row[12] || "").trim(),
-
-            // Col 13 — Born in
-            bornin: String(row[13] || "").trim(),
-
-            // Col 14 — Year of death
-            yod: String(row[14] || "").trim(),
-
-            // Col 15 — Died in
-            diedin: String(row[15] || "").trim(),
-
-            // Col 16 — Zotero (semicolon-separated refs)
-            zotero: parseRefArray(row[16]),
-
-            // Col 17 — Archief (semicolon-separated refs)
-            archief: parseRefArray(row[17]),
-
-            // Col 18 — Notes / Opmerkingen
-            notes: String(row[18] || "").trim(),
-          };
-
-          await idbPut(record);
-          imported++;
-        }
-
-        resolve(imported);
       } catch (err) {
         reject(err);
       }
@@ -539,6 +668,7 @@ function exportToExcel() {
   const excelData = filteredRecords.map((r) => {
     return {
       UUID: r.uuid || "",
+      "Entity Type": r.entityType || "person",
       Lastname: r.lastname || "",
       "Lastname Variations": (r.lastnameVariations || []).join("; "),
       Firstname: r.firstname || "",
@@ -560,8 +690,8 @@ function exportToExcel() {
       Relationships: (r.relationships || [])
         .map((rel) => `${rel.type}:${rel.personName}`)
         .join("; "),
-      Zotero: (r.zotero || []).map((z) => `${z.key}=${z.value}`).join("; "),
-      Archief: (r.archief || []).map((a) => `${a.key}=${a.value}`).join("; "),
+      Zotero: (r.zotero || []).map((z) => z.reference).join("; "),
+      Archief: (r.archief || []).map((a) => a.reference).join("; "),
       "Created At": r.createdAt || "",
       "Modified At": r.modifiedAt || "",
       "Deleted At": r.deletedAt || "",
@@ -575,6 +705,7 @@ function exportToExcel() {
   // Set column widths
   ws["!cols"] = [
     { wch: 36 }, // UUID
+    { wch: 15 }, // Entity Type
     { wch: 15 }, // Lastname
     { wch: 20 }, // Lastname Variations
     { wch: 15 }, // Firstname
@@ -998,6 +1129,7 @@ async function refreshRecords(query = "") {
             "references",
             "relationships",
             "name",
+            "entityType",
           ]);
         }
 
@@ -1051,6 +1183,10 @@ function searchInRecord(record, query, scopes) {
 
       case "patronymic":
         if (matches(record.patronymic)) return true;
+        break;
+
+      case "entityType":
+        if (matches(record.entityType || "person")) return true;
         break;
 
       case "name":
@@ -1238,8 +1374,20 @@ function renderStats(records) {
   // Only count non-deleted records
   const active = records.filter((r) => !r.deletedAt);
   const total = active.length;
-  const male = active.filter((r) => r.gender === "M").length;
-  const female = active.filter((r) => r.gender === "F").length;
+
+  // Count entity types
+  const persons = active.filter((r) => (r.entityType || "person") === "person").length;
+  const associations = active.filter((r) => r.entityType === "association").length;
+  const institutions = active.filter((r) => r.entityType === "institution").length;
+  const companies = active.filter((r) => r.entityType === "company").length;
+
+  // Count gender (for persons only)
+  const male = active.filter(
+    (r) => (r.entityType || "person") === "person" && r.gender === "M",
+  ).length;
+  const female = active.filter(
+    (r) => (r.entityType || "person") === "person" && r.gender === "F",
+  ).length;
 
   // Count relationships
   let totalRelationships = 0;
@@ -1274,8 +1422,16 @@ function renderStats(records) {
   const sortedOrigins = Object.keys(originCounts).sort();
   const sortedReligions = Object.keys(religionCounts).sort();
 
-  // Update total/gender stats
+  // Update total stats
   document.getElementById("stat-total").textContent = total;
+
+  // Update entity type stats
+  document.getElementById("stat-persons").textContent = persons;
+  document.getElementById("stat-associations").textContent = associations;
+  document.getElementById("stat-institutions").textContent = institutions;
+  document.getElementById("stat-companies").textContent = companies;
+
+  // Update gender stats (persons only)
   document.getElementById("stat-male").textContent = male;
   document.getElementById("stat-female").textContent = female;
 
@@ -1358,6 +1514,12 @@ function renderTable(records) {
     const fnVars = (r.firstnameVariations || [])
       .map((v) => `<span class="tag">${v}</span>`)
       .join("");
+    // Entity type indicator
+    let entityIcon = "";
+    if (r.entityType === "association") entityIcon = "🏛";
+    else if (r.entityType === "institution") entityIcon = "🏢";
+    else if (r.entityType === "company") entityIcon = "🏭";
+
     const genderLabel = r.gender === "F" ? "&#x2640;" : "&#x2642;";
     let cityLabel = "";
     if (r.city !== "Livorno") {
@@ -1367,9 +1529,9 @@ function renderTable(records) {
     const fullFirstname = [r.firstname || "", r.patronymic || ""].filter(Boolean).join(" ");
 
     tr.innerHTML = `
-            <td>${r.lastname || ""}${lnVars}</td>
+            <td>${entityIcon}${r.lastname || ""}${lnVars}</td>
             <td>${fullFirstname}${fnVars}</td>
-            <td>${genderLabel}</td>
+            <td>${r.entityType === "person" ? genderLabel : ""}</td>
             <td>${cityLabel}</td>
             <td>${r.profession || ""}</td>
             <td>${r.firstseen || ""}</td>
@@ -1558,8 +1720,18 @@ function showPersonPicker() {
       filtered.forEach((r) => {
         const item = document.createElement("div");
         item.className = "person-picker-item";
+
+        // Entity type indicator
+        let entityIcon = "";
+        if (r.entityType === "association") entityIcon = "🏛 ";
+        else if (r.entityType === "institution") entityIcon = "🏢 ";
+        else if (r.entityType === "company") entityIcon = "🏭 ";
+
+        const entityTypeLabel =
+          r.entityType && r.entityType !== "person" ? ` [${r.entityType}]` : "";
+
         item.innerHTML = `
-          <div style="font-weight:600;">${r.firstname} ${r.lastname}</div>
+          <div style="font-weight:600;">${entityIcon}${r.firstname} ${r.lastname}${entityTypeLabel}</div>
           <div style="font-size:11px;color:var(--mid-grey);">${r.patronymic || ""} ${r.yob ? `(${r.yob})` : ""} ${r.origin || ""}</div>
         `;
         item.addEventListener("click", () => {
@@ -1610,6 +1782,8 @@ function makeRelationshipItem(rel = {}) {
                 <option value="wife" ${rel.type === "wife" ? "selected" : ""}>Wife</option>
                 <option value="brother" ${rel.type === "brother" ? "selected" : ""}>Brother</option>
                 <option value="sister" ${rel.type === "sister" ? "selected" : ""}>Sister</option>
+                <option value="member" ${rel.type === "member" ? "selected" : ""}>Member of</option>
+                <option value="employed" ${rel.type === "employed" ? "selected" : ""}>Employed by</option>
                 <option value="associate" ${rel.type === "associate" ? "selected" : ""}>Associate</option>
                 <option value="business" ${rel.type === "business" ? "selected" : ""}>Business</option>
                 <option value="friend" ${rel.type === "friend" ? "selected" : ""}>Friend</option>
@@ -1658,8 +1832,12 @@ async function showRelationshipNetwork() {
   // Build network map: personUuid -> {person, relationships: [{type, toUuid, toName}]}
   const networkMap = new Map();
 
-  // Get all relationship types (both family and other)
-  const allRelTypes = [...RELATIONSHIP_GROUPS.family, ...RELATIONSHIP_GROUPS.other];
+  // Get all relationship types (family, organizational, and other)
+  const allRelTypes = [
+    ...RELATIONSHIP_GROUPS.family,
+    ...RELATIONSHIP_GROUPS.organizational,
+    ...RELATIONSHIP_GROUPS.other,
+  ];
 
   activeRecords.forEach((person) => {
     const rels = person.relationships || [];
@@ -1712,6 +1890,34 @@ async function showRelationshipNetwork() {
   });
 
   legendItems.appendChild(familyGroup);
+
+  // Organizational Relations group
+  const orgGroup = document.createElement("div");
+  orgGroup.style.display = "flex";
+  orgGroup.style.flexWrap = "wrap";
+  orgGroup.style.gap = "12px";
+  orgGroup.style.width = "100%";
+  orgGroup.style.marginTop = "12px";
+
+  const orgLabel = document.createElement("div");
+  orgLabel.style.fontWeight = "600";
+  orgLabel.style.fontSize = "11px";
+  orgLabel.style.width = "100%";
+  orgLabel.style.marginBottom = "-4px";
+  orgLabel.textContent = "Organizational Relations:";
+  orgGroup.appendChild(orgLabel);
+
+  RELATIONSHIP_GROUPS.organizational.forEach((type) => {
+    const item = document.createElement("div");
+    item.className = "legend-item";
+    item.innerHTML = `
+      <div class="legend-color" style="background: ${RELATIONSHIP_COLORS[type]}"></div>
+      <span>${type.charAt(0).toUpperCase() + type.slice(1)}</span>
+    `;
+    orgGroup.appendChild(item);
+  });
+
+  legendItems.appendChild(orgGroup);
 
   // Other Relations group
   const otherGroup = document.createElement("div");
@@ -1833,8 +2039,12 @@ function renderRelationshipGraph() {
     const links = [];
     const nodeMap = new Map();
 
-    // Get all relationship types (both family and other)
-    const allRelTypes = [...RELATIONSHIP_GROUPS.family, ...RELATIONSHIP_GROUPS.other];
+    // Get all relationship types (family, organizational, and other)
+    const allRelTypes = [
+      ...RELATIONSHIP_GROUPS.family,
+      ...RELATIONSHIP_GROUPS.organizational,
+      ...RELATIONSHIP_GROUPS.other,
+    ];
 
     activeRecords.forEach((person) => {
       const rels = person.relationships || [];
@@ -2086,8 +2296,11 @@ function getReciprocalRelationType(type) {
     business: "business",
     neighbour: "neighbour",
     other: "other",
+    // One-way relationships have no reciprocal
+    member: null,
+    employed: null,
   };
-  return reciprocals[type] || "other";
+  return reciprocals[type] !== undefined ? reciprocals[type] : "other";
 }
 
 async function updateBidirectionalRelationships(record, oldRelationships = []) {
@@ -2101,13 +2314,16 @@ async function updateBidirectionalRelationships(record, oldRelationships = []) {
   for (const oldRel of oldRels) {
     const found = newRels.find((r) => r.personUuid === oldRel.personUuid && r.type === oldRel.type);
     if (!found) {
-      // Relationship was removed, remove reciprocal
-      if (!updates[oldRel.personUuid]) updates[oldRel.personUuid] = { add: [], remove: [] };
-      updates[oldRel.personUuid].remove.push({
-        personUuid: record.uuid,
-        personName: `${record.firstname} ${record.lastname}`,
-        type: getReciprocalRelationType(oldRel.type),
-      });
+      // Relationship was removed, remove reciprocal (if bidirectional)
+      const reciprocalType = getReciprocalRelationType(oldRel.type);
+      if (reciprocalType !== null) {
+        if (!updates[oldRel.personUuid]) updates[oldRel.personUuid] = { add: [], remove: [] };
+        updates[oldRel.personUuid].remove.push({
+          personUuid: record.uuid,
+          personName: `${record.firstname} ${record.lastname}`,
+          type: reciprocalType,
+        });
+      }
     }
   }
 
@@ -2117,13 +2333,16 @@ async function updateBidirectionalRelationships(record, oldRelationships = []) {
       (r) => r.personUuid === newRel.personUuid && r.type === newRel.type,
     );
     if (!wasExisting) {
-      // New relationship, add reciprocal
-      if (!updates[newRel.personUuid]) updates[newRel.personUuid] = { add: [], remove: [] };
-      updates[newRel.personUuid].add.push({
-        personUuid: record.uuid,
-        personName: `${record.firstname} ${record.lastname}`,
-        type: getReciprocalRelationType(newRel.type),
-      });
+      // New relationship, add reciprocal (if bidirectional)
+      const reciprocalType = getReciprocalRelationType(newRel.type);
+      if (reciprocalType !== null) {
+        if (!updates[newRel.personUuid]) updates[newRel.personUuid] = { add: [], remove: [] };
+        updates[newRel.personUuid].add.push({
+          personUuid: record.uuid,
+          personName: `${record.firstname} ${record.lastname}`,
+          type: reciprocalType,
+        });
+      }
     }
   }
 
@@ -2183,7 +2402,7 @@ function validateRelationships(record) {
 async function openNewModal() {
   editingUUID = null;
   clearForm();
-  document.getElementById("modal-title").textContent = "New Person";
+  document.getElementById("modal-title").textContent = "New Entity";
   document.getElementById("btn-delete-person").classList.add("hidden");
   document.getElementById("btn-save-person").style.display = "block";
   document.getElementById("person-modal").classList.remove("hidden");
@@ -2206,12 +2425,14 @@ async function openEditModal(uuid) {
 
   const s = loadSettings();
 
+  const entityTypeLabel = ENTITY_TYPES[record.entityType || "person"];
+
   if (s.guestMode) {
-    document.getElementById("modal-title").textContent = "View Person (Read-Only)";
+    document.getElementById("modal-title").textContent = `View ${entityTypeLabel} (Read-Only)`;
     document.getElementById("btn-delete-person").classList.add("hidden");
     document.getElementById("btn-save-person").style.display = "none";
   } else {
-    document.getElementById("modal-title").textContent = "Edit Person";
+    document.getElementById("modal-title").textContent = `Edit ${entityTypeLabel}`;
     document.getElementById("btn-delete-person").classList.remove("hidden");
     document.getElementById("btn-save-person").style.display = "block";
   }
@@ -2243,6 +2464,7 @@ async function openEditModal(uuid) {
 
 function clearForm() {
   [
+    "entity-type",
     "lastname",
     "firstname",
     "patronymic",
@@ -2276,6 +2498,7 @@ function populateForm(r) {
     const el = document.getElementById(id);
     if (el) el.value = val || "";
   };
+  set("field-entity-type", r.entityType || "person");
   set("field-lastname", r.lastname);
   set("field-firstname", r.firstname);
   set("field-patronymic", r.patronymic);
@@ -2293,6 +2516,9 @@ function populateForm(r) {
   set("field-yod", r.yod);
   set("field-diedin", r.diedin);
   set("field-notes", r.notes);
+
+  // Update form labels based on entity type
+  updateFieldLabelsForEntityType(r.entityType || "person");
 
   const lvc = document.getElementById("lastname-variations-container");
   lvc.innerHTML = "";
@@ -2318,6 +2544,22 @@ function populateForm(r) {
   renderRelationshipSummary(r);
 }
 
+function updateFieldLabelsForEntityType(entityType) {
+  const lastnameLabel = document.querySelector('label[for="field-lastname"]');
+  const firstnameLabel = document.querySelector('label[for="field-firstname"]');
+  const genderField = document.getElementById("field-gender").parentElement;
+
+  if (entityType === "person") {
+    if (lastnameLabel) lastnameLabel.textContent = "Lastname";
+    if (firstnameLabel) firstnameLabel.textContent = "Firstname";
+    genderField.style.display = "block";
+  } else {
+    if (lastnameLabel) lastnameLabel.textContent = "Name";
+    if (firstnameLabel) firstnameLabel.textContent = "Firstname (optional)";
+    genderField.style.display = "none";
+  }
+}
+
 async function savePerson() {
   const lastname = document.getElementById("field-lastname").value.trim();
   const firstname = document.getElementById("field-firstname").value.trim();
@@ -2337,6 +2579,7 @@ async function savePerson() {
     modifiedAt: ts,
     deletedAt: existing?.deletedAt || null,
 
+    entityType: document.getElementById("field-entity-type").value,
     lastname,
     lastnameVariations: collectVariations("lastname-variations-container"),
     firstname,
@@ -2636,6 +2879,34 @@ function attachEventListeners() {
     refreshRecords("");
   });
 
+  document.getElementById("stat-card-persons").addEventListener("click", () => {
+    searchInput.value = "person";
+    searchScopes = ["entityType"];
+    updateScopeDisplay();
+    refreshRecords("person");
+  });
+
+  document.getElementById("stat-card-associations").addEventListener("click", () => {
+    searchInput.value = "association";
+    searchScopes = ["entityType"];
+    updateScopeDisplay();
+    refreshRecords("association");
+  });
+
+  document.getElementById("stat-card-institutions").addEventListener("click", () => {
+    searchInput.value = "institution";
+    searchScopes = ["entityType"];
+    updateScopeDisplay();
+    refreshRecords("institution");
+  });
+
+  document.getElementById("stat-card-companies").addEventListener("click", () => {
+    searchInput.value = "company";
+    searchScopes = ["entityType"];
+    updateScopeDisplay();
+    refreshRecords("company");
+  });
+
   document.getElementById("stat-card-male").addEventListener("click", () => {
     searchInput.value = "Male";
     searchScopes = ["all"];
@@ -2742,11 +3013,25 @@ function attachEventListeners() {
 
     try {
       const deleteExisting = choice === "replace";
-      const count = await importExcel(file, deleteExisting);
-      notify(
-        `${deleteExisting ? "Replaced all records. " : ""}Imported ${count} records.`,
-        "success",
-      );
+      const result = await importExcel(file, deleteExisting);
+
+      // Handle both old format (number) and new format (object)
+      if (typeof result === "number") {
+        notify(
+          `${deleteExisting ? "Replaced all records. " : ""}Imported ${result} records.`,
+          "success",
+        );
+      } else {
+        const { imported, updated, total } = result;
+        let message = deleteExisting ? "Replaced all records. " : "";
+        if (updated > 0) {
+          message += `Imported ${imported} new record${imported !== 1 ? "s" : ""}, updated ${updated} existing record${updated !== 1 ? "s" : ""}.`;
+        } else {
+          message += `Imported ${total} record${total !== 1 ? "s" : ""}.`;
+        }
+        notify(message, "success");
+      }
+
       await refreshRecords();
     } catch (err) {
       notify(`Import failed: ${err.message}`, "error");
@@ -2933,6 +3218,11 @@ function attachEventListeners() {
       return;
     }
     document.getElementById("relationships-container").appendChild(makeRelationshipItem());
+  });
+
+  // Entity type change handler
+  document.getElementById("field-entity-type").addEventListener("change", (e) => {
+    updateFieldLabelsForEntityType(e.target.value);
   });
 
   // Lastname fuzzy lookup

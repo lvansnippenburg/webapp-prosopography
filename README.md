@@ -1,23 +1,24 @@
-# Livorno Prosopography - Search Guide
+# Livorno Prosopography - Database Guide
 
-A comprehensive historical prosopography database application with advanced search capabilities for researching persons, relationships, and historical records.
+A comprehensive historical prosopography database application with advanced search capabilities for researching persons, associations, institutions, companies, and their relationships.
 
 ---
 
 ## Table of Contents
 
 1. [Quick Start](#quick-start)
-2. [Guest Mode](#guest-mode)
-3. [Export Data](#export-data)
-4. [Basic Search](#basic-search)
-5. [Search Scopes](#search-scopes)
-6. [Multiple Scope Selection](#multiple-scope-selection)
-7. [Regex Mode](#regex-mode)
-8. [Advanced Query Syntax](#advanced-query-syntax)
-9. [Search History](#search-history)
-10. [Statistics Cards](#statistics-cards)
-11. [Search Examples](#search-examples)
-12. [Tips & Best Practices](#tips--best-practices)
+2. [Entity Types and Relationships](#entity-types-and-relationships)
+3. [Guest Mode](#guest-mode)
+4. [Import & Export Data](#import--export-data)
+5. [Basic Search](#basic-search)
+6. [Search Scopes](#search-scopes)
+7. [Multiple Scope Selection](#multiple-scope-selection)
+8. [Regex Mode](#regex-mode)
+9. [Advanced Query Syntax](#advanced-query-syntax)
+10. [Search History](#search-history)
+11. [Statistics Cards](#statistics-cards)
+12. [Search Examples](#search-examples)
+13. [Tips & Best Practices](#tips--best-practices)
 
 ---
 
@@ -37,6 +38,98 @@ A comprehensive historical prosopography database application with advanced sear
 1. Click **".*"** button (regex mode)
 2. Enter regex pattern
 3. Results match pattern
+
+---
+
+## Entity Types and Relationships
+
+### Entity Types
+
+The database supports four types of entities:
+
+**1. Person** (default)
+- Individual historical figures
+- Has gender field (Male/Female)
+- Can have family relationships (father, mother, son, daughter, husband, wife, brother, sister)
+- Name displayed as: Firstname + Patronymic + Lastname
+
+**2. Association**
+- Organizations, societies, guilds, clubs
+- Icon: 🏛
+- Name entered in "Lastname" field (Firstname optional)
+- No gender field displayed
+
+**3. Institution**
+- Government bodies, churches, schools, hospitals
+- Icon: 🏢
+- Name entered in "Lastname" field (Firstname optional)
+- No gender field displayed
+
+**4. Company**
+- Commercial enterprises, trading houses, banks
+- Icon: 🏭
+- Name entered in "Lastname" field (Firstname optional)
+- No gender field displayed
+
+### Relationship Types
+
+**Family Relations (8 types - bidirectional):**
+- Father ↔ Son/Daughter
+- Mother ↔ Son/Daughter
+- Husband ↔ Wife
+- Brother ↔ Brother
+- Sister ↔ Sister
+
+*Note: When you add a family relationship, the reciprocal is automatically created.*
+
+**Organizational Relations (2 types - one-way):**
+- **Member of**: Person is a member of an Association
+- **Employed by**: Person is employed by an Institution or Company
+
+*Note: These are one-way relationships. No reciprocal is created.*
+
+**Social/Business Relations (5 types - bidirectional):**
+- Associate ↔ Associate
+- Business ↔ Business
+- Friend ↔ Friend
+- Neighbour ↔ Neighbour
+- Other ↔ Other
+
+*Note: Reciprocal relationships are automatically created.*
+
+### Working with Entity Types
+
+**Creating an Entity:**
+1. Click "+ New Entity" button
+2. Select Entity Type from dropdown (Person, Association, Institution, Company)
+3. Form fields adjust based on type:
+   - **Person**: All fields visible, "Lastname" label
+   - **Other types**: Gender field hidden, "Name" label for lastname field
+
+**Filtering by Entity Type:**
+- Click on entity type stat cards (Persons, Associations, Institutions, Companies)
+- Or search using scope selector: choose "Entity Type" scope
+- Search terms: "person", "association", "institution", "company"
+
+**Visual Indicators:**
+- Table view shows entity icons: 🏛 (association), 🏢 (institution), 🏭 (company)
+- Person picker shows entity type label and icon
+- Modal title shows entity type: "Edit Person", "Edit Association", etc.
+
+### Use Cases
+
+**Tracking Memberships:**
+- Add persons as "Member of" various associations
+- Example: John Smith → Member of → Merchant Guild
+
+**Employment Records:**
+- Track persons employed by institutions or companies
+- Example: Maria Rossi → Employed by → Bank of Livorno
+
+**Organizational Networks:**
+- Map relationships between persons and organizations
+- View in relationship network graph
+- Filter and analyze organizational affiliations
 
 ---
 
@@ -112,6 +205,96 @@ The data is loaded directly into your browser's local IndexedDB and updates are 
 
 ---
 
+## Import & Export Data
+
+### Import Excel Files
+
+The application supports two Excel import formats:
+
+**1. Original Format (Positional Columns):**
+- Legacy format with 19 columns in specific order
+- No headers required
+- Name variations in brackets: `Smith (Smit, Smythe)`
+- Creates new records with generated UUIDs
+
+**2. Exported Format (Named Columns):**
+- Excel files exported from this application
+- Has column headers (UUID, Lastname, Firstname, etc.)
+- Includes UUID column for record identification
+- **Updates existing records** if UUID matches
+- Creates new records if UUID is missing or not found
+
+### Import Behavior
+
+**When importing exported files:**
+1. Application detects format by checking for "UUID" column header
+2. For each row:
+   - If UUID exists and matches existing record → **Updates that record**
+   - If UUID is missing or not found → **Creates new record**
+3. Multi-value fields (variations, relationships, references) are parsed from semicolon-separated strings
+4. Timestamps: `createdAt` preserved from original, `modifiedAt` updated to import time
+
+**Import Options:**
+- **Append to existing**: Adds/updates records, keeps non-matching records
+- **Delete all & import**: Removes all existing records first, then imports
+- **Cancel**: Aborts import operation
+
+**What Gets Updated:**
+All fields are updated when a UUID match is found:
+- Names and variations
+- Personal details
+- Dates and references
+- Relationships
+- Notes
+
+### Import Use Cases
+
+**Round-Trip Editing:**
+1. Export records to Excel
+2. Edit data in spreadsheet (add variations, fix typos, update dates)
+3. Re-import to update database
+4. UUID matching ensures correct records are updated
+
+**Collaborative Editing:**
+1. Team member exports subset of records
+2. Edits in Excel and shares file
+3. Another team member imports to update their database
+4. Only modified records are affected
+
+**Data Migration:**
+- Import legacy data using original format
+- Import updated data using exported format
+- Merge data from multiple sources
+
+**Bulk Updates:**
+- Export filtered records
+- Make bulk changes in Excel (e.g., add religion to all Amsterdam merchants)
+- Re-import to apply changes
+
+### Import Tips
+
+**Preserve UUIDs:**
+- Do NOT delete or modify the UUID column when editing exported files
+- UUIDs ensure correct record matching on import
+- Missing UUIDs will create duplicate records
+
+**Relationships:**
+- Format: `type:personName` separated by semicolons
+- Example: `father:John Smith; brother:Peter Smith`
+- Note: `personUuid` is not preserved in Excel (only name and type)
+- Relationships may need manual verification after import
+
+**Multi-Value Fields:**
+- Separate values with semicolons: `value1; value2; value3`
+- Works for: variations, relationships, Zotero, Archief
+- Spaces after semicolons are optional
+
+**Guest Mode:**
+- Import is disabled in Guest Mode
+- Switch to User Mode to import data
+
+---
+
 ## Export Data
 
 ### Overview
@@ -145,8 +328,9 @@ Export your current selection of records to Excel or JSON format. The export wil
 - Each record is a row
 - Each field is a column
 - Multi-value fields (variations, relationships, references) are separated by semicolons (`;`)
-  - Example: `"merchant; banker; trader"`
-  - Example: `"father:John Smith; brother:Peter Smith"`
+  - Example variations: `"merchant; banker; trader"`
+  - Example relationships: `"father:John Smith; brother:Peter Smith"`
+  - Example references (Zotero/Archief): `"reference1; reference2; reference3"` (only the reference field is exported, not year or remarks)
 - Column widths are automatically sized for readability
 - Filename: `livorno_prosopography_YYYY-MM-DD-HHMMSS.xlsx`
 
@@ -191,6 +375,11 @@ Export your current selection of records to Excel or JSON format. The export wil
 - Split relationships into separate rows for analysis
 - Formula example: `=TRIM(MID(SUBSTITUTE(A1,";",REPT(" ",100)),1,100))` for first value
 
+**Re-Import for Updates:**
+- Export, edit in Excel, and re-import to update records
+- UUIDs ensure correct record matching
+- See "Import & Export Data" section for details
+
 **JSON Editing:**
 - JSON can be edited and re-imported (User Mode only)
 - Useful for bulk updates via scripts
@@ -200,6 +389,11 @@ Export your current selection of records to Excel or JSON format. The export wil
 - Export is available in both Guest and User modes
 - Use export to save research findings
 - Create local copies of filtered datasets
+
+**Entity Types:**
+- Entity Type field is included in both Excel and JSON exports
+- Default value is "person" for legacy records
+- Values: "person", "association", "institution", "company"
 
 ---
 

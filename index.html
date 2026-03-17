@@ -125,7 +125,7 @@
                         </button>
                     </div>
                 </div>
-                <button class="btn-primary" id="btn-new">+ New Person</button>
+                <button class="btn-primary" id="btn-new">+ New Entity</button>
             </div>
 
             <!-- Statistics pane -->
@@ -133,15 +133,31 @@
             <div id="stats-pane">
                 <div class="stat-card stat-card--clickable" id="stat-card-total">
                     <span class="stat-value" id="stat-total">—</span>
-                    <span class="stat-label">Total persons</span>
+                    <span class="stat-label">Total entities</span>
+                </div>
+                <div class="stat-card stat-card--clickable" id="stat-card-persons">
+                    <span class="stat-value" id="stat-persons">—</span>
+                    <span class="stat-label">Persons</span>
+                </div>
+                <div class="stat-card stat-card--clickable" id="stat-card-associations">
+                    <span class="stat-value" id="stat-associations">—</span>
+                    <span class="stat-label">Associations</span>
+                </div>
+                <div class="stat-card stat-card--clickable" id="stat-card-institutions">
+                    <span class="stat-value" id="stat-institutions">—</span>
+                    <span class="stat-label">Institutions</span>
+                </div>
+                <div class="stat-card stat-card--clickable" id="stat-card-companies">
+                    <span class="stat-value" id="stat-companies">—</span>
+                    <span class="stat-label">Companies</span>
                 </div>
                 <div class="stat-card stat-card--clickable" id="stat-card-male">
                     <span class="stat-value" id="stat-male">—</span>
-                    <span class="stat-label">Male</span>
+                    <span class="stat-label">Male (persons)</span>
                 </div>
                 <div class="stat-card stat-card--clickable" id="stat-card-female">
                     <span class="stat-value" id="stat-female">—</span>
-                    <span class="stat-label">Female</span>
+                    <span class="stat-label">Female (persons)</span>
                 </div>
                 <div class="stat-card" id="stat-card-relationships" style="cursor: help">
                     <span class="stat-value" id="stat-relationships">—</span>
@@ -230,9 +246,20 @@
                 </div>
                 <div class="modal-body">
                     <div class="form-grid">
+                        <!-- Entity Type -->
+                        <div class="form-group">
+                            <label>Entity Type</label>
+                            <select id="field-entity-type">
+                                <option value="person">Person</option>
+                                <option value="association">Association</option>
+                                <option value="institution">Institution</option>
+                                <option value="company">Company</option>
+                            </select>
+                        </div>
+
                         <!-- Lastname -->
                         <div class="form-group">
-                            <label>Lastname *</label>
+                            <label for="field-lastname">Lastname *</label>
                             <div class="lookup-wrapper">
                                 <input
                                     type="text"
@@ -246,7 +273,7 @@
 
                         <!-- Firstname -->
                         <div class="form-group">
-                            <label>Firstname *</label>
+                            <label for="field-firstname">Firstname</label>
                             <input
                                 type="text"
                                 id="field-firstname"
@@ -509,6 +536,10 @@
                     <label style="display: block; margin-bottom: 8px; cursor: pointer">
                         <input type="checkbox" class="scope-checkbox" value="firstname" />
                         Firstname
+                    </label>
+                    <label style="display: block; margin-bottom: 8px; cursor: pointer">
+                        <input type="checkbox" class="scope-checkbox" value="entityType" />
+                        Entity Type
                     </label>
                     <label style="display: block; margin-bottom: 8px; cursor: pointer">
                         <input type="checkbox" class="scope-checkbox" value="patronymic" />

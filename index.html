@@ -14,6 +14,7 @@
         <header>
             <h1>Livorno prosopography</h1>
             <div style="display: flex; gap: 10px">
+                <button class="btn-ghost btn-small" id="btn-sync-push">↑ Push</button>
                 <button class="btn-ghost btn-small" id="btn-settings-toggle">⚙ Settings</button>
             </div>
         </header>
@@ -22,6 +23,22 @@
             <!-- Settings panel -->
             <div id="settings-panel">
                 <h3>Settings</h3>
+                <div
+                    id="mode-indicator"
+                    style="
+                        margin-bottom: 14px;
+                        padding: 10px;
+                        background: var(--ice-blue);
+                        border-radius: 4px;
+                        font-size: 12px;
+                        display: flex;
+                        justify-content: space-between;
+                        align-items: center;
+                    "
+                >
+                    <div><strong>Mode:</strong> <span id="current-mode">User Mode</span></div>
+                    <button class="btn-ghost btn-small" id="btn-switch-mode">Switch Mode</button>
+                </div>
                 <div class="form-grid">
                     <div class="form-group">
                         <label>Codeberg API Token</label>
@@ -55,11 +72,10 @@
                         <strong>Last Pull:</strong> <span id="last-pull-time">Never</span>
                     </div>
                 </div>
-                <div style="margin-top: 14px; display: flex; gap: 10px">
+                <div style="margin-top: 14px; display: flex; gap: 10px; flex-wrap: wrap">
                     <button class="btn-primary" id="btn-save-settings">Save Settings</button>
                     <button class="btn-ghost btn-small" id="btn-show-deleted">Show Deleted</button>
                     <button class="btn-ghost btn-small" id="btn-sync-pull">↓ Pull</button>
-                    <button class="btn-ghost btn-small" id="btn-sync-push">↑ Push</button>
                     <button class="btn-secondary btn-small" id="btn-import">⬆ Import Excel</button>
                     <input type="file" id="file-input" accept=".xlsx,.xls" class="hidden" />
                 </div>
@@ -317,14 +333,27 @@
                             <input type="text" id="field-origin" />
                         </div>
 
-                        <!-- Lasting -->
-
+                        <!-- Religion -->
                         <div class="form-group">
-                            <!--
+                            <label>Religion</label>
+                            <input type="text" id="field-religion" />
+                        </div>
+
+                        <!-- MoCO-A since -->
+                        <div class="form-group">
+                            <label>Member of Nazione Since</label>
+                            <input type="text" id="field-mocosince" />
+                        </div>
+
+                        <!-- Lasting -->
+                        <!--
+                        <div class="form-group">
+
                             <label>Lasting</label>
                             <input type="text" id="field-lasting" />
-                            -->
+
                         </div>
+                        -->
 
                         <!-- First seen -->
                         <div class="form-group">
@@ -336,18 +365,6 @@
                         <div class="form-group">
                             <label>Last Seen</label>
                             <input type="text" id="field-lastseen" />
-                        </div>
-
-                        <!-- MoCO-A since -->
-                        <div class="form-group">
-                            <label>Member of Nazione Since</label>
-                            <input type="text" id="field-mocosince" />
-                        </div>
-
-                        <!-- Religion -->
-                        <div class="form-group">
-                            <label>Religion</label>
-                            <input type="text" id="field-religion" />
                         </div>
 
                         <!-- Year of birth -->

@@ -7,15 +7,16 @@ A comprehensive historical prosopography database application with advanced sear
 ## Table of Contents
 
 1. [Quick Start](#quick-start)
-2. [Basic Search](#basic-search)
-3. [Search Scopes](#search-scopes)
-4. [Multiple Scope Selection](#multiple-scope-selection)
-5. [Regex Mode](#regex-mode)
-6. [Advanced Query Syntax](#advanced-query-syntax)
-7. [Search History](#search-history)
-8. [Statistics Cards](#statistics-cards)
-9. [Search Examples](#search-examples)
-10. [Tips & Best Practices](#tips--best-practices)
+2. [Guest Mode](#guest-mode)
+3. [Basic Search](#basic-search)
+4. [Search Scopes](#search-scopes)
+5. [Multiple Scope Selection](#multiple-scope-selection)
+6. [Regex Mode](#regex-mode)
+7. [Advanced Query Syntax](#advanced-query-syntax)
+8. [Search History](#search-history)
+9. [Statistics Cards](#statistics-cards)
+10. [Search Examples](#search-examples)
+11. [Tips & Best Practices](#tips--best-practices)
 
 ---
 
@@ -35,6 +36,78 @@ A comprehensive historical prosopography database application with advanced sear
 1. Click **".*"** button (regex mode)
 2. Enter regex pattern
 3. Results match pattern
+
+---
+
+## Guest Mode
+
+### Overview
+
+The application offers two modes of operation:
+
+- **Guest Mode (Read-Only)**: Browse and search the Livorno prosopography database without making changes
+- **User Mode (Full Access)**: Full editing capabilities with personal Codeberg sync
+
+### First Time Setup
+
+When you first open the application, you'll be prompted to select a mode:
+
+1. **Guest Mode**: 
+   - Automatically loads data from the public Livorno Prosopography repository
+   - All local data is replaced with the public dataset
+   - No API keys or settings required
+   - Perfect for exploring the database
+
+2. **User Mode**: 
+   - Full control over your own data
+   - Can import, edit, create, and delete records
+   - Requires Codeberg API configuration for sync
+   - Changes are saved to your personal repository
+
+### Guest Mode Features
+
+**What you CAN do:**
+- Browse all person records
+- Search using all search modes (basic, regex, advanced)
+- View person details and relationships
+- Explore relationship networks (list and graph view)
+- View statistics and filter by clicking stat cards
+
+**What you CANNOT do:**
+- Create new person records
+- Edit existing records
+- Delete records
+- Import Excel data
+- Push/Pull to Codeberg (sync buttons are disabled)
+- Modify Codeberg settings
+
+### Visual Indicators in Guest Mode
+
+- **Header**: Shows "(Guest Mode)" next to the title
+- **Settings Panel**: Displays "Guest Mode (Read-Only)" indicator
+- **Disabled Buttons**: Push, Pull, Import, and New Person buttons are greyed out
+- **Person Modal**: Shows "View Person (Read-Only)" instead of "Edit Person"
+- **All Inputs**: Form fields are disabled and cannot be modified
+
+### Switching Modes
+
+You can switch between Guest and User mode at any time:
+
+1. Open the **Settings** panel (⚙ button)
+2. Click **"Switch Mode"** button
+3. Confirm the mode switch
+4. The application will reload
+
+**⚠️ Warning**: Switching modes will reload the application. In Guest Mode, switching will replace your local data with the public repository data.
+
+### Guest Mode Data Source
+
+Guest mode automatically loads data from:
+- **Repository**: `codeberg.org/lvansnippenburg/json_storage`
+- **Branch**: `LivornoProsopography`
+- **Access**: Public (no authentication required)
+
+The data is loaded directly into your browser's local IndexedDB and updates are automatic on first load.
 
 ---
 

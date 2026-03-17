@@ -82,6 +82,7 @@ function loadSettings() {
     branch: localStorage.getItem("cb_branch") || "main",
     lastSyncPush: localStorage.getItem("cb_lastSyncPush") || null,
     lastSyncPull: localStorage.getItem("cb_lastSyncPull") || null,
+    guestMode: localStorage.getItem("cb_guestMode") === "true",
   };
 }
 
@@ -101,6 +102,7 @@ function saveSettings(s) {
   localStorage.setItem("cb_branch", s.branch);
   if (s.lastSyncPush) localStorage.setItem("cb_lastSyncPush", s.lastSyncPush);
   if (s.lastSyncPull) localStorage.setItem("cb_lastSyncPull", s.lastSyncPull);
+  localStorage.setItem("cb_guestMode", s.guestMode ? "true" : "false");
 }
 
 function updateSyncTimestamps() {
@@ -525,6 +527,78 @@ async function importExcel(file, deleteExisting = false) {
 }
 
 // ── Codeberg API ───────────────────────────────────────────────────
+
+async function pullFromGuestRepo() {
+  const owner = "lvansnippenburg";
+  const repo = "json_storage";
+  const branch = "LivornoProsopography";
+
+  showProgress("Guest Mode - Loading Data", "Fetching repository files...");
+
+  try {
+    // Get all JSON files from the public repository
+    const res = await fetch(
+      `https://codeberg.org/api/v1/repos/${owner}/${repo}/git/trees/${branch}?recursive=true`,
+    );
+
+    if (!res.ok) {
+      throw new Error(`Failed to fetch repository: ${res.status}`);
+    }
+
+    const data = await res.json();
+    const files = data.tree
+      .filter((i) => i.type === "blob" && i.path.endsWith(".json"))
+      .map((i) => i.path);
+
+    if (!files.length) {
+      hideProgress();
+      notify("No data files found in guest repository.", "warning");
+      return;
+    }
+
+    updateProgress(0, files.length, "Loading records...");
+
+    // Clear existing data
+    const allRecords = await idbGetAll();
+    for (const record of allRecords) {
+      await idbDelete(record.uuid);
+    }
+
+    let loaded = 0;
+    for (let i = 0; i < files.length; i++) {
+      const path = files[i];
+      updateProgress(i + 1, files.length, `Loading ${path}...`);
+
+      try {
+        const fileRes = await fetch(
+          `https://codeberg.org/api/v1/repos/${owner}/${repo}/contents/${path}?ref=${branch}`,
+        );
+
+        if (!fileRes.ok) continue;
+
+        const fileData = await fileRes.json();
+        if (!fileData?.content) continue;
+
+        const remote = decodeContent(fileData.content);
+
+        // Only load non-deleted records
+        if (!remote.deletedAt) {
+          await idbPut(remote);
+          loaded++;
+        }
+      } catch (err) {
+        console.warn(`Failed to load ${path}:`, err);
+      }
+    }
+
+    hideProgress();
+    notify(`Guest mode: Loaded ${loaded} records from public repository.`, "success");
+    await refreshRecords();
+  } catch (err) {
+    hideProgress();
+    notify(`Failed to load guest data: ${err.message}`, "error");
+  }
+}
 
 async function codebergRequest(method, endpoint, body = null) {
   const s = loadSettings();
@@ -1573,6 +1647,12 @@ async function showRelationshipNetwork() {
       card.className = "network-person-card";
       card.dataset.uuid = person.uuid;
 
+      // Apply opacity if city is not Livorno
+      const isLivorno = person.city && person.city.toLowerCase().includes("livorno");
+      if (!isLivorno) {
+        card.style.opacity = "0.6";
+      }
+
       // Group relationships by person to show multiple relationship types
       const relsByPerson = new Map();
       relationships.forEach((rel) => {
@@ -1627,6 +1707,9 @@ function renderRelationshipGraph() {
   svg.attr("width", width).attr("height", height);
   svg.selectAll("*").remove(); // Clear previous graph
 
+  // Create main container group for zoom/pan
+  const g = svg.append("g");
+
   // Get all records
   idbGetAll().then((allRecords) => {
     const activeRecords = allRecords.filter((r) => !r.deletedAt);
@@ -1646,10 +1729,12 @@ function renderRelationshipGraph() {
       if (relevantRels.length > 0) {
         // Add source node if not exists
         if (!nodeMap.has(person.uuid)) {
+          const isLivorno = person.city && person.city.toLowerCase().includes("livorno");
           const node = {
             id: person.uuid,
             name: `${person.firstname || ""} ${person.lastname || ""}`.trim(),
             details: `${person.patronymic || ""} ${person.yob ? `(${person.yob})` : ""}`.trim(),
+            isLivorno: isLivorno,
           };
           nodes.push(node);
           nodeMap.set(person.uuid, node);
@@ -1704,7 +1789,7 @@ function renderRelationshipGraph() {
       .force("center", d3.forceCenter(width / 2, height / 2))
       .force("collision", d3.forceCollide().radius(50));
 
-    // Create arrow markers for directed edges
+    // Create arrow markers for directed edges (in svg, not g)
     svg
       .append("defs")
       .selectAll("marker")
@@ -1722,7 +1807,7 @@ function renderRelationshipGraph() {
       .attr("d", "M0,-5L10,0L0,5");
 
     // Create links
-    const link = svg
+    const link = g
       .append("g")
       .selectAll("line")
       .data(links)
@@ -1733,7 +1818,7 @@ function renderRelationshipGraph() {
       .attr("marker-end", (d) => `url(#arrow-${d.type})`);
 
     // Create nodes
-    const node = svg
+    const node = g
       .append("g")
       .selectAll("g")
       .data(nodes)
@@ -1747,6 +1832,7 @@ function renderRelationshipGraph() {
       .attr("fill", "#5a9db5")
       .attr("stroke", "#fff")
       .attr("stroke-width", 2)
+      .attr("opacity", (d) => (d.isLivorno ? 1 : 0.6))
       .style("cursor", "pointer");
 
     // Add labels to nodes
@@ -1759,6 +1845,7 @@ function renderRelationshipGraph() {
       .attr("font-size", "11px")
       .attr("font-weight", "600")
       .attr("fill", "#333")
+      .attr("opacity", (d) => (d.isLivorno ? 1 : 0.6))
       .style("pointer-events", "none");
 
     // Add details to nodes
@@ -1770,6 +1857,7 @@ function renderRelationshipGraph() {
       .attr("text-anchor", "middle")
       .attr("font-size", "9px")
       .attr("fill", "#666")
+      .attr("opacity", (d) => (d.isLivorno ? 1 : 0.6))
       .style("pointer-events", "none");
 
     // Add hover effects
@@ -1820,7 +1908,7 @@ function renderRelationshipGraph() {
     svg.call(zoom);
 
     function zoomed(event) {
-      svg.selectAll("g").attr("transform", event.transform);
+      g.attr("transform", event.transform);
     }
   });
 }
@@ -1978,22 +2066,65 @@ function validateRelationships(record) {
   return warnings;
 }
 
-function openNewModal() {
+async function openNewModal() {
   editingUUID = null;
+  clearForm();
   document.getElementById("modal-title").textContent = "New Person";
   document.getElementById("btn-delete-person").classList.add("hidden");
-  clearForm();
+  document.getElementById("btn-save-person").style.display = "block";
   document.getElementById("person-modal").classList.remove("hidden");
+
+  // Re-enable all inputs for new modal
+  const modal = document.getElementById("person-modal");
+  modal.querySelectorAll("input, select, textarea").forEach((input) => {
+    input.disabled = false;
+  });
+  modal.querySelectorAll(".btn-secondary, .remove-item").forEach((btn) => {
+    btn.disabled = false;
+    btn.style.opacity = "1";
+  });
 }
 
 async function openEditModal(uuid) {
   const record = await idbGet(uuid);
   if (!record) return;
   editingUUID = uuid;
-  document.getElementById("modal-title").textContent = "Edit Person";
-  document.getElementById("btn-delete-person").classList.remove("hidden");
+
+  const s = loadSettings();
+
+  if (s.guestMode) {
+    document.getElementById("modal-title").textContent = "View Person (Read-Only)";
+    document.getElementById("btn-delete-person").classList.add("hidden");
+    document.getElementById("btn-save-person").style.display = "none";
+  } else {
+    document.getElementById("modal-title").textContent = "Edit Person";
+    document.getElementById("btn-delete-person").classList.remove("hidden");
+    document.getElementById("btn-save-person").style.display = "block";
+  }
+
   populateForm(record);
   document.getElementById("person-modal").classList.remove("hidden");
+
+  const modal = document.getElementById("person-modal");
+
+  // Make all inputs read-only in guest mode, or re-enable in user mode
+  if (s.guestMode) {
+    modal.querySelectorAll("input, select, textarea").forEach((input) => {
+      input.disabled = true;
+    });
+    modal.querySelectorAll(".btn-secondary, .remove-item").forEach((btn) => {
+      btn.disabled = true;
+      btn.style.opacity = "0.5";
+    });
+  } else {
+    modal.querySelectorAll("input, select, textarea").forEach((input) => {
+      input.disabled = false;
+    });
+    modal.querySelectorAll(".btn-secondary, .remove-item").forEach((btn) => {
+      btn.disabled = false;
+      btn.style.opacity = "1";
+    });
+  }
 }
 
 function clearForm() {
@@ -2167,56 +2298,134 @@ async function boot() {
   loadSearchHistory();
 
   // Populate settings UI
-  const s = loadSettings();
+  let s = loadSettings();
   document.getElementById("setting-token").value = s.token;
   document.getElementById("setting-owner").value = s.owner;
   document.getElementById("setting-repo").value = s.repo;
   document.getElementById("setting-branch").value = s.branch;
   updateSyncTimestamps();
 
-  // First-time import prompt or pull prompt
-  if (records.length === 0) {
-    const choice = await showDialog(
-      "Welcome",
-      "No local records found. Would you like to import from an Excel file or pull from Codeberg?",
+  // Update mode indicator
+  const modeIndicator = document.getElementById("current-mode");
+  if (modeIndicator) {
+    modeIndicator.textContent = s.guestMode ? "Guest Mode (Read-Only)" : "User Mode";
+    modeIndicator.style.color = s.guestMode ? "var(--mid-grey)" : "var(--dark-grey)";
+  }
+
+  // Check if user needs to select mode (first time or no mode set)
+  if (!localStorage.getItem("cb_modeSelected")) {
+    const modeChoice = await showDialog(
+      "Welcome to Livorno Prosopography",
+      "Please select how you want to use this application:",
       [
-        { label: "Import Excel", cls: "btn-primary", value: "excel" },
-        { label: "Pull from Codeberg", cls: "btn-secondary", value: "codeberg" },
-        { label: "Start Empty", cls: "btn-ghost", value: "empty" },
+        { label: "Guest Mode (Read-Only)", cls: "btn-primary", value: "guest" },
+        { label: "User Mode (Full Access)", cls: "btn-secondary", value: "user" },
       ],
     );
-    if (choice === "excel") {
-      document.getElementById("file-input").click();
-    } else if (choice === "codeberg") {
-      if (!s.token) {
-        notify("Please configure Codeberg settings first.", "error");
-      } else {
-        await pullFromCodeberg();
-      }
+
+    if (modeChoice === "guest") {
+      // Set guest mode
+      s.guestMode = true;
+      saveSettings(s);
+      localStorage.setItem("cb_modeSelected", "true");
+
+      // Load guest data
+      await pullFromGuestRepo();
+
+      // Disable sync buttons
+      document.getElementById("btn-sync-push").disabled = true;
+      document.getElementById("btn-sync-push").style.opacity = "0.5";
+      document.getElementById("btn-sync-push").title = "Disabled in guest mode";
+      document.getElementById("btn-sync-pull").disabled = true;
+      document.getElementById("btn-sync-pull").style.opacity = "0.5";
+      document.getElementById("btn-sync-pull").title = "Disabled in guest mode";
+    } else {
+      // Set user mode
+      s.guestMode = false;
+      saveSettings(s);
+      localStorage.setItem("cb_modeSelected", "true");
+    }
+  }
+
+  // Reload settings after mode selection
+  s = loadSettings();
+
+  // If in guest mode, disable sync buttons and modification features
+  if (s.guestMode) {
+    document.getElementById("btn-sync-push").disabled = true;
+    document.getElementById("btn-sync-push").style.opacity = "0.5";
+    document.getElementById("btn-sync-push").title = "Disabled in guest mode";
+    document.getElementById("btn-sync-pull").disabled = true;
+    document.getElementById("btn-sync-pull").style.opacity = "0.5";
+    document.getElementById("btn-sync-pull").title = "Disabled in guest mode";
+
+    // Disable import button
+    document.getElementById("btn-import").disabled = true;
+    document.getElementById("btn-import").style.opacity = "0.5";
+    document.getElementById("btn-import").title = "Disabled in guest mode";
+
+    // Make settings inputs read-only
+    document.getElementById("setting-token").disabled = true;
+    document.getElementById("setting-owner").disabled = true;
+    document.getElementById("setting-repo").disabled = true;
+    document.getElementById("setting-branch").disabled = true;
+
+    // Hide New Person button
+    document.getElementById("btn-new").style.display = "none";
+
+    // Add guest mode indicator to header
+    const header = document.querySelector("header h1");
+    if (header && !header.textContent.includes("(Guest)")) {
+      header.textContent += " (Guest Mode)";
     }
   } else {
-    // Ask about update from Codeberg
-    if (s.token && s.owner && s.repo) {
-      const doUpdate = await showDialog(
-        "Sync with Codeberg",
-        "Would you like to pull the latest updates from Codeberg?",
+    // User mode - normal flow
+    // First-time import prompt or pull prompt
+    if (records.length === 0) {
+      const choice = await showDialog(
+        "Welcome",
+        "No local records found. Would you like to import from an Excel file or pull from Codeberg?",
         [
-          { label: "Yes, pull updates", cls: "btn-primary", value: true },
-          { label: "No thanks", cls: "btn-secondary", value: false },
+          { label: "Import Excel", cls: "btn-primary", value: "excel" },
+          { label: "Pull from Codeberg", cls: "btn-secondary", value: "codeberg" },
+          { label: "Start Empty", cls: "btn-ghost", value: "empty" },
         ],
       );
-      if (doUpdate) await pullFromCodeberg();
+      if (choice === "excel") {
+        document.getElementById("file-input").click();
+      } else if (choice === "codeberg") {
+        if (!s.token) {
+          notify("Please configure Codeberg settings first.", "error");
+        } else {
+          await pullFromCodeberg();
+        }
+      }
+    } else {
+      // Ask about update from Codeberg
+      if (s.token && s.owner && s.repo) {
+        const doUpdate = await showDialog(
+          "Sync with Codeberg",
+          "Would you like to pull the latest updates from Codeberg?",
+          [
+            { label: "Yes, pull updates", cls: "btn-primary", value: true },
+            { label: "No thanks", cls: "btn-secondary", value: false },
+          ],
+        );
+        if (doUpdate) await pullFromCodeberg();
+      }
     }
   }
 
   await refreshRecords();
   attachEventListeners();
 
-  // Warn before closing
-  window.addEventListener("beforeunload", (e) => {
-    e.preventDefault();
-    e.returnValue = "Push changes to Codeberg before leaving?";
-  });
+  // Warn before closing (only in user mode)
+  if (!s.guestMode) {
+    window.addEventListener("beforeunload", (e) => {
+      e.preventDefault();
+      e.returnValue = "Push changes to Codeberg before leaving?";
+    });
+  }
 }
 
 // ── Event Listeners ────────────────────────────────────────────────
@@ -2359,10 +2568,22 @@ function attachEventListeners() {
   });
 
   // New person
-  document.getElementById("btn-new").addEventListener("click", openNewModal);
+  document.getElementById("btn-new").addEventListener("click", () => {
+    const s = loadSettings();
+    if (s.guestMode) {
+      notify("Cannot create new records in guest mode.", "warning");
+      return;
+    }
+    openNewModal();
+  });
 
   // Import Excel
   document.getElementById("btn-import").addEventListener("click", () => {
+    const s = loadSettings();
+    if (s.guestMode) {
+      notify("Cannot import data in guest mode.", "warning");
+      return;
+    }
     document.getElementById("file-input").click();
   });
 
@@ -2427,6 +2648,13 @@ function attachEventListeners() {
   // Codeberg sync
   document.getElementById("btn-sync-push").addEventListener("click", async () => {
     const s = loadSettings();
+
+    // Check if guest mode
+    if (s.guestMode) {
+      notify("Sync is disabled in guest mode.", "warning");
+      return;
+    }
+
     const lastPush = s.lastSyncPush ? new Date(s.lastSyncPush).toLocaleString() : "Never";
     const message = s.lastSyncPush
       ? `Quick sync: only push records changed since ${lastPush}\n\nOr do a full sync to check all records?`
@@ -2444,15 +2672,22 @@ function attachEventListeners() {
 
   document.getElementById("btn-sync-pull").addEventListener("click", async () => {
     const s = loadSettings();
+
+    // Check if guest mode
+    if (s.guestMode) {
+      notify("Sync is disabled in guest mode.", "warning");
+      return;
+    }
+
     const lastPull = s.lastSyncPull ? new Date(s.lastSyncPull).toLocaleString() : "Never";
-    const message = s.lastSyncPull
+    const message = s.lastPull
       ? `Quick sync: only pull records changed since ${lastPull}\n\nOr do a full sync to check all records?`
       : "No previous sync found. A full sync will be performed.";
 
     const choice = await showDialog("Pull from Codeberg", message, [
       { label: "Quick Sync", cls: "btn-primary", value: "quick" },
       { label: "Full Sync", cls: "btn-secondary", value: "full" },
-      { label: "Cancel", cls: "btn-ghost", value: false },
+      { label: "Cancel", cls: "btn-ghost", value: "false" },
     ]);
 
     if (choice === "quick") await pullFromCodeberg(false);
@@ -2466,14 +2701,38 @@ function attachEventListeners() {
   });
 
   document.getElementById("btn-save-settings").addEventListener("click", () => {
+    const s = loadSettings();
     saveSettings({
       token: document.getElementById("setting-token").value.trim(),
       owner: document.getElementById("setting-owner").value.trim(),
       repo: document.getElementById("setting-repo").value.trim(),
       branch: document.getElementById("setting-branch").value.trim() || "main",
+      guestMode: s.guestMode, // Preserve guest mode setting
     });
     notify("Settings saved.", "success");
     document.getElementById("settings-panel").style.display = "none";
+  });
+
+  document.getElementById("btn-switch-mode").addEventListener("click", async () => {
+    const s = loadSettings();
+    const currentMode = s.guestMode ? "Guest Mode" : "User Mode";
+    const targetMode = s.guestMode ? "User Mode" : "Guest Mode";
+
+    const confirm = await showDialog(
+      "Switch Mode",
+      `You are currently in ${currentMode}.\n\nSwitching to ${targetMode} will reload the application and may replace your local data.\n\nAre you sure you want to continue?`,
+      [
+        { label: "Yes, Switch Mode", cls: "btn-primary", value: true },
+        { label: "Cancel", cls: "btn-ghost", value: false },
+      ],
+    );
+
+    if (confirm) {
+      // Clear mode selection flag to trigger mode selection dialog
+      localStorage.removeItem("cb_modeSelected");
+      // Reload the page
+      window.location.reload();
+    }
   });
 
   // Modal controls
@@ -2483,24 +2742,63 @@ function attachEventListeners() {
   document.getElementById("btn-cancel-modal").addEventListener("click", () => {
     document.getElementById("person-modal").classList.add("hidden");
   });
-  document.getElementById("btn-save-person").addEventListener("click", savePerson);
-  document.getElementById("btn-delete-person").addEventListener("click", deletePerson);
+  document.getElementById("btn-save-person").addEventListener("click", () => {
+    const s = loadSettings();
+    if (s.guestMode) {
+      notify("Cannot save changes in guest mode.", "warning");
+      return;
+    }
+    savePerson();
+  });
+  document.getElementById("btn-delete-person").addEventListener("click", () => {
+    const s = loadSettings();
+    if (s.guestMode) {
+      notify("Cannot delete records in guest mode.", "warning");
+      return;
+    }
+    deletePerson();
+  });
 
   // Variation add buttons
   document.getElementById("add-lastname-variation").addEventListener("click", () => {
+    const s = loadSettings();
+    if (s.guestMode) {
+      notify("Cannot modify records in guest mode.", "warning");
+      return;
+    }
     document.getElementById("lastname-variations-container").appendChild(makeVariationItem());
   });
   document.getElementById("add-firstname-variation").addEventListener("click", () => {
+    const s = loadSettings();
+    if (s.guestMode) {
+      notify("Cannot modify records in guest mode.", "warning");
+      return;
+    }
     document.getElementById("firstname-variations-container").appendChild(makeVariationItem());
   });
   document.getElementById("add-zotero").addEventListener("click", () => {
+    const s = loadSettings();
+    if (s.guestMode) {
+      notify("Cannot modify records in guest mode.", "warning");
+      return;
+    }
     document.getElementById("zotero-container").appendChild(makeRefItem());
   });
   document.getElementById("add-archief").addEventListener("click", () => {
+    const s = loadSettings();
+    if (s.guestMode) {
+      notify("Cannot modify records in guest mode.", "warning");
+      return;
+    }
     document.getElementById("archief-container").appendChild(makeRefItem());
   });
 
   document.getElementById("add-relationship").addEventListener("click", () => {
+    const s = loadSettings();
+    if (s.guestMode) {
+      notify("Cannot modify records in guest mode.", "warning");
+      return;
+    }
     document.getElementById("relationships-container").appendChild(makeRelationshipItem());
   });
 

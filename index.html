@@ -626,7 +626,18 @@
         <div id="relationship-network-modal" class="modal-overlay hidden">
             <div class="modal modalfullwidth">
                 <div class="modal-header">
-                    <h2>Relationship Network</h2>
+                    <h2>
+                        Relationship Network
+                        <span
+                            id="network-entity-count"
+                            style="
+                                font-size: 12px;
+                                font-weight: 400;
+                                color: var(--mid-grey);
+                                margin-left: 8px;
+                            "
+                        ></span>
+                    </h2>
                     <button class="modal-close" id="relationship-network-close">✕</button>
                 </div>
                 <div class="modal-body">
@@ -651,7 +662,10 @@
                         "
                     >
                         <div style="font-weight: 600; margin-bottom: 8px; font-size: 12px">
-                            Legend:
+                            Legend
+                            <span style="font-weight: 400; color: var(--mid-grey); font-size: 11px"
+                                >(click to filter)</span
+                            >:
                         </div>
                         <div
                             id="legend-items"

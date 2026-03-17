@@ -495,6 +495,26 @@ textarea {
     color: var(--white);
 }
 
+/* ── Relationship Network Legend ─────────────────────── */
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: opacity 0.2s ease;
+}
+
+.legend-item:hover {
+    transform: scale(1.05);
+    transition: transform 0.1s ease;
+}
+
+.legend-color {
+    width: 12px;
+    height: 12px;
+    border-radius: 2px;
+}
+
 /* ── Misc ────────────────────────────────────────────── */
 
 .spinner {

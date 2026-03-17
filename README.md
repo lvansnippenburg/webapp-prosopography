@@ -732,6 +732,116 @@ daughter: 29
 
 ---
 
+## Relationship Network
+
+### Overview
+
+The Relationship Network modal provides two ways to visualize and explore relationships between entities:
+- **List View**: Cards showing each person and their relationships
+- **Graph View**: Interactive D3.js force-directed network graph
+
+**Important**: The network displays only entities from the **current filtered view** in the main table. Use search and filters to narrow down the network before opening it.
+
+### Opening the Network
+
+Click on the **"Relationships"** stat card to open the Relationship Network modal.
+
+**The network will show:**
+- Only entities currently displayed in the table
+- Only relationships between those visible entities
+- Respects all active filters, search queries, and scopes
+
+### Legend Filtering
+
+**Interactive Legend:**
+- All relationship types are displayed by default
+- Click any relationship type in the legend to toggle it on/off
+- **Active types**: Full opacity (100%)
+- **Hidden types**: Dimmed appearance (60% opacity)
+- Tooltip shows current state: "Click to hide" or "Click to show"
+
+**How to Filter:**
+1. Open Relationship Network modal
+2. Click on any relationship type in the legend
+3. That type disappears from both List and Graph views
+4. Click again to show it
+
+**Legend Groups:**
+- **Family Relations**: father, mother, son, daughter, husband, wife, brother, sister
+- **Organizational Relations**: member, employed
+- **Other Relations**: associate, business, friend, neighbour, other
+
+### List View Features
+
+- Displays person cards with all their relationships
+- Relationships shown as colored badges
+- Format: `type: Person Name`
+- Click any card to open person details
+- Respects legend filters in real-time
+
+### Graph View Features
+
+**Interactive Elements:**
+- **Nodes**: Persons/entities (circles)
+- **Edges**: Relationships (colored lines with arrows)
+- **Drag nodes**: Click and drag to reposition
+- **Zoom**: Mouse wheel to zoom in/out (0.5x to 3x)
+- **Pan**: Click and drag background
+
+**Visual Indicators:**
+- Node colors: Ice blue (#5a9db5)
+- Edge colors: Match relationship type colors from legend
+- Arrows show relationship direction
+- Hover over nodes for highlight effect
+
+**Entity Icons in Nodes:**
+- Persons: No icon
+- Associations: 🏛 icon
+- Institutions: 🏢 icon  
+- Companies: 🏭 icon
+
+### Use Cases
+
+**Analyze a Specific Subset:**
+1. Use search to filter entities (e.g., "Amsterdam merchants")
+2. Open Relationship Network
+3. See only relationships within that subset
+4. Switch views and toggle types as needed
+
+**Focus on Family Only:**
+1. Filter entities as desired (optional)
+2. Open network modal
+3. Click to hide all "Organizational Relations" types
+4. Click to hide all "Other Relations" types
+5. View only family tree structure within filtered set
+
+**Analyze Memberships:**
+1. Search for persons with mocosince field (optional filter)
+2. Open network modal
+3. Hide all types except "Member of"
+4. See which filtered persons belong to which associations
+5. Identify popular organizations
+
+**Employment Patterns:**
+1. Filter by profession or city (optional)
+2. Open network modal
+3. Hide all except "Employed by"
+4. View employer-employee networks in filtered set
+5. Identify major institutions/companies
+
+**Compare Relationship Types:**
+1. Apply desired entity filters
+2. Open network modal
+3. Show only 2-3 specific types
+4. Switch to Graph View
+5. Analyze patterns and clusters in filtered dataset
+
+### Livorno Indicator
+
+In both views, persons without "Livorno" in their city field appear at 60% opacity, making it easy to identify non-Livorno residents.
+
+---
+
 ## Search Examples
 
 ### Example 1: Find All Dutch Merchants
@@ -792,6 +902,20 @@ Result: Notes with 200+ characters (well-documented persons)
 
 ### Example 5: Relationship Networks
 
+**View Relationship Network:**
+```
+1. Click on "Relationships" stat card
+2. Choose between List View or Graph View
+3. Click legend items to filter by relationship type
+```
+
+**Filter by Relationship Type:**
+- All relationship types shown by default
+- Click any type in legend to hide those relationships
+- Dimmed types (opacity 0.6) are hidden
+- Click again to show them
+- Works in both List and Graph views
+
 **Find all fathers:**
 ```
 1. Click "Scope" → Select "Relationships"
@@ -806,7 +930,7 @@ Result: All persons who have/are fathers
 ```
 Result: Everyone related to Maria van der Berg
 
-### Example 6: Year-Based Search
+### Example 8: Year-Based Search
 
 **Find references from 1650s:**
 ```
@@ -816,7 +940,7 @@ Result: Everyone related to Maria van der Berg
 ```
 Result: References with years 1650-1659
 
-### Example 7: Multi-City Search
+### Example 9: Multi-City Search
 
 **Find persons in major cities:**
 ```
@@ -826,7 +950,31 @@ Result: References with years 1650-1659
 ```
 Result: Persons in any of the three cities
 
-### Example 8: Timespan Searches
+### Example 6: Relationship Network Filtering
+
+**View only family relationships:**
+```
+1. Open Relationship Network modal
+2. In legend, click all "Organizational Relations" types to hide
+3. In legend, click all "Other Relations" types to hide
+4. Only "Family Relations" remain visible
+```
+
+**View organizational memberships only:**
+```
+1. Open Relationship Network modal
+2. Click all types except "Member of" and "Employed by"
+3. See only organizational affiliations
+```
+
+**Compare two relationship types:**
+```
+1. Open Relationship Network modal
+2. Hide all types except the two you want to compare
+3. Switch to Graph View to visualize patterns
+```
+
+### Example 10: Timespan Searches
 
 **Find persons active in 1650:**
 ```

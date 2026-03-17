@@ -49,6 +49,7 @@ let regexMode = false;
 let advancedMode = false;
 let searchHistory = [];
 const MAX_SEARCH_HISTORY = 20;
+let activeRelationshipTypes = new Set(); // Tracks which relationship types are active in network view
 
 // ── Entity Types ───────────────────────────────────────────────────
 
@@ -1825,9 +1826,27 @@ async function showRelationshipNetwork() {
   const content = document.getElementById("relationship-network-content");
   const legendItems = document.getElementById("legend-items");
 
-  // Get all records
-  const allRecords = await idbGetAll();
-  const activeRecords = allRecords.filter((r) => !r.deletedAt);
+  // Initialize active relationship types if empty (default: all active)
+  if (activeRelationshipTypes.size === 0) {
+    const allRelTypes = [
+      ...RELATIONSHIP_GROUPS.family,
+      ...RELATIONSHIP_GROUPS.organizational,
+      ...RELATIONSHIP_GROUPS.other,
+    ];
+    allRelTypes.forEach((type) => activeRelationshipTypes.add(type));
+  }
+
+  // Use currently filtered records from the view
+  const activeRecords =
+    filteredRecords.length > 0
+      ? filteredRecords
+      : await idbGetAll().then((records) => records.filter((r) => !r.deletedAt));
+
+  // Update entity count display
+  const entityCountEl = document.getElementById("network-entity-count");
+  if (entityCountEl) {
+    entityCountEl.textContent = `(${activeRecords.length} ${activeRecords.length === 1 ? "entity" : "entities"})`;
+  }
 
   // Build network map: personUuid -> {person, relationships: [{type, toUuid, toName}]}
   const networkMap = new Map();
@@ -1841,7 +1860,10 @@ async function showRelationshipNetwork() {
 
   activeRecords.forEach((person) => {
     const rels = person.relationships || [];
-    const relevantRels = rels.filter((rel) => allRelTypes.includes(rel.type));
+    // Filter by active relationship types
+    const relevantRels = rels.filter(
+      (rel) => allRelTypes.includes(rel.type) && activeRelationshipTypes.has(rel.type),
+    );
 
     if (relevantRels.length > 0) {
       if (!networkMap.has(person.uuid)) {
@@ -1860,6 +1882,46 @@ async function showRelationshipNetwork() {
       });
     }
   });
+
+  // Helper function to create legend items with click handlers
+  const createLegendItem = (type) => {
+    const item = document.createElement("div");
+    item.className = "legend-item";
+    item.style.cursor = "pointer";
+    item.style.userSelect = "none";
+    item.dataset.relationType = type;
+
+    const isActive = activeRelationshipTypes.has(type);
+    item.style.opacity = isActive ? "1" : "0.6";
+    item.title = isActive
+      ? `Click to hide ${type} relationships`
+      : `Click to show ${type} relationships`;
+
+    item.innerHTML = `
+      <div class="legend-color" style="background: ${RELATIONSHIP_COLORS[type]}"></div>
+      <span>${type.charAt(0).toUpperCase() + type.slice(1)}</span>
+    `;
+
+    // Click handler to toggle filter
+    item.addEventListener("click", () => {
+      if (activeRelationshipTypes.has(type)) {
+        activeRelationshipTypes.delete(type);
+      } else {
+        activeRelationshipTypes.add(type);
+      }
+
+      // Re-render the network with new filters
+      showRelationshipNetwork();
+
+      // If graph view is active, re-render the graph too
+      const graphContainer = document.getElementById("relationship-graph-container");
+      if (graphContainer.style.display === "block") {
+        renderRelationshipGraph();
+      }
+    });
+
+    return item;
+  };
 
   // Render legend with grouped sections
   legendItems.innerHTML = "";
@@ -1880,13 +1942,7 @@ async function showRelationshipNetwork() {
   familyGroup.appendChild(familyLabel);
 
   RELATIONSHIP_GROUPS.family.forEach((type) => {
-    const item = document.createElement("div");
-    item.className = "legend-item";
-    item.innerHTML = `
-      <div class="legend-color" style="background: ${RELATIONSHIP_COLORS[type]}"></div>
-      <span>${type.charAt(0).toUpperCase() + type.slice(1)}</span>
-    `;
-    familyGroup.appendChild(item);
+    familyGroup.appendChild(createLegendItem(type));
   });
 
   legendItems.appendChild(familyGroup);
@@ -1908,13 +1964,7 @@ async function showRelationshipNetwork() {
   orgGroup.appendChild(orgLabel);
 
   RELATIONSHIP_GROUPS.organizational.forEach((type) => {
-    const item = document.createElement("div");
-    item.className = "legend-item";
-    item.innerHTML = `
-      <div class="legend-color" style="background: ${RELATIONSHIP_COLORS[type]}"></div>
-      <span>${type.charAt(0).toUpperCase() + type.slice(1)}</span>
-    `;
-    orgGroup.appendChild(item);
+    orgGroup.appendChild(createLegendItem(type));
   });
 
   legendItems.appendChild(orgGroup);
@@ -1936,13 +1986,7 @@ async function showRelationshipNetwork() {
   otherGroup.appendChild(otherLabel);
 
   RELATIONSHIP_GROUPS.other.forEach((type) => {
-    const item = document.createElement("div");
-    item.className = "legend-item";
-    item.innerHTML = `
-      <div class="legend-color" style="background: ${RELATIONSHIP_COLORS[type]}"></div>
-      <span>${type.charAt(0).toUpperCase() + type.slice(1)}</span>
-    `;
-    otherGroup.appendChild(item);
+    otherGroup.appendChild(createLegendItem(type));
   });
 
   legendItems.appendChild(otherGroup);
@@ -2030,10 +2074,12 @@ function renderRelationshipGraph() {
   // Create main container group for zoom/pan
   const g = svg.append("g");
 
-  // Get all records
-  idbGetAll().then((allRecords) => {
-    const activeRecords = allRecords.filter((r) => !r.deletedAt);
-
+  // Use currently filtered records from the view
+  Promise.resolve(
+    filteredRecords.length > 0
+      ? filteredRecords
+      : idbGetAll().then((records) => records.filter((r) => !r.deletedAt)),
+  ).then((activeRecords) => {
     // Build nodes and links
     const nodes = [];
     const links = [];
@@ -2048,7 +2094,10 @@ function renderRelationshipGraph() {
 
     activeRecords.forEach((person) => {
       const rels = person.relationships || [];
-      const relevantRels = rels.filter((rel) => allRelTypes.includes(rel.type));
+      // Filter by active relationship types
+      const relevantRels = rels.filter(
+        (rel) => allRelTypes.includes(rel.type) && activeRelationshipTypes.has(rel.type),
+      );
 
       if (relevantRels.length > 0) {
         // Add source node if not exists

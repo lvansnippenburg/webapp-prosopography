@@ -8,15 +8,16 @@ A comprehensive historical prosopography database application with advanced sear
 
 1. [Quick Start](#quick-start)
 2. [Guest Mode](#guest-mode)
-3. [Basic Search](#basic-search)
-4. [Search Scopes](#search-scopes)
-5. [Multiple Scope Selection](#multiple-scope-selection)
-6. [Regex Mode](#regex-mode)
-7. [Advanced Query Syntax](#advanced-query-syntax)
-8. [Search History](#search-history)
-9. [Statistics Cards](#statistics-cards)
-10. [Search Examples](#search-examples)
-11. [Tips & Best Practices](#tips--best-practices)
+3. [Export Data](#export-data)
+4. [Basic Search](#basic-search)
+5. [Search Scopes](#search-scopes)
+6. [Multiple Scope Selection](#multiple-scope-selection)
+7. [Regex Mode](#regex-mode)
+8. [Advanced Query Syntax](#advanced-query-syntax)
+9. [Search History](#search-history)
+10. [Statistics Cards](#statistics-cards)
+11. [Search Examples](#search-examples)
+12. [Tips & Best Practices](#tips--best-practices)
 
 ---
 
@@ -108,6 +109,97 @@ Guest mode automatically loads data from:
 - **Access**: Public (no authentication required)
 
 The data is loaded directly into your browser's local IndexedDB and updates are automatic on first load.
+
+---
+
+## Export Data
+
+### Overview
+
+Export your current selection of records to Excel or JSON format. The export will include all currently displayed records (after applying search filters, scopes, and deleted record filters).
+
+### How to Export
+
+1. Open the **Settings** panel (⚙ button)
+2. Click the **"⬇ Export"** button
+3. Choose your export format:
+   - **Excel (.xlsx)**: Spreadsheet format with all fields in separate columns
+   - **JSON (.json)**: Complete data export with full structure
+
+### What Gets Exported
+
+**All Fields Included:**
+- UUID (unique identifier)
+- Names (lastname, firstname, patronymic)
+- Name variations (lastname and firstname variations)
+- Personal details (gender, city, profession, origin, religion)
+- Dates (firstseen, lastseen, mocosince, yob, yod, bornin, diedin)
+- Notes
+- Relationships (with type and related person name)
+- References (Zotero and Archief)
+- Metadata (createdAt, modifiedAt, deletedAt)
+
+### Export Formats
+
+**Excel Format:**
+- Each record is a row
+- Each field is a column
+- Multi-value fields (variations, relationships, references) are separated by semicolons (`;`)
+  - Example: `"merchant; banker; trader"`
+  - Example: `"father:John Smith; brother:Peter Smith"`
+- Column widths are automatically sized for readability
+- Filename: `livorno_prosopography_YYYY-MM-DD-HHMMSS.xlsx`
+
+**JSON Format:**
+- Complete array of record objects
+- Full data structure preserved (arrays, nested objects)
+- Human-readable formatting (indented)
+- Compatible with data import/sync tools
+- Filename: `livorno_prosopography_YYYY-MM-DD-HHMMSS.json`
+
+### Export Use Cases
+
+**Data Analysis:**
+- Import Excel file into statistical software
+- Create pivot tables and charts
+- Perform bulk data analysis
+
+**Backup:**
+- Export all records (clear search first) as JSON
+- Store complete backup offline
+- Version control for research data
+
+**Collaboration:**
+- Share filtered subsets with research team
+- Export specific cohorts (e.g., merchants from Amsterdam)
+- Provide data for publications
+
+**Data Migration:**
+- JSON export for importing into other systems
+- Full data structure for database migration
+- API integration with other tools
+
+### Tips
+
+**Export Current Selection:**
+- Apply filters/search first to export specific records
+- Check record count in dialog: "Export N records"
+- Clear search to export all records
+
+**Excel Multi-Value Fields:**
+- Use "Text to Columns" feature with semicolon delimiter
+- Split relationships into separate rows for analysis
+- Formula example: `=TRIM(MID(SUBSTITUTE(A1,";",REPT(" ",100)),1,100))` for first value
+
+**JSON Editing:**
+- JSON can be edited and re-imported (User Mode only)
+- Useful for bulk updates via scripts
+- Maintain UUID field for proper record matching
+
+**Guest Mode:**
+- Export is available in both Guest and User modes
+- Use export to save research findings
+- Create local copies of filtered datasets
 
 ---
 

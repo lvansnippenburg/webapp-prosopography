@@ -39,6 +39,7 @@ const COLUMN_MAP = {
 
 let db = null;
 let allRecords = [];
+let filteredRecords = []; // Current filtered/displayed records for export
 let editingUUID = null;
 let showDeleted = false;
 let sortCol = "lastname";
@@ -526,6 +527,118 @@ async function importExcel(file, deleteExisting = false) {
   });
 }
 
+// ── Export Functions ───────────────────────────────────────────────
+
+function exportToExcel() {
+  if (!filteredRecords.length) {
+    notify("No records to export.", "warning");
+    return;
+  }
+
+  // Prepare data for Excel export
+  const excelData = filteredRecords.map((r) => {
+    return {
+      UUID: r.uuid || "",
+      Lastname: r.lastname || "",
+      "Lastname Variations": (r.lastnameVariations || []).join("; "),
+      Firstname: r.firstname || "",
+      "Firstname Variations": (r.firstnameVariations || []).join("; "),
+      Patronymic: r.patronymic || "",
+      Gender: r.gender || "",
+      City: r.city || "",
+      Profession: r.profession || "",
+      Origin: r.origin || "",
+      "First Seen": r.firstseen || "",
+      "Last Seen": r.lastseen || "",
+      "Moco Since": r.mocosince || "",
+      Religion: r.religion || "",
+      "Year of Birth": r.yob || "",
+      "Born In": r.bornin || "",
+      "Year of Death": r.yod || "",
+      "Died In": r.diedin || "",
+      Notes: r.notes || "",
+      Relationships: (r.relationships || [])
+        .map((rel) => `${rel.type}:${rel.personName}`)
+        .join("; "),
+      Zotero: (r.zotero || []).map((z) => `${z.key}=${z.value}`).join("; "),
+      Archief: (r.archief || []).map((a) => `${a.key}=${a.value}`).join("; "),
+      "Created At": r.createdAt || "",
+      "Modified At": r.modifiedAt || "",
+      "Deleted At": r.deletedAt || "",
+    };
+  });
+
+  // Create workbook and worksheet
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.json_to_sheet(excelData);
+
+  // Set column widths
+  ws["!cols"] = [
+    { wch: 36 }, // UUID
+    { wch: 15 }, // Lastname
+    { wch: 20 }, // Lastname Variations
+    { wch: 15 }, // Firstname
+    { wch: 20 }, // Firstname Variations
+    { wch: 15 }, // Patronymic
+    { wch: 8 }, // Gender
+    { wch: 15 }, // City
+    { wch: 20 }, // Profession
+    { wch: 15 }, // Origin
+    { wch: 12 }, // First Seen
+    { wch: 12 }, // Last Seen
+    { wch: 12 }, // Moco Since
+    { wch: 15 }, // Religion
+    { wch: 12 }, // Year of Birth
+    { wch: 15 }, // Born In
+    { wch: 12 }, // Year of Death
+    { wch: 15 }, // Died In
+    { wch: 30 }, // Notes
+    { wch: 40 }, // Relationships
+    { wch: 30 }, // Zotero
+    { wch: 30 }, // Archief
+    { wch: 20 }, // Created At
+    { wch: 20 }, // Modified At
+    { wch: 20 }, // Deleted At
+  ];
+
+  XLSX.utils.book_append_sheet(wb, ws, "Persons");
+
+  // Generate filename with timestamp
+  const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, "-");
+  const filename = `livorno_prosopography_${timestamp}.xlsx`;
+
+  // Download file
+  XLSX.writeFile(wb, filename);
+  notify(`Exported ${filteredRecords.length} records to ${filename}`, "success");
+}
+
+function exportToJSON() {
+  if (!filteredRecords.length) {
+    notify("No records to export.", "warning");
+    return;
+  }
+
+  // Create JSON string with proper formatting
+  const jsonData = JSON.stringify(filteredRecords, null, 2);
+
+  // Create blob and download
+  const blob = new Blob([jsonData], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+
+  // Generate filename with timestamp
+  const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, "-");
+  a.download = `livorno_prosopography_${timestamp}.json`;
+
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+
+  notify(`Exported ${filteredRecords.length} records to JSON`, "success");
+}
+
 // ── Codeberg API ───────────────────────────────────────────────────
 
 async function pullFromGuestRepo() {
@@ -902,6 +1015,7 @@ async function refreshRecords(query = "") {
   });
 
   renderStats(allRecords);
+  filteredRecords = filtered; // Store filtered records globally for export
   renderTable(filtered);
 }
 
@@ -1832,7 +1946,7 @@ function renderRelationshipGraph() {
       .attr("fill", "#5a9db5")
       .attr("stroke", "#fff")
       .attr("stroke-width", 2)
-      .attr("opacity", (d) => (d.isLivorno ? 1 : 0.6))
+      .attr("opacity", (d) => (d.isLivorno ? 1 : 0.3))
       .style("cursor", "pointer");
 
     // Add labels to nodes
@@ -1845,7 +1959,7 @@ function renderRelationshipGraph() {
       .attr("font-size", "11px")
       .attr("font-weight", "600")
       .attr("fill", "#333")
-      .attr("opacity", (d) => (d.isLivorno ? 1 : 0.6))
+      .attr("opacity", (d) => (d.isLivorno ? 1 : 0.3))
       .style("pointer-events", "none");
 
     // Add details to nodes
@@ -1857,7 +1971,7 @@ function renderRelationshipGraph() {
       .attr("text-anchor", "middle")
       .attr("font-size", "9px")
       .attr("fill", "#666")
-      .attr("opacity", (d) => (d.isLivorno ? 1 : 0.6))
+      .attr("opacity", (d) => (d.isLivorno ? 1 : 0.3))
       .style("pointer-events", "none");
 
     // Add hover effects
@@ -2585,6 +2699,25 @@ function attachEventListeners() {
       return;
     }
     document.getElementById("file-input").click();
+  });
+
+  // Export
+  document.getElementById("btn-export").addEventListener("click", async () => {
+    const choice = await showDialog(
+      "Export Data",
+      `Export ${filteredRecords.length} currently displayed record${filteredRecords.length !== 1 ? "s" : ""} to:`,
+      [
+        { label: "Excel (.xlsx)", cls: "btn-primary", value: "excel" },
+        { label: "JSON (.json)", cls: "btn-secondary", value: "json" },
+        { label: "Cancel", cls: "btn-ghost", value: false },
+      ],
+    );
+
+    if (choice === "excel") {
+      exportToExcel();
+    } else if (choice === "json") {
+      exportToJSON();
+    }
   });
 
   document.getElementById("file-input").addEventListener("change", async (e) => {

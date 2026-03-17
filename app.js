@@ -902,45 +902,38 @@ function matchTimespan(record, query) {
     return match ? parseInt(match[1], 10) : null;
   };
 
-  const firstseen = extractYear(record.firstseen);
-  const lastseen = extractYear(record.lastseen);
+  let firstseen = extractYear(record.firstseen);
+  let lastseen = extractYear(record.lastseen);
 
   // Parse query - can be: "1650", "1650-1660", or text containing years
   const yearMatch = query.match(/\b(\d{4})\b/);
   const rangeMatch = query.match(/\b(\d{4})\s*-\s*(\d{4})\b/);
 
   if (rangeMatch) {
-    // Query is a range: "1650-1660"
+    // Query is a range: "1630-1680"
     const queryStart = parseInt(rangeMatch[1], 10);
     const queryEnd = parseInt(rangeMatch[2], 10);
 
-    // Check if person's timespan overlaps with query range
-    // Overlap if: person_start <= query_end AND person_end >= query_start
-    if (firstseen && lastseen) {
-      return firstseen <= queryEnd && lastseen >= queryStart;
-    }
-    if (firstseen) {
-      return firstseen <= queryEnd;
-    }
-    if (lastseen) {
-      return lastseen >= queryStart;
-    }
-    return false;
+    // If firstseen is missing, treat it as queryStart
+    // If lastseen is missing, treat it as queryEnd
+    const effectiveFirstseen = firstseen !== null ? firstseen : queryStart;
+    const effectiveLastseen = lastseen !== null ? lastseen : queryEnd;
+
+    // Person's timespan must fall within query range:
+    // firstseen >= queryStart AND lastseen <= queryEnd
+    return effectiveFirstseen >= queryStart && effectiveLastseen <= queryEnd;
   } else if (yearMatch) {
     // Query is a single year: "1650"
     const queryYear = parseInt(yearMatch[1], 10);
 
+    // If both missing, use query year for both
+    // If firstseen missing, use query year
+    // If lastseen missing, use query year
+    const effectiveFirstseen = firstseen !== null ? firstseen : queryYear;
+    const effectiveLastseen = lastseen !== null ? lastseen : queryYear;
+
     // Check if query year is within person's timespan
-    if (firstseen && lastseen) {
-      return queryYear >= firstseen && queryYear <= lastseen;
-    }
-    if (firstseen) {
-      return queryYear >= firstseen;
-    }
-    if (lastseen) {
-      return queryYear <= lastseen;
-    }
-    return false;
+    return queryYear >= effectiveFirstseen && queryYear <= effectiveLastseen;
   }
 
   // No year found in query, fall back to text matching
@@ -1136,7 +1129,7 @@ function renderTable(records) {
 
   if (!records.length) {
     tbody.innerHTML =
-      '<tr><td colspan="12" style="text-align:center;padding:30px;color:#999;">No records found</td></tr>';
+      '<tr><td colspan="11" style="text-align:center;padding:30px;color:#999;">No records found</td></tr>';
     return;
   }
 
@@ -1160,10 +1153,11 @@ function renderTable(records) {
       cityLabel = "!";
     }
 
+    const fullFirstname = [r.firstname || "", r.patronymic || ""].filter(Boolean).join(" ");
+
     tr.innerHTML = `
             <td>${r.lastname || ""}${lnVars}</td>
-            <td>${r.firstname || ""}${fnVars}</td>
-            <td>${r.patronymic || ""}</td>
+            <td>${fullFirstname}${fnVars}</td>
             <td>${genderLabel}</td>
             <td>${cityLabel}</td>
             <td>${r.profession || ""}</td>
@@ -1656,7 +1650,7 @@ function populateForm(r) {
   set("field-origin", r.origin);
   set("field-firstseen", r.firstseen);
   set("field-lastseen", r.lastseen);
-  set("field-lasting", r.lasting);
+  // set("field-lasting", r.lasting);
   set("field-mocosince", r.mocosince);
   set("field-religion", r.religion);
   set("field-yob", r.yob);
@@ -1719,7 +1713,7 @@ async function savePerson() {
     origin: document.getElementById("field-origin").value.trim(),
     firstseen: document.getElementById("field-firstseen").value.trim(),
     lastseen: document.getElementById("field-lastseen").value.trim(),
-    lasting: document.getElementById("field-lasting").value.trim(),
+    // lasting: document.getElementById("field-lasting").value.trim(),
     mocosince: document.getElementById("field-mocosince").value.trim(),
     religion: document.getElementById("field-religion").value.trim(),
     yob: document.getElementById("field-yob").value.trim(),

@@ -476,19 +476,19 @@ Result: Persons in any of the three cities
 ```
 Result: Persons where firstseen ≤ 1650 ≤ lastseen
 
-**Find persons active between 1650-1660:**
+**Find persons active between 1630-1680:**
 ```
 1. Click "Scope" → Select "Timespan"
-2. Type: 1650-1660
+2. Type: 1630-1680
 ```
-Result: Persons whose timespan overlaps with 1650-1660
+Result: Persons whose entire active period is within 1630-1680
 
 **Advanced timespan query:**
 ```
 1. Click "AND/OR"
-2. Type: timespan:1650-1660 AND profession:merchant
+2. Type: timespan:1630-1680 AND profession:merchant
 ```
-Result: Merchants active during 1650-1660
+Result: Merchants whose career was entirely within 1630-1680
 
 ---
 
@@ -508,11 +508,11 @@ Finds persons where: `firstseen ≤ 1650 ≤ lastseen`
 
 **Year Range:**
 ```
-1650-1660
+1630-1680
 ```
-Finds persons whose timespan **overlaps** with the query range.
+Finds persons whose **entire active period falls within** the query range.
 
-Overlap logic: `person.firstseen ≤ 1660 AND person.lastseen ≥ 1650`
+Containment logic: `person.firstseen ≥ 1630 AND person.lastseen ≤ 1680`
 
 ### Examples
 
@@ -524,17 +524,40 @@ Lastseen: 1670
 
 **Query Results:**
 - `1650` → ✓ Match (1645 ≤ 1650 ≤ 1670)
-- `1640-1650` → ✓ Match (overlaps)
-- `1650-1660` → ✓ Match (overlaps)
-- `1671-1680` → ✗ No match (no overlap)
-- `1640` → ✗ No match (before firstseen)
+- `1630-1680` → ✓ Match (1645 ≥ 1630 AND 1670 ≤ 1680)
+- `1650-1670` → ✓ Match (contained within)
+- `1640-1650` → ✗ No match (lastseen 1670 exceeds 1650)
+- `1671-1680` → ✗ No match (firstseen 1645 before 1671)
+- `1640` → ✗ No match (not within timespan)
 
 ### Edge Cases
 
 **Incomplete Data:**
-- If only `firstseen` exists: Matches if query year ≥ firstseen
-- If only `lastseen` exists: Matches if query year ≤ lastseen
-- If neither exists: No match
+
+For **single year queries**:
+- If `firstseen` missing: Treats firstseen as the query year
+- If `lastseen` missing: Treats lastseen as the query year
+- If both missing: Treats both as the query year
+
+For **range queries** (e.g., `1630-1680`):
+- If `firstseen` missing: Treats firstseen as the range start (1630)
+- If `lastseen` missing: Treats lastseen as the range end (1680)
+- If both missing: Matches (considered to be within range)
+
+**Examples:**
+```
+Person: firstseen=1650, lastseen=null
+Query: 1630-1680
+Logic: 1650 ≥ 1630 AND 1680 ≤ 1680 → ✓ Match
+
+Person: firstseen=null, lastseen=1660
+Query: 1630-1680
+Logic: 1630 ≥ 1630 AND 1660 ≤ 1680 → ✓ Match
+
+Person: firstseen=null, lastseen=null
+Query: 1630-1680
+Logic: 1630 ≥ 1630 AND 1680 ≤ 1680 → ✓ Match
+```
 
 **Year Extraction:**
 - Automatically extracts 4-digit years from field text

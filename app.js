@@ -49,6 +49,29 @@ let advancedMode = false;
 let searchHistory = [];
 const MAX_SEARCH_HISTORY = 20;
 
+// ── Relationship Network Configuration ────────────────────────────
+
+const RELATIONSHIP_COLORS = {
+  father: "#4A90E2",
+  mother: "#E24A90",
+  son: "#6AB7FF",
+  daughter: "#FF6AB7",
+  husband: "#2D5F8D",
+  wife: "#8D2D5F",
+  brother: "#5AA7D9",
+  sister: "#D95AA7",
+  associate: "#8E44AD",
+  business: "#27AE60",
+  friend: "#F39C12",
+  neighbour: "#E67E22",
+  other: "#95A5A6",
+};
+
+const RELATIONSHIP_GROUPS = {
+  family: ["father", "mother", "son", "daughter", "husband", "wife", "brother", "sister"],
+  other: ["associate", "business", "friend", "neighbour", "other"],
+};
+
 // ── Settings ───────────────────────────────────────────────────────
 
 function loadSettings() {
@@ -1435,6 +1458,373 @@ function collectRelationships(containerId) {
     .filter((r) => r.personUuid);
 }
 
+async function showRelationshipNetwork() {
+  const modal = document.getElementById("relationship-network-modal");
+  const content = document.getElementById("relationship-network-content");
+  const legendItems = document.getElementById("legend-items");
+
+  // Get all records
+  const allRecords = await idbGetAll();
+  const activeRecords = allRecords.filter((r) => !r.deletedAt);
+
+  // Build network map: personUuid -> {person, relationships: [{type, toUuid, toName}]}
+  const networkMap = new Map();
+
+  // Get all relationship types (both family and other)
+  const allRelTypes = [...RELATIONSHIP_GROUPS.family, ...RELATIONSHIP_GROUPS.other];
+
+  activeRecords.forEach((person) => {
+    const rels = person.relationships || [];
+    const relevantRels = rels.filter((rel) => allRelTypes.includes(rel.type));
+
+    if (relevantRels.length > 0) {
+      if (!networkMap.has(person.uuid)) {
+        networkMap.set(person.uuid, {
+          person: person,
+          relationships: [],
+        });
+      }
+
+      relevantRels.forEach((rel) => {
+        networkMap.get(person.uuid).relationships.push({
+          type: rel.type,
+          toUuid: rel.personUuid,
+          toName: rel.personName,
+        });
+      });
+    }
+  });
+
+  // Render legend with grouped sections
+  legendItems.innerHTML = "";
+
+  // Family Relations group
+  const familyGroup = document.createElement("div");
+  familyGroup.style.display = "flex";
+  familyGroup.style.flexWrap = "wrap";
+  familyGroup.style.gap = "12px";
+  familyGroup.style.width = "100%";
+
+  const familyLabel = document.createElement("div");
+  familyLabel.style.fontWeight = "600";
+  familyLabel.style.fontSize = "11px";
+  familyLabel.style.width = "100%";
+  familyLabel.style.marginBottom = "-4px";
+  familyLabel.textContent = "Family Relations:";
+  familyGroup.appendChild(familyLabel);
+
+  RELATIONSHIP_GROUPS.family.forEach((type) => {
+    const item = document.createElement("div");
+    item.className = "legend-item";
+    item.innerHTML = `
+      <div class="legend-color" style="background: ${RELATIONSHIP_COLORS[type]}"></div>
+      <span>${type.charAt(0).toUpperCase() + type.slice(1)}</span>
+    `;
+    familyGroup.appendChild(item);
+  });
+
+  legendItems.appendChild(familyGroup);
+
+  // Other Relations group
+  const otherGroup = document.createElement("div");
+  otherGroup.style.display = "flex";
+  otherGroup.style.flexWrap = "wrap";
+  otherGroup.style.gap = "12px";
+  otherGroup.style.width = "100%";
+  otherGroup.style.marginTop = "12px";
+
+  const otherLabel = document.createElement("div");
+  otherLabel.style.fontWeight = "600";
+  otherLabel.style.fontSize = "11px";
+  otherLabel.style.width = "100%";
+  otherLabel.style.marginBottom = "-4px";
+  otherLabel.textContent = "Other Relations:";
+  otherGroup.appendChild(otherLabel);
+
+  RELATIONSHIP_GROUPS.other.forEach((type) => {
+    const item = document.createElement("div");
+    item.className = "legend-item";
+    item.innerHTML = `
+      <div class="legend-color" style="background: ${RELATIONSHIP_COLORS[type]}"></div>
+      <span>${type.charAt(0).toUpperCase() + type.slice(1)}</span>
+    `;
+    otherGroup.appendChild(item);
+  });
+
+  legendItems.appendChild(otherGroup);
+
+  // Render network
+  content.innerHTML = "";
+
+  if (networkMap.size === 0) {
+    content.innerHTML =
+      '<p style="text-align:center;color:var(--mid-grey);padding:40px;">No relationships found</p>';
+  } else {
+    // Convert to array and sort by person name
+    const networkArray = Array.from(networkMap.values());
+    networkArray.sort((a, b) => {
+      const nameA = `${a.person.firstname} ${a.person.lastname}`.toLowerCase();
+      const nameB = `${b.person.firstname} ${b.person.lastname}`.toLowerCase();
+      return nameA.localeCompare(nameB);
+    });
+
+    networkArray.forEach(({ person, relationships }) => {
+      const card = document.createElement("div");
+      card.className = "network-person-card";
+      card.dataset.uuid = person.uuid;
+
+      // Group relationships by person to show multiple relationship types
+      const relsByPerson = new Map();
+      relationships.forEach((rel) => {
+        if (!relsByPerson.has(rel.toUuid)) {
+          relsByPerson.set(rel.toUuid, {
+            name: rel.toName,
+            types: [],
+          });
+        }
+        relsByPerson.get(rel.toUuid).types.push(rel.type);
+      });
+
+      // Build relationship badges HTML
+      let badgesHTML = "";
+      relsByPerson.forEach(({ name, types }, uuid) => {
+        types.forEach((type) => {
+          const color = RELATIONSHIP_COLORS[type];
+          badgesHTML += `<div class="network-rel-badge" style="background: ${color}">${type}: ${name}</div>`;
+        });
+      });
+
+      card.innerHTML = `
+        <div class="network-person-name">${person.firstname || ""} ${person.lastname || ""}</div>
+        <div class="network-person-details">
+          ${person.patronymic || ""} ${person.yob ? `(${person.yob})` : ""} ${person.origin || ""} ${person.city || ""}
+        </div>
+        <div class="network-relationships">
+          ${badgesHTML}
+        </div>
+      `;
+
+      // Click to open person
+      card.addEventListener("click", async () => {
+        modal.classList.add("hidden");
+        await openEditModal(person.uuid);
+      });
+
+      content.appendChild(card);
+    });
+  }
+
+  // Show modal
+  modal.classList.remove("hidden");
+}
+
+function renderRelationshipGraph() {
+  const svg = d3.select("#relationship-graph");
+  const container = document.getElementById("relationship-graph-container");
+  const width = container.clientWidth || 800;
+  const height = 600;
+
+  svg.attr("width", width).attr("height", height);
+  svg.selectAll("*").remove(); // Clear previous graph
+
+  // Get all records
+  idbGetAll().then((allRecords) => {
+    const activeRecords = allRecords.filter((r) => !r.deletedAt);
+
+    // Build nodes and links
+    const nodes = [];
+    const links = [];
+    const nodeMap = new Map();
+
+    // Get all relationship types (both family and other)
+    const allRelTypes = [...RELATIONSHIP_GROUPS.family, ...RELATIONSHIP_GROUPS.other];
+
+    activeRecords.forEach((person) => {
+      const rels = person.relationships || [];
+      const relevantRels = rels.filter((rel) => allRelTypes.includes(rel.type));
+
+      if (relevantRels.length > 0) {
+        // Add source node if not exists
+        if (!nodeMap.has(person.uuid)) {
+          const node = {
+            id: person.uuid,
+            name: `${person.firstname || ""} ${person.lastname || ""}`.trim(),
+            details: `${person.patronymic || ""} ${person.yob ? `(${person.yob})` : ""}`.trim(),
+          };
+          nodes.push(node);
+          nodeMap.set(person.uuid, node);
+        }
+
+        // Add links and target nodes
+        relevantRels.forEach((rel) => {
+          // Add target node if not exists
+          if (!nodeMap.has(rel.personUuid)) {
+            const targetNode = {
+              id: rel.personUuid,
+              name: rel.personName,
+              details: "",
+            };
+            nodes.push(targetNode);
+            nodeMap.set(rel.personUuid, targetNode);
+          }
+
+          // Add link
+          links.push({
+            source: person.uuid,
+            target: rel.personUuid,
+            type: rel.type,
+            color: RELATIONSHIP_COLORS[rel.type],
+          });
+        });
+      }
+    });
+
+    if (nodes.length === 0) {
+      svg
+        .append("text")
+        .attr("x", width / 2)
+        .attr("y", height / 2)
+        .attr("text-anchor", "middle")
+        .attr("fill", "#999")
+        .text("No relationships in this category");
+      return;
+    }
+
+    // Create force simulation
+    const simulation = d3
+      .forceSimulation(nodes)
+      .force(
+        "link",
+        d3
+          .forceLink(links)
+          .id((d) => d.id)
+          .distance(150),
+      )
+      .force("charge", d3.forceManyBody().strength(-300))
+      .force("center", d3.forceCenter(width / 2, height / 2))
+      .force("collision", d3.forceCollide().radius(50));
+
+    // Create arrow markers for directed edges
+    svg
+      .append("defs")
+      .selectAll("marker")
+      .data(Object.keys(RELATIONSHIP_COLORS))
+      .join("marker")
+      .attr("id", (d) => `arrow-${d}`)
+      .attr("viewBox", "0 -5 10 10")
+      .attr("refX", 25)
+      .attr("refY", 0)
+      .attr("markerWidth", 6)
+      .attr("markerHeight", 6)
+      .attr("orient", "auto")
+      .append("path")
+      .attr("fill", (d) => RELATIONSHIP_COLORS[d])
+      .attr("d", "M0,-5L10,0L0,5");
+
+    // Create links
+    const link = svg
+      .append("g")
+      .selectAll("line")
+      .data(links)
+      .join("line")
+      .attr("stroke", (d) => d.color)
+      .attr("stroke-width", 2)
+      .attr("stroke-opacity", 0.6)
+      .attr("marker-end", (d) => `url(#arrow-${d.type})`);
+
+    // Create nodes
+    const node = svg
+      .append("g")
+      .selectAll("g")
+      .data(nodes)
+      .join("g")
+      .call(d3.drag().on("start", dragstarted).on("drag", dragged).on("end", dragended));
+
+    // Add circles to nodes
+    node
+      .append("circle")
+      .attr("r", 20)
+      .attr("fill", "#5a9db5")
+      .attr("stroke", "#fff")
+      .attr("stroke-width", 2)
+      .style("cursor", "pointer");
+
+    // Add labels to nodes
+    node
+      .append("text")
+      .text((d) => d.name)
+      .attr("x", 0)
+      .attr("y", -25)
+      .attr("text-anchor", "middle")
+      .attr("font-size", "11px")
+      .attr("font-weight", "600")
+      .attr("fill", "#333")
+      .style("pointer-events", "none");
+
+    // Add details to nodes
+    node
+      .append("text")
+      .text((d) => d.details)
+      .attr("x", 0)
+      .attr("y", 35)
+      .attr("text-anchor", "middle")
+      .attr("font-size", "9px")
+      .attr("fill", "#666")
+      .style("pointer-events", "none");
+
+    // Add hover effects
+    node
+      .on("mouseover", function () {
+        d3.select(this).select("circle").attr("r", 25).attr("fill", "#4a8da8");
+      })
+      .on("mouseout", function () {
+        d3.select(this).select("circle").attr("r", 20).attr("fill", "#5a9db5");
+      })
+      .on("click", function (event, d) {
+        document.getElementById("relationship-network-modal").classList.add("hidden");
+        openEditModal(d.id);
+      });
+
+    // Update positions on tick
+    simulation.on("tick", () => {
+      link
+        .attr("x1", (d) => d.source.x)
+        .attr("y1", (d) => d.source.y)
+        .attr("x2", (d) => d.target.x)
+        .attr("y2", (d) => d.target.y);
+
+      node.attr("transform", (d) => `translate(${d.x},${d.y})`);
+    });
+
+    // Drag functions
+    function dragstarted(event) {
+      if (!event.active) simulation.alphaTarget(0.3).restart();
+      event.subject.fx = event.subject.x;
+      event.subject.fy = event.subject.y;
+    }
+
+    function dragged(event) {
+      event.subject.fx = event.x;
+      event.subject.fy = event.y;
+    }
+
+    function dragended(event) {
+      if (!event.active) simulation.alphaTarget(0);
+      event.subject.fx = null;
+      event.subject.fy = null;
+    }
+
+    // Add zoom behavior
+    const zoom = d3.zoom().scaleExtent([0.5, 3]).on("zoom", zoomed);
+
+    svg.call(zoom);
+
+    function zoomed(event) {
+      svg.selectAll("g").attr("transform", event.transform);
+    }
+  });
+}
+
 function renderRelationshipSummary(record) {
   const container = document.getElementById("relationship-summary");
   if (!container) return;
@@ -1935,6 +2325,37 @@ function attachEventListeners() {
     searchScopes = ["all"];
     updateScopeDisplay();
     refreshRecords("Female");
+  });
+
+  // Relationship network modal
+  document.getElementById("stat-card-relationships").addEventListener("click", () => {
+    showRelationshipNetwork();
+  });
+
+  document.getElementById("relationship-network-close").addEventListener("click", () => {
+    document.getElementById("relationship-network-modal").classList.add("hidden");
+  });
+
+  // View switcher for relationship network
+  document.getElementById("btn-list-view").addEventListener("click", function () {
+    document.getElementById("relationship-network-content").style.display = "block";
+    document.getElementById("relationship-graph-container").style.display = "none";
+    this.style.background = "var(--ice-blue-dark)";
+    this.style.color = "var(--white)";
+    document.getElementById("btn-graph-view").style.background = "";
+    document.getElementById("btn-graph-view").style.color = "";
+  });
+
+  document.getElementById("btn-graph-view").addEventListener("click", function () {
+    document.getElementById("relationship-network-content").style.display = "none";
+    document.getElementById("relationship-graph-container").style.display = "block";
+    this.style.background = "var(--ice-blue-dark)";
+    document.getElementById("btn-graph-view").style.background = "var(--ice-blue-dark)";
+    this.style.color = "var(--white)";
+    document.getElementById("btn-list-view").style.background = "";
+    document.getElementById("btn-list-view").style.color = "";
+
+    renderRelationshipGraph();
   });
 
   // New person

@@ -658,3 +658,64 @@ hr {
     color: var(--dark-grey);
     font-weight: 500;
 }
+
+/* ── Relationship Network Modal ──────────────────────── */
+
+.network-person-card {
+    padding: 16px;
+    margin-bottom: 12px;
+    background: var(--white);
+    border: 1px solid var(--light-grey);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.network-person-card:hover {
+    background: var(--ice-blue);
+    border-color: var(--ice-blue-dark);
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.network-person-name {
+    font-weight: 600;
+    font-size: 14px;
+    color: var(--dark-grey);
+    margin-bottom: 8px;
+}
+
+.network-person-details {
+    font-size: 11px;
+    color: var(--mid-grey);
+    margin-bottom: 10px;
+}
+
+.network-relationships {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.network-rel-badge {
+    display: inline-block;
+    padding: 4px 8px;
+    border-radius: 3px;
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--white);
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.legend-color {
+    width: 20px;
+    height: 12px;
+    border-radius: 2px;
+}

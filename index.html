@@ -7,6 +7,8 @@
         <link rel="stylesheet" href="styles.css" />
         <!-- SheetJS for Excel import -->
         <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+        <!-- D3.js for network visualization -->
+        <script src="https://d3js.org/d3.v7.min.js"></script>
     </head>
     <body>
         <header>
@@ -536,6 +538,67 @@
 
         <!-- Search history dropdown -->
         <div id="search-history-dropdown" class="lookup-dropdown hidden"></div>
+
+        <!-- Relationship Network Modal -->
+        <div id="relationship-network-modal" class="modal-overlay hidden">
+            <div class="modal">
+                <div class="modal-header">
+                    <h2>Relationship Network</h2>
+                    <button class="modal-close" id="relationship-network-close">✕</button>
+                </div>
+                <div class="modal-body">
+                    <!-- View selector (List vs Graph) -->
+                    <div style="display: flex; gap: 10px; margin-bottom: 20px">
+                        <button class="btn-ghost btn-small" id="btn-list-view" style="flex: 1">
+                            📋 List View
+                        </button>
+                        <button class="btn-ghost btn-small" id="btn-graph-view" style="flex: 1">
+                            🕸 Graph View
+                        </button>
+                    </div>
+
+                    <!-- Legend -->
+                    <div
+                        id="relationship-legend"
+                        style="
+                            margin-bottom: 20px;
+                            padding: 12px;
+                            background: var(--pale-grey);
+                            border-radius: 4px;
+                        "
+                    >
+                        <div style="font-weight: 600; margin-bottom: 8px; font-size: 12px">
+                            Legend:
+                        </div>
+                        <div
+                            id="legend-items"
+                            style="display: flex; flex-wrap: wrap; gap: 12px; font-size: 11px"
+                        ></div>
+                    </div>
+
+                    <!-- List view -->
+                    <div
+                        id="relationship-network-content"
+                        style="max-height: 500px; overflow-y: auto"
+                    >
+                        <!-- Dynamically populated with person cards -->
+                    </div>
+
+                    <!-- Graph view -->
+                    <div
+                        id="relationship-graph-container"
+                        style="
+                            display: none;
+                            border: 1px solid var(--light-grey);
+                            border-radius: 4px;
+                            background: var(--white);
+                        "
+                    >
+                        <svg id="relationship-graph" width="100%" height="600"></svg>
+                    </div>
+                </div>
+            </div>
+        </div>
 
         <!-- Notification -->
         <div id="notification"></div>

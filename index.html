@@ -135,22 +135,7 @@
                     <span class="stat-value" id="stat-total">—</span>
                     <span class="stat-label">Total entities</span>
                 </div>
-                <div class="stat-card stat-card--clickable" id="stat-card-persons">
-                    <span class="stat-value" id="stat-persons">—</span>
-                    <span class="stat-label">Persons</span>
-                </div>
-                <div class="stat-card stat-card--clickable" id="stat-card-associations">
-                    <span class="stat-value" id="stat-associations">—</span>
-                    <span class="stat-label">Associations</span>
-                </div>
-                <div class="stat-card stat-card--clickable" id="stat-card-institutions">
-                    <span class="stat-value" id="stat-institutions">—</span>
-                    <span class="stat-label">Institutions</span>
-                </div>
-                <div class="stat-card stat-card--clickable" id="stat-card-companies">
-                    <span class="stat-value" id="stat-companies">—</span>
-                    <span class="stat-label">Companies</span>
-                </div>
+
                 <div class="stat-card stat-card--clickable" id="stat-card-male">
                     <span class="stat-value" id="stat-male">—</span>
                     <span class="stat-label">Male (persons)</span>
@@ -159,11 +144,30 @@
                     <span class="stat-value" id="stat-female">—</span>
                     <span class="stat-label">Female (persons)</span>
                 </div>
-                <div class="stat-card" id="stat-card-relationships" style="cursor: help">
+                <div class="stat-card stat-card--clickable" id="stat-card-relationships">
                     <span class="stat-value" id="stat-relationships">—</span>
                     <span class="stat-label">Relationships</span>
                 </div>
-                <div class="stat-card">
+                <div class="buttonbar">
+                    <button
+                        class="btn-ghost btn-in-statcard"
+                        onclick="
+                            var coll = document.getElementsByClassName('objecttypesstats');
+                            for (var i = 0, len = coll.length; i < len; i++) {
+                                if (coll[i].style.display === 'none') {
+                                    coll[i].style.display = 'flex';
+                                    this.classList.remove('btn-ghost');
+                                    this.classList.add('btn-primary');
+                                } else {
+                                    coll[i].style.display = 'none';
+                                    this.classList.remove('btn-primary');
+                                    this.classList.add('btn-ghost');
+                                }
+                            }
+                        "
+                    >
+                        Object types stats
+                    </button>
                     <button
                         class="btn-ghost btn-in-statcard"
                         onclick="
@@ -207,10 +211,40 @@
                         Religion stats
                     </button>
                 </div>
-                <div class="stat-divider-nl"></div>
                 <div style="display: none" id="origin-stats-container"></div>
-                <div class="stat-divider-nl"></div>
                 <div style="display: none" id="religion-stats-container"></div>
+                <div
+                    style="display: none"
+                    class="stat-card stat-card--clickable objecttypesstats"
+                    id="stat-card-persons"
+                >
+                    <span class="stat-value" id="stat-persons">—</span>
+                    <span class="stat-label">Persons</span>
+                </div>
+                <div
+                    style="display: none"
+                    class="stat-card stat-card--clickable objecttypesstats"
+                    id="stat-card-associations"
+                >
+                    <span class="stat-value" id="stat-associations">—</span>
+                    <span class="stat-label">Associations</span>
+                </div>
+                <div
+                    style="display: none"
+                    class="stat-card stat-card--clickable objecttypesstats"
+                    id="stat-card-institutions"
+                >
+                    <span class="stat-value" id="stat-institutions">—</span>
+                    <span class="stat-label">Institutions</span>
+                </div>
+                <div
+                    style="display: none"
+                    class="stat-card stat-card--clickable objecttypesstats"
+                    id="stat-card-companies"
+                >
+                    <span class="stat-value" id="stat-companies">—</span>
+                    <span class="stat-label">Companies</span>
+                </div>
             </div>
 
             <!-- Records table -->
@@ -590,7 +624,7 @@
 
         <!-- Relationship Network Modal -->
         <div id="relationship-network-modal" class="modal-overlay hidden">
-            <div class="modal">
+            <div class="modal modalfullwidth">
                 <div class="modal-header">
                     <h2>Relationship Network</h2>
                     <button class="modal-close" id="relationship-network-close">✕</button>

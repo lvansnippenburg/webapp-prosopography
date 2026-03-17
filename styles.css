@@ -91,11 +91,9 @@ header h1 {
 
 /* ── Buttons ─────────────────────────────────────────── */
 div.buttonbar {
-    display: flex;
     gap: 10px;
+    width: 100%;
     margin-bottom: 10px;
-    flex-wrap: wrap;
-    align-items: center;
 }
 
 button {
@@ -238,6 +236,10 @@ tbody td {
     max-height: 90vh;
     display: flex;
     flex-direction: column;
+}
+
+.modalfullwidth {
+    max-width: 94vw;
 }
 
 .modal-header {

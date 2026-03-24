@@ -554,6 +554,20 @@ textarea {
     margin-left: auto;
 }
 
+#help-modal .modal-body {
+    scroll-behavior: smooth;
+}
+
+#help-content a[href^="#"] {
+    cursor: pointer;
+    text-decoration: underline;
+    color: var(--ice-blue-dark);
+}
+
+#help-content a[href^="#"]:hover {
+    color: var(--dark-grey);
+}
+
 /* Responsive positioning for smaller screens */
 @media (max-width: 900px) {
     #help-modal .modal {

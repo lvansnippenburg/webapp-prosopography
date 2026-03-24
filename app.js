@@ -1201,7 +1201,11 @@ async function refreshRecords(query = "") {
     addToSearchHistory(query, searchScopes);
 
     // Advanced query syntax: field:value AND/OR field:value
-    if (advancedMode && (query.includes(" AND ") || query.includes(" OR "))) {
+    // Also handle single field:value queries in advanced mode
+    if (
+      advancedMode &&
+      (query.includes(" AND ") || query.includes(" OR ") || query.includes(":"))
+    ) {
       filtered = filtered.filter((r) => evaluateAdvancedQuery(r, query));
     } else {
       // Standard search with multiple scopes and optional regex
@@ -1630,9 +1634,9 @@ function renderTable(records) {
     const fullFirstname = [r.firstname || "", r.patronymic || ""].filter(Boolean).join(" ");
 
     tr.innerHTML = `
-            <td>${entityIcon}${r.lastname || ""}${lnVars}</td>
+            <td>${entityIcon}${cityLabel}</td>
+            <td>${r.lastname || ""}${lnVars}</td>
             <td>${fullFirstname}${fnVars}</td>
-            <td>${cityLabel}</td>
             <td>${r.profession || ""}</td>
             <td>${r.firstseen || ""}</td>
             <td>${r.lastseen || ""}</td>
@@ -3400,10 +3404,28 @@ function attachEventListeners() {
       return "<pre><code>" + code.trim() + "</code></pre>";
     });
 
-    // Headers
-    html = html.replace(/^### (.*$)/gim, "<h3>$1</h3>");
-    html = html.replace(/^## (.*$)/gim, "<h2>$1</h2>");
-    html = html.replace(/^# (.*$)/gim, "<h1>$1</h1>");
+    // Headers with ID generation for anchor links
+    html = html.replace(/^### (.*$)/gim, function (match, text) {
+      const id = text
+        .toLowerCase()
+        .replace(/[^\w\s-]/g, "")
+        .replace(/\s+/g, "-");
+      return '<h3 id="' + id + '">' + text + "</h3>";
+    });
+    html = html.replace(/^## (.*$)/gim, function (match, text) {
+      const id = text
+        .toLowerCase()
+        .replace(/[^\w\s-]/g, "")
+        .replace(/\s+/g, "-");
+      return '<h2 id="' + id + '">' + text + "</h2>";
+    });
+    html = html.replace(/^# (.*$)/gim, function (match, text) {
+      const id = text
+        .toLowerCase()
+        .replace(/[^\w\s-]/g, "")
+        .replace(/\s+/g, "-");
+      return '<h1 id="' + id + '">' + text + "</h1>";
+    });
 
     // Tables
     const lines = html.split("\n");
@@ -3471,8 +3493,15 @@ function attachEventListeners() {
     // Inline code
     html = html.replace(/`([^`]+)`/g, "<code>$1</code>");
 
-    // Links
-    html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>');
+    // Links - distinguish between internal anchors and external links
+    html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, function (match, text, url) {
+      // Internal anchor links (start with #)
+      if (url.startsWith("#")) {
+        return '<a href="' + url + '">' + text + "</a>";
+      }
+      // External links
+      return '<a href="' + url + '" target="_blank">' + text + "</a>";
+    });
 
     // Unordered lists
     const listLines = html.split("\n");
@@ -3580,6 +3609,18 @@ function attachEventListeners() {
       // Simple markdown to HTML conversion
       const html = markdownToHtml(markdown);
       content.innerHTML = html;
+
+      // Add click handler for internal anchor links
+      content.querySelectorAll('a[href^="#"]').forEach((link) => {
+        link.addEventListener("click", function (e) {
+          e.preventDefault();
+          const targetId = this.getAttribute("href").substring(1);
+          const targetElement = content.querySelector("#" + targetId);
+          if (targetElement) {
+            targetElement.scrollIntoView({ behavior: "smooth", block: "start" });
+          }
+        });
+      });
     } catch (err) {
       content.innerHTML = `<p style="color: var(--mid-grey); text-align: center;">Error loading documentation: ${err.message}</p>`;
     }

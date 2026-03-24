@@ -1185,6 +1185,21 @@ Result: Merchants whose career was entirely within 1630-1680
 
 The **Timespan** scope searches the `firstseen` and `lastseen` fields to find persons active during specific time periods.
 
+### How to Activate Timespan Search
+
+To use timespan searches, you need to do one of the following:
+
+1. **Select the timespan scope** - Click the scope dropdown and select "Timespan"
+2. **Use advanced mode** - Enable the AND/OR button and use `timespan:value` syntax
+3. **Search all fields** - Have "All" selected as the search scope (default)
+
+| Method | Example Query |
+|--------|---------------|
+| Timespan scope selected | `1650` |
+| Advanced mode | `timespan:1650` |
+| Advanced mode with conditions | `timespan:1630-1680 AND city:Livorno` |
+| All fields (default) | `1650` |
+
 ### Query Formats
 
 **Single Year:**
@@ -1217,14 +1232,22 @@ Lastseen: 1670
 - `1671-1680` → ✗ No match (firstseen 1645 before 1671)
 - `1640` → ✗ No match (not within timespan)
 
-### Edge Cases
+### Handling Missing Data
 
-**Incomplete Data:**
+When `firstseen` or `lastseen` is missing from a record, the system uses a "generous" approach to avoid excluding records with incomplete data:
+
+| Missing Field | Single Year Query | Range Query |
+|---------------|-------------------|-------------|
+| `firstseen` missing | Uses query year as firstseen | Uses range start as firstseen |
+| `lastseen` missing | Uses query year as lastseen | Uses range end as lastseen |
+| Both missing | Always matches | Always matches |
+
+**Detailed Behavior:**
 
 For **single year queries**:
 - If `firstseen` missing: Treats firstseen as the query year
 - If `lastseen` missing: Treats lastseen as the query year
-- If both missing: Treats both as the query year
+- If both missing: Treats both as the query year (always matches)
 
 For **range queries** (e.g., `1630-1680`):
 - If `firstseen` missing: Treats firstseen as the range start (1630)
@@ -1255,10 +1278,21 @@ Logic: 1630 ≥ 1630 AND 1680 ≤ 1680 → ✓ Match
 ### Use Cases
 
 **Research Applications:**
-1. **Historical events:** Find persons active during specific events
-2. **Generational studies:** Identify contemporaries
+1. **Historical events:** Find persons active during specific events (e.g., `1648` for Peace of Westphalia)
+2. **Generational studies:** Identify contemporaries within a decade (`1650-1660`)
 3. **Career analysis:** Track professional activity periods
 4. **Migration patterns:** Correlate movement with time periods
+5. **Cohort analysis:** Combine with other fields (`timespan:1630-1680 AND profession:merchant`)
+
+### Quick Reference
+
+| Query | Finds |
+|-------|-------|
+| `1650` | People active in 1650 |
+| `1630-1680` | People whose entire active period is within 1630-1680 |
+| `timespan:1650` | Same as above (advanced mode) |
+| `timespan:1630-1680 AND city:Livorno` | People active within range AND in Livorno |
+| `timespan:1650 AND profession:merchant` | Merchants active in 1650 |
 
 ---
 

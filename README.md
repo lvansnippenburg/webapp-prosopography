@@ -29,6 +29,6 @@ python3 -m http.server 8080
 ```
 
 # Codeberg Hosted 
-[Codeberg link](https://codeberg.page/webapp-prosopography/)
+[Codeberg link](https://lvansnippenburg.codeberg.page/webapp-prosopography/)
 
 [vansnippenburg domain](https://livorno.vansnippenburg.nl)

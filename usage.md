@@ -1,4 +1,8 @@
-## The webapp as is is for personal use
+## The webapp as is, is for personal use
+
+Before copying, changing or whatever:
+
+**Read the LICENCE.md file**
 
 This webapp uses several settings that are particularly geared to my use of the code. When creating a copy of the files for your own use, make sure to change these. The ones most important are:
 1. The name of the webapp. Change "Livorno" to whatever suits you best.

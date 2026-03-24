@@ -318,6 +318,28 @@ select {
     background: var(--white);
     color: var(--black);
     width: 100%;
+    box-sizing: border-box;
+}
+
+/* Ensure consistent height for text and number inputs */
+input[type="text"],
+input[type="number"] {
+    height: 35px;
+    line-height: 1.4;
+}
+
+/* Ensure select elements match input height */
+select {
+    height: 35px;
+    line-height: 1.4;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    background-image: url('data:image/svg+xml;utf8,<svg fill="%23666666" height="24" viewBox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="M7 10l5 5 5-5z"/></svg>');
+    background-repeat: no-repeat;
+    background-position: right 5px center;
+    background-size: 20px;
+    padding-right: 30px;
 }
 
 input:focus,
@@ -326,6 +348,16 @@ select:focus {
     outline: none;
     border-color: var(--ice-blue-dark);
     box-shadow: 0 0 0 2px var(--ice-blue);
+}
+
+/* Disabled/readonly inputs maintain same height */
+input:disabled,
+input[readonly],
+select:disabled,
+textarea:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    background: var(--pale-grey);
 }
 
 textarea {

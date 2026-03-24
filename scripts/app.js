@@ -1573,7 +1573,7 @@ function updateSearchPlaceholder() {
     }
   } else {
     // Default: fuzzy name search
-    input.placeholder = "Search names (fuzzy match)...";
+    input.placeholder = "Search names (fuzzy match, sounds like)...";
   }
 }
 

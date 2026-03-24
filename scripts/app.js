@@ -83,7 +83,7 @@ const RELATIONSHIP_GROUPS = {
 };
 
 // ── Settings ───────────────────────────────────────────────────────
-
+// cb = codeberg, since these were the first cookievalues set. Now all cookies of this app start with cb to be consistent.
 function loadSettings() {
   return {
     token: localStorage.getItem("cb_token") || "",
@@ -3814,32 +3814,6 @@ function attachEventListeners() {
     html = html.replace(/<p><\/p>/g, "");
     html = html.replace(/<p>(<[hut])/g, "$1");
     html = html.replace(/(<\/[hut][^>]*>)<\/p>/g, "$1");
-
-    // Add styling
-    html = `
-      <style>
-        #help-content h1 { font-size: 24px; margin: 20px 0 10px; border-bottom: 2px solid var(--light-grey); padding-bottom: 5px; color: var(--dark-grey); }
-        #help-content h2 { font-size: 20px; margin: 18px 0 8px; border-bottom: 1px solid var(--pale-grey); padding-bottom: 3px; color: var(--dark-grey); }
-        #help-content h3 { font-size: 16px; margin: 16px 0 6px; color: var(--dark-grey); }
-        #help-content p { margin: 8px 0; line-height: 1.6; color: var(--black); }
-        #help-content code { background: var(--pale-grey); padding: 2px 6px; border-radius: 3px; font-family: 'Courier New', monospace; font-size: 13px; color: var(--dark-grey); }
-        #help-content pre { background: var(--pale-grey); padding: 12px; border-radius: 4px; overflow-x: auto; margin: 10px 0; }
-        #help-content pre code { background: none; padding: 0; display: block; }
-        #help-content ul, #help-content ol { margin: 10px 0; padding-left: 30px; line-height: 1.8; }
-        #help-content li { margin: 4px 0; }
-        #help-content a { color: var(--ice-blue-dark); text-decoration: none; }
-        #help-content a:hover { text-decoration: underline; }
-        #help-content hr { border: none; border-top: 1px solid var(--light-grey); margin: 20px 0; }
-        #help-content strong { font-weight: 600; color: var(--dark-grey); }
-        #help-content em { font-style: italic; }
-        #help-content table { border-collapse: collapse; width: 100%; margin: 15px 0; font-size: 13px; }
-        #help-content th, #help-content td { border: 1px solid var(--light-grey); padding: 8px 12px; text-align: left; }
-        #help-content th { background: var(--pale-grey); font-weight: 600; color: var(--dark-grey); }
-        #help-content td { background: var(--white); }
-        #help-content tr:nth-child(even) td { background: var(--ice-blue); }
-      </style>
-      ${html}
-    `;
 
     return html;
   }

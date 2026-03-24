@@ -24,11 +24,6 @@ A comprehensive historical prosopography database application with advanced sear
 
 ## Quick Start
 
-**Getting Help:**
-- Click **"? Help"** button in header to view this documentation
-- Click **"📄 License"** in Settings panel to view license information
-- Help modal displays on the right side (or center on small screens)
-
 **Basic Search:**
 1. Type in the search box
 2. Results update automatically (280ms delay)

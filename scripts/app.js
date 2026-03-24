@@ -1,12 +1,6 @@
-/* =============================================================
-   Person Records Application
-   IndexedDB  ↔  Codeberg sync
-   ============================================================= */
-
 "use strict";
 
 // ── Constants ──────────────────────────────────────────────────────
-
 const DB_NAME = "PersonRecordsDB";
 const DB_VERSION = 1;
 const STORE_NAME = "persons";
@@ -16,23 +10,23 @@ const STORE_NAME = "persons";
 const COLUMN_MAP = {
   0: "lastname", // special: variations in brackets
   1: "firstname", // special: variations in brackets
-  2: "patronymic",
-  3: "gender", // special: M unless cell contains F
-  4: "city",
+  2: "patronymic", // can be a patronymic or a toponymic
+  3: "gender", // M for male, F for Female, when missing M is assumed (sorry)
+  4: "city", // the primary city of residene as assumed for the research.
   5: "profession",
   6: "origin",
   7: "firstseen",
   8: "lastseen",
-  9: "lasting",
-  10: "mocosince",
+  9: "lasting", // is lastseen - firstseen. A relic from excel days, no longer used
+  10: "mocosince", // member of the Congregazione Olandese-Alemanna a.k.a. the nazione.
   11: "religion",
   12: "yob", // year of birth
   13: "bornin",
   14: "yod", // year of death
   15: "diedin",
-  16: "zotero", // special: array of objects
-  17: "archief", // special: array of objects
-  18: "notes",
+  16: "zotero", // special: array of objects representing Zotero references
+  17: "archief", // special: array of objects representing documents in the archives
+  18: "notes", // anything goes.
 };
 
 // ── State ──────────────────────────────────────────────────────────

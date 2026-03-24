@@ -77,10 +77,16 @@ header h1 {
     flex: 1;
     min-width: 200px;
     padding: 8px 12px;
+    padding-right: 185px;
     border: 1px solid var(--light-grey);
     border-radius: 4px;
     font-size: 14px;
     background: var(--white);
+}
+
+#search-input::placeholder {
+    color: var(--medium-grey);
+    font-style: italic;
 }
 
 #search-input:focus {
@@ -136,6 +142,30 @@ button:active {
 .btn-small {
     padding: 4px 10px;
     font-size: 12px;
+}
+
+/* Search input inline buttons */
+.search-input-btn {
+    padding: 4px 6px;
+    font-size: 11px;
+    border-radius: 3px;
+    background: var(--ice-blue);
+    border: 1px solid var(--light-grey);
+    color: var(--dark-grey);
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.search-input-btn:hover {
+    background: var(--ice-blue-dark);
+    color: var(--white);
+    border-color: var(--ice-blue-dark);
+}
+
+.search-input-btn.active {
+    background: var(--ice-blue-dark);
+    color: var(--white);
+    border-color: var(--ice-blue-dark);
 }
 
 .btn-in-statcard {

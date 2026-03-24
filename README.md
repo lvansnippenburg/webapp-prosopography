@@ -450,29 +450,41 @@ Export your current selection of records to Excel or JSON format. The export wil
 
 ### Default Behavior
 
-By default, searches scan **all fields** in every person record:
+By default (when no scope, regex, or advanced mode is enabled), searches use **fuzzy matching on name fields only**:
 
-- Names (lastname, firstname, patronymic + variations)
-- Origin
-- City
-- Profession
-- Religion
-- Notes
-- References (Zotero, Archief)
-- Relationships (related person names, relationship types)
-- Gender (searches "male"/"female" text)
+- Lastname (including variations)
+- Firstname (including variations)
+- Patronymic
+
+This is the same search performed when you click "New Entity" and start typing in the lastname field.
+
+### Fuzzy Matching Types
+
+The default search uses multiple matching strategies, in order of priority:
+
+| Match Type | Description | Example |
+|------------|-------------|---------|
+| **Exact** | Identical match | `Berg` matches "Berg" |
+| **Prefix** | Starts with query | `Ber` matches "Berg", "Bernini" |
+| **Contains** | Query found anywhere | `erg` matches "Berg", "Bergman" |
+| **Soundex** | Sounds similar | `Smit` matches "Smith", "Schmitt" |
+| **Levenshtein** | Within 2 edits (for queries ≥3 chars) | `Bergh` matches "Berg" |
 
 ### Case-Insensitive
 
-All standard searches are **case-insensitive**:
+All searches are **case-insensitive**:
 - `berg` matches "Berg", "BERG", "van der Berg"
-- `amsterdam` matches "Amsterdam", "AMSTERDAM"
+- `smith` matches "Smith", "SMITH", "Smyth" (via soundex)
 
-### Substring Matching
+### When to Use Other Modes
 
-Searches match **any part** of the field:
-- `van` matches "van der Berg", "Giovanni", "Ivan"
-- `merchant` matches "merchant", "merchants", "merchantman"
+To search fields beyond names, enable one of the following:
+
+| Mode | How to Enable | What It Does |
+|------|---------------|--------------|
+| **Scope selection** | Click scope dropdown | Search specific fields |
+| **Regex mode** | Click `.*` button | Use regular expressions |
+| **Advanced mode** | Click `AND/OR` button | Use field:value syntax with boolean operators |
 
 ---
 
@@ -1234,39 +1246,51 @@ Lastseen: 1670
 
 ### Handling Missing Data
 
-When `firstseen` or `lastseen` is missing from a record, the system uses a "generous" approach to avoid excluding records with incomplete data:
+When `firstseen` or `lastseen` is missing from a record:
 
 | Missing Field | Single Year Query | Range Query |
 |---------------|-------------------|-------------|
-| `firstseen` missing | Uses query year as firstseen | Uses range start as firstseen |
-| `lastseen` missing | Uses query year as lastseen | Uses range end as lastseen |
-| Both missing | Always matches | Always matches |
+| `firstseen` missing | Match if lastseen ≥ query year | Match if lastseen within range |
+| `lastseen` missing | Match if firstseen ≤ query year | Match if firstseen within range |
+| **Both missing** | **No match** | **No match** |
+
+**Important:** Records with no timespan data (both `firstseen` and `lastseen` empty) are **excluded** from all timespan search results. This ensures that only records with actual date information appear in time-based queries.
 
 **Detailed Behavior:**
 
-For **single year queries**:
-- If `firstseen` missing: Treats firstseen as the query year
-- If `lastseen` missing: Treats lastseen as the query year
-- If both missing: Treats both as the query year (always matches)
+For **single year queries** (e.g., `1650`):
+- Both dates available: Query year must be within person's timespan (`firstseen ≤ 1650 ≤ lastseen`)
+- Only `firstseen` available: Person's firstseen must be ≤ query year
+- Only `lastseen` available: Person's lastseen must be ≥ query year
+- Both missing: **Excluded from results**
 
-For **range queries** (e.g., `1630-1680`):
-- If `firstseen` missing: Treats firstseen as the range start (1630)
-- If `lastseen` missing: Treats lastseen as the range end (1680)
-- If both missing: Matches (considered to be within range)
+For **range queries** (e.g., `1630-1650`):
+- Both dates available: Person's entire timespan must fall within the range
+- Only `firstseen` available: firstseen must be within the query range
+- Only `lastseen` available: lastseen must be within the query range
+- Both missing: **Excluded from results**
 
 **Examples:**
 ```
-Person: firstseen=1650, lastseen=null
-Query: 1630-1680
-Logic: 1650 ≥ 1630 AND 1680 ≤ 1680 → ✓ Match
+Person: firstseen=1640, lastseen=1660
+Query: 1630-1650
+→ ✗ No match (lastseen 1660 exceeds range end 1650)
 
-Person: firstseen=null, lastseen=1660
-Query: 1630-1680
-Logic: 1630 ≥ 1630 AND 1660 ≤ 1680 → ✓ Match
+Person: firstseen=1640, lastseen=null
+Query: 1630-1650
+→ ✓ Match (firstseen 1640 is within 1630-1650)
+
+Person: firstseen=1676, lastseen=null
+Query: 1630-1650
+→ ✗ No match (firstseen 1676 is outside 1630-1650)
+
+Person: firstseen=null, lastseen=1640
+Query: 1630-1650
+→ ✓ Match (lastseen 1640 is within 1630-1650)
 
 Person: firstseen=null, lastseen=null
-Query: 1630-1680
-Logic: 1630 ≥ 1630 AND 1680 ≤ 1680 → ✓ Match
+Query: 1630-1650
+→ ✗ No match (no timespan data)
 ```
 
 **Year Extraction:**

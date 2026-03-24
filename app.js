@@ -322,6 +322,40 @@ function fuzzyMatch(query, target) {
   return false;
 }
 
+// Fuzzy search on name fields only (lastname, firstname, patronymic + variations)
+// Used as default basic search when no search modes are active
+function fuzzyNameSearch(record, query) {
+  if (!query || query.length < 2) return false;
+
+  const names = [
+    record.lastname,
+    record.firstname,
+    record.patronymic,
+    ...(record.lastnameVariations || []),
+    ...(record.firstnameVariations || []),
+  ];
+
+  const ql = query.toLowerCase();
+
+  for (const name of names) {
+    if (!name) continue;
+    const nl = name.toLowerCase();
+
+    // Exact match
+    if (nl === ql) return true;
+    // Prefix match
+    if (nl.startsWith(ql)) return true;
+    // Contains match
+    if (nl.includes(ql)) return true;
+    // Soundex match
+    if (soundex(name) === soundex(query)) return true;
+    // Levenshtein distance ≤ 2 for queries of length ≥ 3
+    if (ql.length >= 3 && levenshtein(ql, nl) <= 2) return true;
+  }
+
+  return false;
+}
+
 function levenshtein(a, b) {
   const m = a.length,
     n = b.length;
@@ -1200,6 +1234,9 @@ async function refreshRecords(query = "") {
     // Add to search history
     addToSearchHistory(query, searchScopes);
 
+    // Check if any search mode is active
+    const hasActiveMode = regexMode || advancedMode || !searchScopes.includes("all");
+
     // Advanced query syntax: field:value AND/OR field:value
     // Also handle single field:value queries in advanced mode
     if (
@@ -1207,6 +1244,9 @@ async function refreshRecords(query = "") {
       (query.includes(" AND ") || query.includes(" OR ") || query.includes(":"))
     ) {
       filtered = filtered.filter((r) => evaluateAdvancedQuery(r, query));
+    } else if (!hasActiveMode) {
+      // Default basic search: fuzzy name search only (like lastname lookup)
+      filtered = filtered.filter((r) => fuzzyNameSearch(r, query));
     } else {
       // Standard search with multiple scopes and optional regex
       filtered = filtered.filter((r) => {
@@ -1344,42 +1384,63 @@ function matchTimespan(record, query) {
   // Extract years from firstseen and lastseen fields
   const extractYear = (value) => {
     if (!value) return null;
-    const match = value.match(/\b(\d{4})\b/);
+    const match = value.match(/(\d{4})/);
     return match ? parseInt(match[1], 10) : null;
   };
 
+  // Check if fields are truly blank (empty or whitespace only)
+  const firstseenBlank = !record.firstseen || !record.firstseen.trim();
+  const lastseenBlank = !record.lastseen || !record.lastseen.trim();
+
+  // If both fields are blank, exclude from results
+  if (firstseenBlank && lastseenBlank) {
+    return false;
+  }
+
   let firstseen = extractYear(record.firstseen);
   let lastseen = extractYear(record.lastseen);
+
+  // If neither field has an extractable year (but fields aren't blank), exclude
+  // This handles cases where fields have text but no valid year
+  if (firstseen === null && lastseen === null) {
+    return false;
+  }
 
   // Parse query - can be: "1650", "1650-1660", or text containing years
   const yearMatch = query.match(/\b(\d{4})\b/);
   const rangeMatch = query.match(/\b(\d{4})\s*-\s*(\d{4})\b/);
 
   if (rangeMatch) {
-    // Query is a range: "1630-1680"
+    // Query is a range: "1630-1650"
     const queryStart = parseInt(rangeMatch[1], 10);
     const queryEnd = parseInt(rangeMatch[2], 10);
 
-    // If firstseen is missing, treat it as queryStart
-    // If lastseen is missing, treat it as queryEnd
-    const effectiveFirstseen = firstseen !== null ? firstseen : queryStart;
-    const effectiveLastseen = lastseen !== null ? lastseen : queryEnd;
-
-    // Person's timespan must fall within query range:
-    // firstseen >= queryStart AND lastseen <= queryEnd
-    return effectiveFirstseen >= queryStart && effectiveLastseen <= queryEnd;
+    if (firstseen !== null && lastseen !== null) {
+      // Both dates available: person's timespan must fall within query range
+      return firstseen >= queryStart && lastseen <= queryEnd;
+    } else if (firstseen !== null) {
+      // Only firstseen available: check if it falls within query range
+      return firstseen >= queryStart && firstseen <= queryEnd;
+    } else if (lastseen !== null) {
+      // Only lastseen available: check if it falls within query range
+      return lastseen >= queryStart && lastseen <= queryEnd;
+    }
+    return false;
   } else if (yearMatch) {
     // Query is a single year: "1650"
     const queryYear = parseInt(yearMatch[1], 10);
 
-    // If both missing, use query year for both
-    // If firstseen missing, use query year
-    // If lastseen missing, use query year
-    const effectiveFirstseen = firstseen !== null ? firstseen : queryYear;
-    const effectiveLastseen = lastseen !== null ? lastseen : queryYear;
-
-    // Check if query year is within person's timespan
-    return queryYear >= effectiveFirstseen && queryYear <= effectiveLastseen;
+    if (firstseen !== null && lastseen !== null) {
+      // Both dates available: check if query year is within person's timespan
+      return queryYear >= firstseen && queryYear <= lastseen;
+    } else if (firstseen !== null) {
+      // Only firstseen available: check if it matches or is before query year
+      return firstseen <= queryYear;
+    } else if (lastseen !== null) {
+      // Only lastseen available: check if it matches or is after query year
+      return lastseen >= queryYear;
+    }
+    return false;
   }
 
   // No year found in query, fall back to text matching
@@ -1447,10 +1508,14 @@ function evaluateAdvancedQuery(record, query) {
 
 function updateScopeDisplay() {
   const display = document.getElementById("scope-display");
+  const scopeBtn = document.getElementById("btn-search-scope");
+
   if (searchScopes.includes("all")) {
     display.textContent = "All";
+    scopeBtn.classList.remove("active");
   } else if (searchScopes.length === 0) {
     display.textContent = "None";
+    scopeBtn.classList.remove("active");
   } else if (searchScopes.length === 1) {
     const labels = {
       name: "Name",
@@ -1467,8 +1532,52 @@ function updateScopeDisplay() {
       timespan: "Timespan",
     };
     display.textContent = labels[searchScopes[0]] || searchScopes[0];
+    scopeBtn.classList.add("active");
   } else {
     display.textContent = `${searchScopes.length} fields`;
+    scopeBtn.classList.add("active");
+  }
+  updateSearchPlaceholder();
+}
+
+function updateSearchPlaceholder() {
+  const input = document.getElementById("search-input");
+  const hasActiveMode = regexMode || advancedMode || !searchScopes.includes("all");
+
+  if (advancedMode) {
+    input.placeholder = "e.g. lastname:Smith AND city:Livorno";
+  } else if (regexMode) {
+    if (searchScopes.includes("all")) {
+      input.placeholder = "Regex pattern (all fields)...";
+    } else if (searchScopes.length === 1) {
+      input.placeholder = `Regex pattern (${searchScopes[0]})...`;
+    } else {
+      input.placeholder = `Regex pattern (${searchScopes.length} fields)...`;
+    }
+  } else if (!searchScopes.includes("all")) {
+    // Scope selected but no regex/advanced
+    if (searchScopes.length === 1) {
+      const examples = {
+        name: "e.g. Giovanni, Berg",
+        lastname: "e.g. Berg, Smith",
+        firstname: "e.g. Giovanni, Maria",
+        patronymic: "e.g. di Pietro",
+        origin: "e.g. Dutch, Portuguese",
+        city: "e.g. Amsterdam, Venice",
+        profession: "e.g. merchant, broker",
+        religion: "e.g. Jewish, Catholic",
+        notes: "Search in notes...",
+        references: "Search in references...",
+        relationships: "e.g. father, member",
+        timespan: "e.g. 1650 or 1630-1680",
+      };
+      input.placeholder = examples[searchScopes[0]] || `Search ${searchScopes[0]}...`;
+    } else {
+      input.placeholder = `Search ${searchScopes.length} fields...`;
+    }
+  } else {
+    // Default: fuzzy name search
+    input.placeholder = "Search names (fuzzy match)...";
   }
 }
 
@@ -2997,16 +3106,16 @@ function attachEventListeners() {
   // Regex toggle
   document.getElementById("btn-toggle-regex").addEventListener("click", function () {
     regexMode = !regexMode;
-    this.style.background = regexMode ? "var(--ice-blue-dark)" : "";
-    this.style.color = regexMode ? "var(--white)" : "";
+    this.classList.toggle("active", regexMode);
+    updateSearchPlaceholder();
     refreshRecords(searchInput.value);
   });
 
   // Advanced query toggle
   document.getElementById("btn-toggle-advanced").addEventListener("click", function () {
     advancedMode = !advancedMode;
-    this.style.background = advancedMode ? "var(--ice-blue-dark)" : "";
-    this.style.color = advancedMode ? "var(--white)" : "";
+    this.classList.toggle("active", advancedMode);
+    updateSearchPlaceholder();
     refreshRecords(searchInput.value);
   });
 

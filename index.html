@@ -87,44 +87,53 @@
             <!-- Toolbar -->
             <div id="toolbar">
                 <div style="display: flex; gap: 10px; flex: 1; align-items: center">
-                    <button class="btn-ghost btn-small" id="btn-search-scope">
-                        Scope: <span id="scope-display">All</span> ▼
-                    </button>
-                    <button
-                        class="btn-ghost btn-small"
-                        id="btn-toggle-regex"
-                        title="Toggle regex search"
-                    >
-                        .*
-                    </button>
-                    <button
-                        class="btn-ghost btn-small"
-                        id="btn-toggle-advanced"
-                        title="Toggle advanced query syntax"
-                    >
-                        AND/OR
-                    </button>
                     <div style="position: relative; flex: 1">
                         <input
                             type="text"
                             id="search-input"
-                            placeholder="Search all fields..."
-                            style="width: 100%; padding-right: 100px"
+                            placeholder="Search names (fuzzy match)..."
+                            style="width: 100%; padding-left: 12px; padding-right: 180px"
                         />
-                        <button
-                            class="btn-ghost btn-small"
-                            id="btn-search-history"
-                            title="Search history"
+                        <div
                             style="
                                 position: absolute;
                                 right: 8px;
                                 top: 50%;
                                 transform: translateY(-50%);
-                                padding: 4px 8px;
+                                display: flex;
+                                gap: 4px;
+                                align-items: center;
                             "
                         >
-                            ⏱
-                        </button>
+                            <button
+                                class="search-input-btn"
+                                id="btn-search-scope"
+                                title="Select search scope"
+                            >
+                                <span id="scope-display">All</span>▼
+                            </button>
+                            <button
+                                class="search-input-btn"
+                                id="btn-toggle-regex"
+                                title="Toggle regex search"
+                            >
+                                .*
+                            </button>
+                            <button
+                                class="search-input-btn"
+                                id="btn-toggle-advanced"
+                                title="Toggle advanced query syntax"
+                            >
+                                AND/OR
+                            </button>
+                            <button
+                                class="search-input-btn"
+                                id="btn-search-history"
+                                title="Search history"
+                            >
+                                ⏱
+                            </button>
+                        </div>
                     </div>
                 </div>
                 <button class="btn-primary" id="btn-new">+ New Entity</button>

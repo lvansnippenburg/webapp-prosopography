@@ -67,10 +67,12 @@ const RELATIONSHIP_COLORS = {
   mother: "#E24A90",
   son: "#6AB7FF",
   daughter: "#FF6AB7",
+  child: "#6AB7FF", // Combined son/daughter for graph view
   husband: "#2D5F8D",
   wife: "#8D2D5F",
   brother: "#5AA7D9",
   sister: "#D95AA7",
+  sibling: "#5AA7D9", // Combined brother/sister for graph view
   associate: "#8E44AD",
   business: "#27AE60",
   friend: "#F39C12",
@@ -1749,9 +1751,11 @@ function renderTable(records) {
             <td>${r.profession || ""}</td>
             <td>${r.firstseen || ""}</td>
             <td>${r.lastseen || ""}</td>
-            <td>${zoteroCount ? `<span class="tag">${zoteroCount}&nbsp;ref${zoteroCount > 1 ? "s" : ""}</span>` : ""}</td>
-            <td>${archiefCount ? `<span class="tag">${archiefCount}&nbsp;ref${archiefCount > 1 ? "s" : ""}</span>` : ""}</td>
-            <td>${relationshipCount ? `<span class="tag">${relationshipCount}&nbsp;rel${relationshipCount > 1 ? "s" : ""}</span>` : ""}</td>
+            <td style="white-space:nowrap">
+            ${zoteroCount ? `<span class="tag">${zoteroCount}&nbsp;ref${zoteroCount > 1 ? "s" : ""}</span>` : ""}
+            ${archiefCount ? `<span class="tag">${archiefCount}&nbsp;source${archiefCount > 1 ? "s" : ""}</span>` : ""}
+            ${relationshipCount ? `<span class="tag">${relationshipCount}&nbsp;rel${relationshipCount > 1 ? "s" : ""}</span>` : ""}
+            </td>
             <td>
                 <button class="btn-ghost btn-small btn-edit" data-uuid="${r.uuid}">&#x270E;</button>
             </td>
@@ -2274,6 +2278,68 @@ async function showRelationshipNetwork() {
   modal.classList.remove("hidden");
 }
 
+function saveGraphAsPNG() {
+  const svg = document.getElementById("relationship-graph");
+  const container = document.getElementById("relationship-graph-container");
+
+  // Get the SVG dimensions
+  const width = svg.getAttribute("width") || container.clientWidth || 800;
+  const height = svg.getAttribute("height") || 600;
+
+  // Clone the SVG to avoid modifying the original
+  const svgClone = svg.cloneNode(true);
+
+  // Add white background
+  const background = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+  background.setAttribute("width", "100%");
+  background.setAttribute("height", "100%");
+  background.setAttribute("fill", "white");
+  svgClone.insertBefore(background, svgClone.firstChild);
+
+  // Serialize the SVG
+  const serializer = new XMLSerializer();
+  const svgString = serializer.serializeToString(svgClone);
+
+  // Create a canvas
+  const canvas = document.createElement("canvas");
+  canvas.width = parseInt(width);
+  canvas.height = parseInt(height);
+  const ctx = canvas.getContext("2d");
+
+  // Create an image from the SVG
+  const img = new Image();
+  const svgBlob = new Blob([svgString], { type: "image/svg+xml;charset=utf-8" });
+  const url = URL.createObjectURL(svgBlob);
+
+  img.onload = () => {
+    // Draw white background
+    ctx.fillStyle = "white";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Draw the SVG
+    ctx.drawImage(img, 0, 0);
+    URL.revokeObjectURL(url);
+
+    // Convert to PNG and download
+    const pngUrl = canvas.toDataURL("image/png");
+    const downloadLink = document.createElement("a");
+    downloadLink.href = pngUrl;
+    downloadLink.download = `relationship-network-${new Date().toISOString().split("T")[0]}.png`;
+    document.body.appendChild(downloadLink);
+    downloadLink.click();
+    document.body.removeChild(downloadLink);
+
+    notify("Graph saved as PNG", "success");
+  };
+
+  img.onerror = () => {
+    URL.revokeObjectURL(url);
+    notify("Failed to save graph as PNG", "error");
+  };
+
+  img.src = url;
+}
+
 function renderRelationshipGraph() {
   const svg = d3.select("#relationship-graph");
   const container = document.getElementById("relationship-graph-container");
@@ -2286,12 +2352,19 @@ function renderRelationshipGraph() {
   // Create main container group for zoom/pan
   const g = svg.append("g");
 
-  // Use currently filtered records from the view
-  Promise.resolve(
-    filteredRecords.length > 0
-      ? filteredRecords
-      : idbGetAll().then((records) => records.filter((r) => !r.deletedAt)),
-  ).then((activeRecords) => {
+  // Use currently filtered records from the view, but also get all records for lookups
+  Promise.all([
+    Promise.resolve(
+      filteredRecords.length > 0
+        ? filteredRecords
+        : idbGetAll().then((records) => records.filter((r) => !r.deletedAt)),
+    ),
+    idbGetAll(),
+  ]).then(([activeRecords, allRecords]) => {
+    // Create a lookup map for all records by UUID
+    const recordLookup = new Map();
+    allRecords.forEach((r) => recordLookup.set(r.uuid, r));
+
     // Build nodes and links
     const nodes = [];
     const links = [];
@@ -2320,30 +2393,57 @@ function renderRelationshipGraph() {
             name: `${person.firstname || ""} ${person.lastname || ""}`.trim(),
             details: `${person.patronymic || ""} ${person.yob ? `(${person.yob})` : ""}`.trim(),
             isLivorno: isLivorno,
+            gender: person.gender,
+            entityType: person.entityType || "person",
           };
           nodes.push(node);
           nodeMap.set(person.uuid, node);
         }
 
+        // Check if person has parent relationships (for sibling filtering)
+        const hasParents = rels.some((rel) => rel.type === "father" || rel.type === "mother");
+
         // Add links and target nodes
         relevantRels.forEach((rel) => {
+          // Skip brother/sister if person has parent relationships
+          if ((rel.type === "brother" || rel.type === "sister") && hasParents) {
+            return;
+          }
+
           // Add target node if not exists
           if (!nodeMap.has(rel.personUuid)) {
+            // Look up the original record to get city information
+            const relatedRecord = recordLookup.get(rel.personUuid);
+            const relatedIsLivorno =
+              relatedRecord?.city && relatedRecord.city.toLowerCase().includes("livorno");
             const targetNode = {
               id: rel.personUuid,
               name: rel.personName,
-              details: "",
+              details: relatedRecord
+                ? `${relatedRecord.patronymic || ""} ${relatedRecord.yob ? `(${relatedRecord.yob})` : ""}`.trim()
+                : "",
+              isLivorno: relatedIsLivorno,
+              gender: relatedRecord?.gender,
+              entityType: relatedRecord?.entityType || "person",
             };
             nodes.push(targetNode);
             nodeMap.set(rel.personUuid, targetNode);
+          }
+
+          // Simplify relationship types for graph display
+          let graphType = rel.type;
+          if (rel.type === "son" || rel.type === "daughter") {
+            graphType = "child";
+          } else if (rel.type === "brother" || rel.type === "sister") {
+            graphType = "sibling";
           }
 
           // Add link
           links.push({
             source: person.uuid,
             target: rel.personUuid,
-            type: rel.type,
-            color: RELATIONSHIP_COLORS[rel.type],
+            type: graphType,
+            color: RELATIONSHIP_COLORS[graphType],
           });
         });
       }
@@ -2410,11 +2510,28 @@ function renderRelationshipGraph() {
       .join("g")
       .call(d3.drag().on("start", dragstarted).on("drag", dragged).on("end", dragended));
 
+    // Helper function to get node color based on entity type and gender
+    const getNodeColor = (d) => {
+      const entityType = d.entityType || "person";
+      if (
+        entityType === "association" ||
+        entityType === "institution" ||
+        entityType === "company"
+      ) {
+        return "#e8913a"; // Orange for organizations
+      }
+      // Person - check gender
+      if (d.gender === "F") {
+        return "#d87093"; // Pink for women
+      }
+      return "#5a9db5"; // Blue for men (default)
+    };
+
     // Add circles to nodes
     node
       .append("circle")
       .attr("r", 20)
-      .attr("fill", "#5a9db5")
+      .attr("fill", (d) => getNodeColor(d))
       .attr("stroke", "#fff")
       .attr("stroke-width", 2)
       .attr("opacity", (d) => (d.isLivorno ? 1 : 0.3))
@@ -2445,15 +2562,36 @@ function renderRelationshipGraph() {
       .attr("opacity", (d) => (d.isLivorno ? 1 : 0.3))
       .style("pointer-events", "none");
 
+    // Helper function to get hover color based on entity type and gender
+    const getNodeHoverColor = (d) => {
+      const entityType = d.entityType || "person";
+      if (
+        entityType === "association" ||
+        entityType === "institution" ||
+        entityType === "company"
+      ) {
+        return "#c97a2e"; // Darker orange for organizations
+      }
+      if (d.gender === "F") {
+        return "#c06080"; // Darker pink for women
+      }
+      return "#4a8da8"; // Darker blue for men (default)
+    };
+
     // Add hover effects
     node
-      .on("mouseover", function () {
-        d3.select(this).select("circle").attr("r", 25).attr("fill", "#4a8da8");
+      .on("mouseover", function (event, d) {
+        d3.select(this).select("circle").attr("r", 25).attr("fill", getNodeHoverColor(d));
       })
-      .on("mouseout", function () {
-        d3.select(this).select("circle").attr("r", 20).attr("fill", "#5a9db5");
+      .on("mouseout", function (event, d) {
+        d3.select(this).select("circle").attr("r", 20).attr("fill", getNodeColor(d));
       })
       .on("click", function (event, d) {
+        // Only handle click if not dragging
+        if (isDragging) {
+          isDragging = false;
+          return;
+        }
         document.getElementById("relationship-network-modal").classList.add("hidden");
         openEditModal(d.id);
       });
@@ -2469,14 +2607,19 @@ function renderRelationshipGraph() {
       node.attr("transform", (d) => `translate(${d.x},${d.y})`);
     });
 
+    // Track if dragging occurred to prevent click after drag
+    let isDragging = false;
+
     // Drag functions
     function dragstarted(event) {
+      isDragging = false;
       if (!event.active) simulation.alphaTarget(0.3).restart();
       event.subject.fx = event.subject.x;
       event.subject.fy = event.subject.y;
     }
 
     function dragged(event) {
+      isDragging = true;
       event.subject.fx = event.x;
       event.subject.fy = event.y;
     }
@@ -3212,6 +3355,11 @@ function attachEventListeners() {
     document.getElementById("btn-list-view").style.color = "";
 
     renderRelationshipGraph();
+  });
+
+  // Save graph as PNG
+  document.getElementById("btn-save-graph-png").addEventListener("click", () => {
+    saveGraphAsPNG();
   });
 
   // New person

@@ -15,6 +15,7 @@
             <h1>Livorno prosopography</h1>
             <div style="display: flex; gap: 10px">
                 <button class="btn-ghost btn-small" id="btn-sync-push">↑ Push</button>
+                <button class="btn-ghost btn-small" id="btn-help">? Help</button>
                 <button class="btn-ghost btn-small" id="btn-settings-toggle">⚙ Settings</button>
             </div>
         </header>
@@ -78,6 +79,7 @@
                     <button class="btn-ghost btn-small" id="btn-sync-pull">↓ Pull</button>
                     <button class="btn-secondary btn-small" id="btn-import">⬆ Import Excel</button>
                     <button class="btn-secondary btn-small" id="btn-export">⬇ Export</button>
+                    <button class="btn-ghost btn-small" id="btn-license">📄 License</button>
                     <input type="file" id="file-input" accept=".xlsx,.xls" class="hidden" />
                 </div>
             </div>
@@ -255,7 +257,6 @@
                         <tr>
                             <th data-col="lastname">Lastname</th>
                             <th data-col="firstname">Firstname</th>
-                            <th data-col="gender">&#x2640;/&#x2642;</th>
                             <th data-col="city">City</th>
                             <th data-col="profession">Profession</th>
                             <th data-col="firstseen">1st</th>
@@ -580,6 +581,10 @@
                         Patronymic
                     </label>
                     <label style="display: block; margin-bottom: 8px; cursor: pointer">
+                        <input type="checkbox" class="scope-checkbox" value="gender" />
+                        Gender
+                    </label>
+                    <label style="display: block; margin-bottom: 8px; cursor: pointer">
                         <input type="checkbox" class="scope-checkbox" value="origin" />
                         Origin
                     </label>
@@ -692,6 +697,49 @@
                         "
                     >
                         <svg id="relationship-graph" width="100%" height="600"></svg>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Help Modal -->
+        <div id="help-modal" class="modal-overlay hidden">
+            <div
+                class="modal"
+                style="max-width: 800px; max-height: 90vh; margin-right: 20px; margin-left: auto"
+            >
+                <div class="modal-header">
+                    <h2>Help Documentation</h2>
+                    <button class="modal-close" id="help-close">✕</button>
+                </div>
+                <div class="modal-body" style="max-height: calc(90vh - 80px); overflow-y: auto">
+                    <div id="help-content" style="padding: 20px">
+                        <p style="text-align: center; color: var(--mid-grey)">
+                            Loading documentation...
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- License Modal -->
+        <div id="license-modal" class="modal-overlay hidden">
+            <div class="modal" style="max-width: 700px; max-height: 80vh">
+                <div class="modal-header">
+                    <h2>License</h2>
+                    <button class="modal-close" id="license-close">✕</button>
+                </div>
+                <div class="modal-body" style="max-height: calc(80vh - 80px); overflow-y: auto">
+                    <div
+                        id="license-content"
+                        style="
+                            padding: 20px;
+                            font-family: monospace;
+                            font-size: 12px;
+                            white-space: pre-wrap;
+                        "
+                    >
+                        <p style="text-align: center; color: var(--mid-grey)">Loading license...</p>
                     </div>
                 </div>
             </div>

@@ -845,6 +845,96 @@ async function pullFromGuestRepo() {
   }
 }
 
+async function updateFromGuestRepo() {
+  const owner = "lvansnippenburg";
+  const repo = "json_storage";
+  const branch = "LivornoProsopography";
+
+  showProgress("Guest Mode - Updating Data", "Fetching repository files...");
+
+  try {
+    // Get all JSON files from the public repository
+    const res = await fetch(
+      `https://codeberg.org/api/v1/repos/${owner}/${repo}/git/trees/${branch}?recursive=true`,
+    );
+
+    if (!res.ok) {
+      throw new Error(`Failed to fetch repository: ${res.status}`);
+    }
+
+    const data = await res.json();
+    const files = data.tree
+      .filter((i) => i.type === "blob" && i.path.endsWith(".json"))
+      .map((i) => i.path);
+
+    if (!files.length) {
+      hideProgress();
+      notify("No data files found in guest repository.", "warning");
+      return;
+    }
+
+    updateProgress(0, files.length, "Checking for updates...");
+
+    let updated = 0;
+    let skipped = 0;
+    let added = 0;
+
+    for (let i = 0; i < files.length; i++) {
+      const path = files[i];
+      updateProgress(i + 1, files.length, `Processing ${path}...`);
+
+      try {
+        const fileRes = await fetch(
+          `https://codeberg.org/api/v1/repos/${owner}/${repo}/contents/${path}?ref=${branch}`,
+        );
+
+        if (!fileRes.ok) continue;
+
+        const fileData = await fileRes.json();
+        if (!fileData?.content) continue;
+
+        const remote = decodeContent(fileData.content);
+
+        // Check if record exists locally
+        const local = await idbGet(remote.uuid);
+
+        if (local) {
+          // Compare modification dates
+          const localDate = new Date(local.modifiedAt);
+          const remoteDate = new Date(remote.modifiedAt);
+
+          if (remoteDate > localDate) {
+            // Remote is newer, update local
+            await idbPut(remote);
+            updated++;
+          } else {
+            // Local is same or newer, skip
+            skipped++;
+          }
+        } else {
+          // New record, add it
+          if (!remote.deletedAt) {
+            await idbPut(remote);
+            added++;
+          }
+        }
+      } catch (err) {
+        console.warn(`Failed to process ${path}:`, err);
+      }
+    }
+
+    hideProgress();
+    notify(
+      `Guest mode: Updated ${updated} records, added ${added} new records, skipped ${skipped} unchanged.`,
+      "success",
+    );
+    await refreshRecords();
+  } catch (err) {
+    hideProgress();
+    notify(`Failed to update guest data: ${err.message}`, "error");
+  }
+}
+
 async function codebergRequest(method, endpoint, body = null) {
   const s = loadSettings();
   if (!s.token || !s.owner || !s.repo) throw new Error("Codeberg settings not configured.");
@@ -1190,6 +1280,10 @@ function searchInRecord(record, query, scopes) {
         if (matches(record.entityType || "person")) return true;
         break;
 
+      case "gender":
+        if (matches(record.gender)) return true;
+        break;
+
       case "name":
         const names = [
           record.lastname,
@@ -1289,7 +1383,7 @@ function matchTimespan(record, query) {
 }
 
 function evaluateAdvancedQuery(record, query) {
-  // Parse advanced query syntax: field:value AND/OR field:value
+  // Parse advanced query syntax: field:value AND/OR field:!value
   // Split by AND/OR while preserving the operator
   const tokens = query.split(/\s+(AND|OR)\s+/i);
   const conditions = [];
@@ -1307,7 +1401,7 @@ function evaluateAdvancedQuery(record, query) {
 
   // Evaluate each condition
   const results = conditions.map((condition) => {
-    const match = condition.match(/^(\w+):(.+)$/);
+    const match = condition.match(/^(\w+):(!?)(.+)$/);
     if (!match) {
       // No field specified, search all
       return searchInRecord(record, condition, [
@@ -1325,8 +1419,11 @@ function evaluateAdvancedQuery(record, query) {
       ]);
     }
 
-    const [, field, value] = match;
-    return searchInRecord(record, value, [field.toLowerCase()]);
+    const [, field, negation, value] = match;
+    const result = searchInRecord(record, value, [field.toLowerCase()]);
+
+    // Apply negation if present
+    return negation === "!" ? !result : result;
   });
 
   // Apply operators
@@ -1517,11 +1614,14 @@ function renderTable(records) {
       .join("");
     // Entity type indicator
     let entityIcon = "";
-    if (r.entityType === "association") entityIcon = "🏛";
-    else if (r.entityType === "institution") entityIcon = "🏢";
-    else if (r.entityType === "company") entityIcon = "🏭";
+    if (r.entityType === "association") entityIcon = "🏛&nbsp;";
+    else if (r.entityType === "institution") entityIcon = "🏢&nbsp;";
+    else if (r.entityType === "company") entityIcon = "🏭&nbsp;";
+    else if (r.gender === "F") entityIcon = "🚺&nbsp;";
+    else entityIcon = "🚹&nbsp;";
 
     const genderLabel = r.gender === "F" ? "&#x2640;" : "&#x2642;";
+
     let cityLabel = "";
     if (r.city !== "Livorno") {
       cityLabel = "!";
@@ -1532,7 +1632,6 @@ function renderTable(records) {
     tr.innerHTML = `
             <td>${entityIcon}${r.lastname || ""}${lnVars}</td>
             <td>${fullFirstname}${fnVars}</td>
-            <td>${r.entityType === "person" ? genderLabel : ""}</td>
             <td>${cityLabel}</td>
             <td>${r.profession || ""}</td>
             <td>${r.firstseen || ""}</td>
@@ -2738,13 +2837,13 @@ async function boot() {
       // Load guest data
       await pullFromGuestRepo();
 
-      // Disable sync buttons
+      // Disable push button but enable pull in guest mode
       document.getElementById("btn-sync-push").disabled = true;
       document.getElementById("btn-sync-push").style.opacity = "0.5";
       document.getElementById("btn-sync-push").title = "Disabled in guest mode";
-      document.getElementById("btn-sync-pull").disabled = true;
-      document.getElementById("btn-sync-pull").style.opacity = "0.5";
-      document.getElementById("btn-sync-pull").title = "Disabled in guest mode";
+      document.getElementById("btn-sync-pull").disabled = false;
+      document.getElementById("btn-sync-pull").style.opacity = "1";
+      document.getElementById("btn-sync-pull").title = "Pull updates from public repository";
     } else {
       // Set user mode
       s.guestMode = false;
@@ -2761,9 +2860,10 @@ async function boot() {
     document.getElementById("btn-sync-push").disabled = true;
     document.getElementById("btn-sync-push").style.opacity = "0.5";
     document.getElementById("btn-sync-push").title = "Disabled in guest mode";
-    document.getElementById("btn-sync-pull").disabled = true;
-    document.getElementById("btn-sync-pull").style.opacity = "0.5";
-    document.getElementById("btn-sync-pull").title = "Disabled in guest mode";
+    // Enable pull button in guest mode
+    document.getElementById("btn-sync-pull").disabled = false;
+    document.getElementById("btn-sync-pull").style.opacity = "1";
+    document.getElementById("btn-sync-pull").title = "Pull updates from public repository";
 
     // Disable import button
     document.getElementById("btn-import").disabled = true;
@@ -2957,17 +3057,17 @@ function attachEventListeners() {
   });
 
   document.getElementById("stat-card-male").addEventListener("click", () => {
-    searchInput.value = "Male";
-    searchScopes = ["all"];
+    searchInput.value = "M";
+    searchScopes = ["gender"];
     updateScopeDisplay();
-    refreshRecords("Male");
+    refreshRecords("M");
   });
 
   document.getElementById("stat-card-female").addEventListener("click", () => {
-    searchInput.value = "Female";
-    searchScopes = ["all"];
+    searchInput.value = "F";
+    searchScopes = ["gender"];
     updateScopeDisplay();
-    refreshRecords("Female");
+    refreshRecords("F");
   });
 
   // Relationship network modal
@@ -3140,9 +3240,23 @@ function attachEventListeners() {
   document.getElementById("btn-sync-pull").addEventListener("click", async () => {
     const s = loadSettings();
 
-    // Check if guest mode
+    // Check if guest mode - use guest pull instead
     if (s.guestMode) {
-      notify("Sync is disabled in guest mode.", "warning");
+      const choice = await showDialog(
+        "Pull from Guest Repository",
+        "Update your local data from the public Livorno Prosopography repository:",
+        [
+          { label: "Replace All Data", cls: "btn-danger", value: "replace" },
+          { label: "Update Existing Only", cls: "btn-primary", value: "update" },
+          { label: "Cancel", cls: "btn-ghost", value: false },
+        ],
+      );
+
+      if (choice === "replace") {
+        await pullFromGuestRepo();
+      } else if (choice === "update") {
+        await updateFromGuestRepo();
+      }
       return;
     }
 
@@ -3272,6 +3386,229 @@ function attachEventListeners() {
   // Entity type change handler
   document.getElementById("field-entity-type").addEventListener("change", (e) => {
     updateFieldLabelsForEntityType(e.target.value);
+  });
+
+  // Simple markdown to HTML converter
+  function markdownToHtml(markdown) {
+    let html = markdown;
+
+    // Escape HTML entities first
+    html = html.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+    // Code blocks (must be before other replacements)
+    html = html.replace(/```([^`]*?)```/gs, function (match, code) {
+      return "<pre><code>" + code.trim() + "</code></pre>";
+    });
+
+    // Headers
+    html = html.replace(/^### (.*$)/gim, "<h3>$1</h3>");
+    html = html.replace(/^## (.*$)/gim, "<h2>$1</h2>");
+    html = html.replace(/^# (.*$)/gim, "<h1>$1</h1>");
+
+    // Tables
+    const lines = html.split("\n");
+    let inTable = false;
+    let tableHtml = "";
+    const processedLines = [];
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      const nextLine = lines[i + 1];
+
+      // Detect table header
+      if (line.includes("|") && nextLine && nextLine.match(/^\|?[\s\-:|]+\|?$/)) {
+        inTable = true;
+        tableHtml = "<table><thead><tr>";
+        const headers = line
+          .split("|")
+          .map((h) => h.trim())
+          .filter((h) => h);
+        headers.forEach((h) => {
+          tableHtml += "<th>" + h + "</th>";
+        });
+        tableHtml += "</tr></thead><tbody>";
+        i++; // Skip separator line
+        continue;
+      }
+
+      // Table content rows
+      if (inTable && line.includes("|")) {
+        tableHtml += "<tr>";
+        const cells = line
+          .split("|")
+          .map((c) => c.trim())
+          .filter((c) => c);
+        cells.forEach((c) => {
+          tableHtml += "<td>" + c + "</td>";
+        });
+        tableHtml += "</tr>";
+      } else if (inTable) {
+        // End of table
+        tableHtml += "</tbody></table>";
+        processedLines.push(tableHtml);
+        tableHtml = "";
+        inTable = false;
+        processedLines.push(line);
+      } else {
+        processedLines.push(line);
+      }
+    }
+
+    // Close table if still open
+    if (inTable) {
+      tableHtml += "</tbody></table>";
+      processedLines.push(tableHtml);
+    }
+
+    html = processedLines.join("\n");
+
+    // Bold
+    html = html.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+
+    // Italic
+    html = html.replace(/\*(.+?)\*/g, "<em>$1</em>");
+
+    // Inline code
+    html = html.replace(/`([^`]+)`/g, "<code>$1</code>");
+
+    // Links
+    html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>');
+
+    // Unordered lists
+    const listLines = html.split("\n");
+    let inUl = false;
+    const finalLines = [];
+
+    for (let i = 0; i < listLines.length; i++) {
+      const line = listLines[i];
+      if (line.match(/^[\-\*] (.+)$/)) {
+        if (!inUl) {
+          finalLines.push("<ul>");
+          inUl = true;
+        }
+        finalLines.push(line.replace(/^[\-\*] (.+)$/, "<li>$1</li>"));
+      } else if (line.match(/^\d+\. (.+)$/)) {
+        if (inUl) {
+          finalLines.push("</ul>");
+          inUl = false;
+        }
+        finalLines.push(line.replace(/^\d+\. (.+)$/, "<li>$1</li>"));
+      } else {
+        if (inUl) {
+          finalLines.push("</ul>");
+          inUl = false;
+        }
+        finalLines.push(line);
+      }
+    }
+
+    if (inUl) {
+      finalLines.push("</ul>");
+    }
+
+    html = finalLines.join("\n");
+
+    // Horizontal rules
+    html = html.replace(/^---$/gim, "<hr>");
+
+    // Paragraphs
+    html = html.replace(/\n\n+/g, "</p><p>");
+    const paragraphLines = html.split("\n");
+    const withParagraphs = [];
+
+    for (const line of paragraphLines) {
+      if (
+        line &&
+        !line.match(/^<(h\d|ul|ol|li|pre|hr|table|\/)/i) &&
+        !line.match(/^<\/(h\d|ul|ol|pre|table)>/i)
+      ) {
+        withParagraphs.push("<p>" + line + "</p>");
+      } else {
+        withParagraphs.push(line);
+      }
+    }
+
+    html = withParagraphs.join("\n");
+
+    // Clean up
+    html = html.replace(/<p><\/p>/g, "");
+    html = html.replace(/<p>(<[hut])/g, "$1");
+    html = html.replace(/(<\/[hut][^>]*>)<\/p>/g, "$1");
+
+    // Add styling
+    html = `
+      <style>
+        #help-content h1 { font-size: 24px; margin: 20px 0 10px; border-bottom: 2px solid var(--light-grey); padding-bottom: 5px; color: var(--dark-grey); }
+        #help-content h2 { font-size: 20px; margin: 18px 0 8px; border-bottom: 1px solid var(--pale-grey); padding-bottom: 3px; color: var(--dark-grey); }
+        #help-content h3 { font-size: 16px; margin: 16px 0 6px; color: var(--dark-grey); }
+        #help-content p { margin: 8px 0; line-height: 1.6; color: var(--black); }
+        #help-content code { background: var(--pale-grey); padding: 2px 6px; border-radius: 3px; font-family: 'Courier New', monospace; font-size: 13px; color: var(--dark-grey); }
+        #help-content pre { background: var(--pale-grey); padding: 12px; border-radius: 4px; overflow-x: auto; margin: 10px 0; }
+        #help-content pre code { background: none; padding: 0; display: block; }
+        #help-content ul, #help-content ol { margin: 10px 0; padding-left: 30px; line-height: 1.8; }
+        #help-content li { margin: 4px 0; }
+        #help-content a { color: var(--ice-blue-dark); text-decoration: none; }
+        #help-content a:hover { text-decoration: underline; }
+        #help-content hr { border: none; border-top: 1px solid var(--light-grey); margin: 20px 0; }
+        #help-content strong { font-weight: 600; color: var(--dark-grey); }
+        #help-content em { font-style: italic; }
+        #help-content table { border-collapse: collapse; width: 100%; margin: 15px 0; font-size: 13px; }
+        #help-content th, #help-content td { border: 1px solid var(--light-grey); padding: 8px 12px; text-align: left; }
+        #help-content th { background: var(--pale-grey); font-weight: 600; color: var(--dark-grey); }
+        #help-content td { background: var(--white); }
+        #help-content tr:nth-child(even) td { background: var(--ice-blue); }
+      </style>
+      ${html}
+    `;
+
+    return html;
+  }
+
+  // Help button
+  document.getElementById("btn-help").addEventListener("click", async () => {
+    const modal = document.getElementById("help-modal");
+    const content = document.getElementById("help-content");
+
+    modal.classList.remove("hidden");
+
+    try {
+      const response = await fetch("README.md");
+      if (!response.ok) throw new Error("Failed to load README");
+
+      const markdown = await response.text();
+
+      // Simple markdown to HTML conversion
+      const html = markdownToHtml(markdown);
+      content.innerHTML = html;
+    } catch (err) {
+      content.innerHTML = `<p style="color: var(--mid-grey); text-align: center;">Error loading documentation: ${err.message}</p>`;
+    }
+  });
+
+  document.getElementById("help-close").addEventListener("click", () => {
+    document.getElementById("help-modal").classList.add("hidden");
+  });
+
+  // License button
+  document.getElementById("btn-license").addEventListener("click", async () => {
+    const modal = document.getElementById("license-modal");
+    const content = document.getElementById("license-content");
+
+    modal.classList.remove("hidden");
+
+    try {
+      const response = await fetch("LICENSE.md");
+      if (!response.ok) throw new Error("Failed to load LICENSE");
+
+      const text = await response.text();
+      content.textContent = text;
+    } catch (err) {
+      content.innerHTML = `<p style="color: var(--mid-grey); text-align: center;">Error loading license: ${err.message}</p>`;
+    }
+  });
+
+  document.getElementById("license-close").addEventListener("click", () => {
+    document.getElementById("license-modal").classList.add("hidden");
   });
 
   // Lastname fuzzy lookup

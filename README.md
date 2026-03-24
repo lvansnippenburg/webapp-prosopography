@@ -24,6 +24,11 @@ A comprehensive historical prosopography database application with advanced sear
 
 ## Quick Start
 
+**Getting Help:**
+- Click **"? Help"** button in header to view this documentation
+- Click **"📄 License"** in Settings panel to view license information
+- Help modal displays on the right side (or center on small screens)
+
 **Basic Search:**
 1. Type in the search box
 2. Results update automatically (280ms delay)
@@ -112,7 +117,7 @@ The database supports four types of entities:
 - Search terms: "person", "association", "institution", "company"
 
 **Visual Indicators:**
-- Table view shows entity icons: 🏛 (association), 🏢 (institution), 🏭 (company)
+- Table view shows entity icons: 🚹 (male), 🚺 (female), 🏛 (association), 🏢 (institution), 🏭 (company)
 - Person picker shows entity type label and icon
 - Modal title shows entity type: "Edit Person", "Edit Association", etc.
 
@@ -166,20 +171,23 @@ When you first open the application, you'll be prompted to select a mode:
 - View person details and relationships
 - Explore relationship networks (list and graph view)
 - View statistics and filter by clicking stat cards
+- **Pull updates from the public repository** (see below)
+- Export data to Excel or JSON
 
 **What you CANNOT do:**
 - Create new person records
 - Edit existing records
 - Delete records
 - Import Excel data
-- Push/Pull to Codeberg (sync buttons are disabled)
+- Push to Codeberg (push button is disabled)
 - Modify Codeberg settings
 
 ### Visual Indicators in Guest Mode
 
 - **Header**: Shows "(Guest Mode)" next to the title
 - **Settings Panel**: Displays "Guest Mode (Read-Only)" indicator
-- **Disabled Buttons**: Push, Pull, Import, and New Person buttons are greyed out
+- **Disabled Buttons**: Push, Import, and New Entity buttons are greyed out
+- **Enabled Buttons**: Pull button is active for updating data
 - **Person Modal**: Shows "View Person (Read-Only)" instead of "Edit Person"
 - **All Inputs**: Form fields are disabled and cannot be modified
 
@@ -202,6 +210,47 @@ Guest mode automatically loads data from:
 - **Access**: Public (no authentication required)
 
 The data is loaded directly into your browser's local IndexedDB and updates are automatic on first load.
+
+### Updating Guest Data
+
+In Guest Mode, you can pull updates from the public repository using the **↓ Pull** button:
+
+**Two Update Options:**
+
+1. **Replace All Data**
+   - Clears your local IndexedDB completely
+   - Downloads all records from the public repository
+   - Use this for a fresh start or if you want the exact repository state
+   - **Warning**: Any local changes or notes will be lost
+
+2. **Update Existing Only**
+   - Keeps your local data intact
+   - Only updates records that exist in both local and remote
+   - Adds new records from repository that don't exist locally
+   - Compares modification dates and only updates if remote is newer
+   - Skips records where local version is newer or same
+   - Safe option that preserves local state while getting updates
+
+**When to Use Each:**
+
+- **Replace All**: First time setup, or when you want to reset to official data
+- **Update Existing**: Regular updates to get latest changes while keeping your workspace
+
+**Example Workflow:**
+```
+1. Open Settings panel (⚙ button)
+2. Click "↓ Pull" button
+3. Choose "Update Existing Only"
+4. Wait for update to complete
+5. See summary: "Updated 15 records, added 3 new records, skipped 120 unchanged"
+6. View refreshed data in table
+```
+
+**Update Summary:**
+- Shows how many records were updated (remote newer than local)
+- Shows how many new records were added
+- Shows how many were skipped (local same or newer)
+- Automatic refresh after completion
 
 ---
 
@@ -441,7 +490,9 @@ Scopes limit your search to specific fields, making searches faster and more pre
 | **Name** | Lastname, firstname, patronymic + all variations |
 | **Lastname** | Lastname + lastname variations |
 | **Firstname** | Firstname + firstname variations |
+| **Entity Type** | Entity type (person, association, institution, company) |
 | **Patronymic** | Patronymic only |
+| **Gender** | Gender field (M for male, F for female) |
 | **Origin** | Geographic origin |
 | **City** | City of residence |
 | **Profession** | Occupation/profession |
@@ -564,6 +615,7 @@ Click the **"AND/OR"** button to toggle advanced query mode.
 ```
 field:value AND field:value
 field:value OR field:value
+field:!value  (negation - NOT this value)
 ```
 
 ### Field Names
@@ -582,6 +634,8 @@ Use the lowercase scope names as field names:
 - `references:value`
 - `relationships:value`
 - `name:value` (searches all name fields)
+- `entityType:value`
+- `gender:value`
 
 ### Boolean Operators
 
@@ -596,6 +650,59 @@ city:Amsterdam AND profession:merchant
 city:Amsterdam OR city:Rotterdam
 ```
 → In Amsterdam OR Rotterdam (or both)
+
+### Negation Operator
+
+**! (exclamation mark)** - Excludes records with the specified value:
+
+**Syntax:**
+```
+field:!value
+```
+
+**Examples:**
+
+**Exclude a specific city:**
+```
+city:!Livorno
+```
+→ All persons NOT in Livorno
+
+**Exclude a gender:**
+```
+gender:!M
+```
+→ All non-male persons (female or unspecified)
+
+**Exclude a profession:**
+```
+profession:!merchant
+```
+→ All persons who are NOT merchants
+
+**Combined with AND:**
+```
+city:Amsterdam AND profession:!merchant
+```
+→ Amsterdam residents who are NOT merchants
+
+**Combined with OR:**
+```
+city:!Livorno OR city:!Amsterdam
+```
+→ Persons NOT in Livorno OR NOT in Amsterdam
+
+**Multiple exclusions:**
+```
+profession:!merchant AND profession:!banker
+```
+→ Persons who are neither merchants nor bankers
+
+**Exclude entity type:**
+```
+entityType:!person
+```
+→ Only associations, institutions, and companies (not persons)
 
 ### Mixing Operators
 
@@ -862,6 +969,13 @@ Result: Finds "Dutch" in origin OR "merchant" in profession
 ```
 Result: Finds persons who are BOTH Dutch AND merchants
 
+**Method 3 - With Exclusions:**
+```
+1. Click "AND/OR" button
+2. Type: origin:Dutch AND profession:merchant AND city:!Amsterdam
+```
+Result: Dutch merchants NOT in Amsterdam
+
 ### Example 2: Find Name Variations
 
 **Using Regex:**
@@ -890,7 +1004,36 @@ Search 1: city:Amsterdam AND profession:merchant
 Search 2: city:Amsterdam AND profession:trader
 ```
 
-### Example 4: Research Documentation
+### Example 4: Gender-Based Search
+
+**Find all male persons:**
+```
+1. Click "Scope" → Select "Gender"
+2. Type: M
+```
+Result: All male persons
+
+**Or click the stat card:**
+```
+Click "Male (persons)" stat card
+```
+Result: Automatically searches for M in Gender scope
+
+**Find all female persons:**
+```
+1. Click "Scope" → Select "Gender"
+2. Type: F
+```
+Result: All female persons
+
+**Advanced Query with Gender:**
+```
+1. Click "AND/OR"
+2. Type: gender:F AND city:Amsterdam
+```
+Result: All female persons in Amsterdam
+
+### Example 5: Research Documentation
 
 **Find persons with extensive notes:**
 ```
@@ -900,7 +1043,7 @@ Search 2: city:Amsterdam AND profession:trader
 ```
 Result: Notes with 200+ characters (well-documented persons)
 
-### Example 5: Relationship Networks
+### Example 6: Relationship Networks
 
 **View Relationship Network:**
 ```
@@ -930,7 +1073,7 @@ Result: All persons who have/are fathers
 ```
 Result: Everyone related to Maria van der Berg
 
-### Example 8: Year-Based Search
+### Example 7: Year-Based Search
 
 **Find references from 1650s:**
 ```
@@ -940,7 +1083,7 @@ Result: Everyone related to Maria van der Berg
 ```
 Result: References with years 1650-1659
 
-### Example 9: Multi-City Search
+### Example 8: Multi-City Search
 
 **Find persons in major cities:**
 ```
@@ -950,7 +1093,7 @@ Result: References with years 1650-1659
 ```
 Result: Persons in any of the three cities
 
-### Example 6: Relationship Network Filtering
+### Example 9: Relationship Network Filtering
 
 **View only family relationships:**
 ```
@@ -974,7 +1117,44 @@ Result: Persons in any of the three cities
 3. Switch to Graph View to visualize patterns
 ```
 
-### Example 10: Timespan Searches
+### Example 10: Exclusion Searches
+
+**Find non-Livorno residents:**
+```
+1. Click "AND/OR" button
+2. Type: city:!Livorno
+```
+Result: All persons not in Livorno
+
+**Find non-merchants in Amsterdam:**
+```
+1. Click "AND/OR" button
+2. Type: city:Amsterdam AND profession:!merchant
+```
+Result: Amsterdam residents excluding merchants
+
+**Find persons with no gender specified:**
+```
+1. Click "AND/OR" button
+2. Type: gender:!M AND gender:!F
+```
+Result: Records without gender information
+
+**Find associations and institutions only:**
+```
+1. Click "AND/OR" button
+2. Type: entityType:!person AND entityType:!company
+```
+Result: Only associations and institutions
+
+**Exclude multiple professions:**
+```
+1. Click "AND/OR" button
+2. Type: city:Amsterdam AND profession:!merchant AND profession:!banker
+```
+Result: Amsterdam residents who are neither merchants nor bankers
+
+### Example 11: Timespan Searches
 
 **Find persons active in 1650:**
 ```
@@ -1109,6 +1289,12 @@ Logic: 1630 ≥ 1630 AND 1680 ≤ 1680 → ✓ Match
 **Use Advanced Syntax for Precision:**
 - `city:Amsterdam AND profession:merchant` (exact)
 - vs. "Amsterdam merchant" (loose - might match "merchant from Rotterdam who visited Amsterdam")
+
+**Use Negation for Exclusions:**
+- `city:!Livorno` excludes Livorno residents
+- `profession:!merchant AND profession:!banker` excludes multiple professions
+- More efficient than complex regex patterns for exclusions
+- Combine with AND/OR for complex queries
 
 ### Research Workflows
 

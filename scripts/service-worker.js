@@ -1,6 +1,14 @@
 // Service Worker for Livorno Prosopography Database
 const CACHE_NAME = "livorno-prosopography-v4";
-const urlsToCache = ["./", "./index.html", "./styles.css", "./app.js", "./manifest.json"];
+const urlsToCache = [
+  "./",
+  "./index.html",
+  "./styles.css",
+  "./app.js",
+  "./manifest.json",
+  "./LICENSE.md",
+  "./help.md",
+];
 
 // Install event - cache resources
 self.addEventListener("install", function (event) {

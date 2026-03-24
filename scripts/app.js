@@ -3852,8 +3852,8 @@ function attachEventListeners() {
     modal.classList.remove("hidden");
 
     try {
-      const response = await fetch("README.md");
-      if (!response.ok) throw new Error("Failed to load README");
+      const response = await fetch("help.md");
+      if (!response.ok) throw new Error("Failed to load help.md");
 
       const markdown = await response.text();
 

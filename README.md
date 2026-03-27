@@ -11,7 +11,7 @@ Before copying, changing or whatever:
 This webapp uses several settings that are particularly geared to my use of the code. When creating a copy of the files for your own use, make sure to change these. The ones most important are:
 1. The name of the webapp. Change "Livorno" to whatever suits you best.
 2. When hosting the files somewhere the files "CNAME" and ".domains" should either be deleted or modified.
-3. In the file "app.js", somewhere around lines 885-887 you'll find 
+3. In the file "app.js" you'll find (more than once)
 
 ```
 const owner = "lvansnippenburg";

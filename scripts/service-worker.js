@@ -1,13 +1,23 @@
 // Service Worker for Livorno Prosopography Database
-const CACHE_NAME = "livorno-prosopography-v4";
+const CACHE_NAME = "livorno-prosopography-v5";
 const urlsToCache = [
   "./",
   "./index.html",
   "./styles.css",
-  "./app.js",
+  "./scripts/app.js",
   "./manifest.json",
   "./LICENSE.md",
   "./help.md",
+  "./icons/",
+  "./icons/apple-touch-icon.png",
+  "./icons/favicon.ico",
+  "./icons/favicon-16x16.png",
+  "./icons/favicon-32x32.png",
+  "./icons/favicon-96x96.png",
+  "./icons/favicon-192x192.png",
+  "./icons/favicon-512x512.png",
+  "./images/livorno-header.png",
+  "./images/livorno-original.png",
 ];
 
 // Install event - cache resources

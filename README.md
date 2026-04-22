@@ -4,7 +4,7 @@ A comprehensive historical prosopography database application with advanced sear
 
 ## This webapp is primarily for personal use
 
-Before copying, changing or whatever:
+Before using, copying, changing or whatever:
 
 **Read the LICENCE.md file**
 

@@ -10,8 +10,6 @@ If you adapt this for your own project, the things most likely to need changing 
 
 1. The name — replace "Livorno" throughout `index.html`, `manifest.json`, and the app header.
 2. The default data directory — in `server/server.py`, change `DEFAULT_DATA_DIR`.
-3. The Codeberg backup settings — if you use the optional Codeberg backup, the hardcoded owner/repo/branch values in `app.js` (inside `pullFromGuestRepo`) should point to your own repository.
-4. `CNAME` and `.domains` — delete or update if you are hosting the files somewhere.
 
 ## Running locally
 
@@ -41,8 +39,17 @@ The server serves the web app's static files **and** handles all data via a REST
 To stop the server (as it is running in the background):
 ```
 lsof -ti :8080 | xargs kill
+
+or
+
+pkill -f server.py
 ```
 (assuming you started it on port 8080)
+
+To see the log of the server:
+```
+tail -f /tmp/prosopography-server.log
+```
 
 
 ## Codeberg backup (optional)

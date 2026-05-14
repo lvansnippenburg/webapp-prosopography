@@ -28,9 +28,13 @@ A historical prosopography database for researching persons, associations, insti
 
 The application requires a local data server to run. The server stores each record as a JSON file on disk and exposes a REST API that the web app talks to.
 
+### Requirements
+
+You'll need to have Python installed.
+
 ### Launching
 
-**Easiest way:** Double-click **Livorno Prosopography.app** in the project folder. It will start the server and open the app in your default browser automatically. If the server is already running it will just open the browser.
+**Easiest way when on Mac:** Double-click **Livorno Prosopography.app** in the project folder. It will start the server and open the app in your default browser automatically. If the server is already running it will just open the browser.
 
 **Manual way:**
 ```

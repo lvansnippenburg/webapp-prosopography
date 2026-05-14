@@ -22,7 +22,7 @@
     <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png" />
     <link rel="apple-touch-icon" href="icons/icon-152x152.png" />
     <!-- Style sheet  -->
-    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="css/styles.css" />
     <!-- SheetJS for Excel import -->
     <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
     <!-- D3.js for network visualization -->
@@ -48,54 +48,16 @@
 
             <!-- Data server -->
             <div class="form-grid" style="margin-bottom: 14px;">
-                <div class="form-group full-width" style="display: flex; gap: 8px; align-items: flex-end;">
-                    <div style="flex: 1;">
+                <div class="form-group" style="display: flex; gap: 8px; align-items: normal;">
+                    <div>
                         <label>Data Server URL</label>
                         <input type="text" id="setting-server-url" placeholder="http://localhost:8080" />
                     </div>
-                    <button class="btn-ghost btn-small" id="btn-test-connection" style="white-space: nowrap; margin-bottom: 1px;">Test</button>
+                    <button class="btn-ghost btn-small" id="btn-test-connection"
+                        style="white-space: nowrap; margin-bottom: 1px;">Test</button>
                 </div>
             </div>
 
-            <!-- Codeberg (optional backup) -->
-            <details style="margin-bottom: 14px;">
-                <summary style="font-size: 13px; font-weight: 600; cursor: pointer; color: var(--mid-grey); padding: 4px 0;">
-                    Codeberg Backup (optional)
-                </summary>
-                <div class="form-grid" style="margin-top: 10px;">
-                    <div class="form-group">
-                        <label>API Token</label>
-                        <input type="text" id="setting-token" placeholder="your_api_token" />
-                    </div>
-                    <div class="form-group">
-                        <label>Username</label>
-                        <input type="text" id="setting-owner" placeholder="your_username" />
-                    </div>
-                    <div class="form-group">
-                        <label>Repository</label>
-                        <input type="text" id="setting-repo" placeholder="your_repo" />
-                    </div>
-                    <div class="form-group">
-                        <label>Branch</label>
-                        <input type="text" id="setting-branch" placeholder="main" />
-                    </div>
-                </div>
-                <div style="margin-top: 10px; display: flex; gap: 8px;">
-                    <button class="btn-ghost btn-small" id="btn-sync-push">↑ Push to Codeberg</button>
-                    <button class="btn-ghost btn-small" id="btn-sync-pull">↓ Pull from Codeberg</button>
-                </div>
-                <div style="
-                            margin-top: 10px;
-                            padding: 8px;
-                            background: var(--ice-blue);
-                            border-radius: 4px;
-                            font-size: 11px;
-                            color: var(--mid-grey);
-                        ">
-                    <div><strong>Last Push:</strong> <span id="last-push-time">Never</span></div>
-                    <div style="margin-top: 2px"><strong>Last Pull:</strong> <span id="last-pull-time">Never</span></div>
-                </div>
-            </details>
 
             <div style="display: flex; gap: 10px; flex-wrap: wrap">
                 <button class="btn-primary" id="btn-save-settings">Save Settings</button>
@@ -602,54 +564,29 @@
                 </h2>
                 <button class="modal-close" id="relationship-network-close">✕</button>
             </div>
-            <div class="modal-body">
-                <!-- View selector (List vs Graph) -->
-                <div style="display: flex; gap: 10px; margin-bottom: 20px">
-                    <button class="btn-ghost btn-small" id="btn-list-view" style="flex: 1">
-                        📋 List View
-                    </button>
-                    <button class="btn-ghost btn-small" id="btn-graph-view" style="flex: 1">
-                        🕸 Graph View
-                    </button>
-                </div>
-
-                <!-- Legend -->
-                <div id="relationship-legend" style="
-                            margin-bottom: 20px;
-                            padding: 12px;
-                            background: var(--pale-grey);
-                            border-radius: 4px;
-                        ">
-                    <div style="font-weight: 600; margin-bottom: 8px; font-size: 12px">
-                        Legend
-                        <span style="font-weight: 400; color: var(--mid-grey); font-size: 11px">(click to
-                            filter)</span>:
-                    </div>
-                    <div id="legend-items" style="display: flex; flex-wrap: wrap; gap: 12px; font-size: 11px"></div>
-                </div>
-
-                <!-- List view -->
-                <div id="relationship-network-content" style="max-height: 500px; overflow-y: auto">
-                    <!-- Dynamically populated with person cards -->
-                </div>
-
-                <!-- Graph view -->
-                <div id="relationship-graph-container" style="
-                            display: none;
-                            border: 1px solid var(--light-grey);
-                            border-radius: 4px;
-                            background: var(--white);
-                        ">
-                    <div style="
-                                padding: 8px;
-                                border-bottom: 1px solid var(--light-grey);
-                                text-align: right;
-                            ">
-                        <button class="btn-ghost btn-small" id="btn-save-graph-png" title="Save graph as PNG">
-                            📷 Save PNG
+            <div class="modal-body network-modal-body">
+                <!-- Sidebar: view toggles + legend (left in landscape, top in portrait) -->
+                <div class="network-sidebar">
+                    <div class="network-view-btns">
+                        <button class="btn-ghost btn-small network-icon-btn" id="btn-list-view" title="List View">📋</button>
+                        <button class="btn-ghost btn-small network-icon-btn" id="btn-graph-view" title="Graph View">🕸</button>
+                        <button class="btn-ghost btn-small network-icon-btn" id="btn-save-graph-png" title="Save graph as PNG" style="display:none">📷</button>
+                        <button class="btn-ghost btn-small network-icon-btn" id="btn-legend-filter" title="Filter by relationship type">
+                            <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor"><path d="M1 2h14l-5 7v5l-4-2V9z"/></svg>
                         </button>
                     </div>
-                    <svg id="relationship-graph" width="100%" height="600"></svg>
+                    <!-- Legend items (hidden by default, toggled by filter button) -->
+                    <div id="legend-items" style="display:none; flex-direction:column; gap:8px; font-size:11px"></div>
+                </div>
+
+                <!-- Main content area -->
+                <div class="network-main">
+                    <div id="relationship-network-content">
+                        <!-- Dynamically populated with person cards -->
+                    </div>
+                    <div id="relationship-graph-container" style="display:none">
+                        <svg id="relationship-graph" width="100%" height="100%"></svg>
+                    </div>
                 </div>
             </div>
         </div>

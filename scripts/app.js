@@ -1,10 +1,6 @@
 "use strict";
 
 // ── Constants ──────────────────────────────────────────────────────
-const DB_NAME = "PersonRecordsDB";
-const DB_VERSION = 1;
-const STORE_NAME = "persons";
-
 // ── Column map (0-indexed) ─────────────────────────────────────────
 
 const COLUMN_MAP = {
@@ -31,7 +27,6 @@ const COLUMN_MAP = {
 
 // ── State ──────────────────────────────────────────────────────────
 
-let db = null;
 let allRecords = [];
 let filteredRecords = []; // Current filtered/displayed records for export
 let editingUUID = null;
@@ -83,52 +78,15 @@ const RELATIONSHIP_GROUPS = {
 };
 
 // ── Settings ───────────────────────────────────────────────────────
-// cb = codeberg, since these were the first cookievalues set. Now all cookies of this app start with cb to be consistent.
+
 function loadSettings() {
   return {
     serverUrl: localStorage.getItem("cb_server_url") || "http://localhost:8080",
-    token: localStorage.getItem("cb_token") || "",
-    owner: localStorage.getItem("cb_owner") || "",
-    repo: localStorage.getItem("cb_repo") || "",
-    branch: localStorage.getItem("cb_branch") || "main",
-    lastSyncPush: localStorage.getItem("cb_lastSyncPush") || null,
-    lastSyncPull: localStorage.getItem("cb_lastSyncPull") || null,
-    guestMode: localStorage.getItem("cb_guestMode") === "true",
   };
-}
-
-function loadSHACache() {
-  const cache = localStorage.getItem("cb_sha_cache");
-  return cache ? JSON.parse(cache) : {};
-}
-
-function saveSHACache(cache) {
-  localStorage.setItem("cb_sha_cache", JSON.stringify(cache));
 }
 
 function saveSettings(s) {
   localStorage.setItem("cb_server_url", s.serverUrl || "http://localhost:8080");
-  localStorage.setItem("cb_token", s.token);
-  localStorage.setItem("cb_owner", s.owner);
-  localStorage.setItem("cb_repo", s.repo);
-  localStorage.setItem("cb_branch", s.branch);
-  if (s.lastSyncPush) localStorage.setItem("cb_lastSyncPush", s.lastSyncPush);
-  if (s.lastSyncPull) localStorage.setItem("cb_lastSyncPull", s.lastSyncPull);
-  localStorage.setItem("cb_guestMode", s.guestMode ? "true" : "false");
-}
-
-function updateSyncTimestamps() {
-  const s = loadSettings();
-  const lastPushEl = document.getElementById("last-push-time");
-  const lastPullEl = document.getElementById("last-pull-time");
-
-  if (lastPushEl) {
-    lastPushEl.textContent = s.lastSyncPush ? new Date(s.lastSyncPush).toLocaleString() : "Never";
-  }
-
-  if (lastPullEl) {
-    lastPullEl.textContent = s.lastSyncPull ? new Date(s.lastSyncPull).toLocaleString() : "Never";
-  }
 }
 
 // ── Search History ─────────────────────────────────────────────────
@@ -369,50 +327,6 @@ function levenshtein(a, b) {
   return dp[m][n];
 }
 
-// ── IndexedDB ──────────────────────────────────────────────────────
-
-function openDatabase() {
-  return new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME, DB_VERSION);
-    req.onupgradeneeded = (e) => {
-      const d = e.target.result;
-      if (!d.objectStoreNames.contains(STORE_NAME)) {
-        const store = d.createObjectStore(STORE_NAME, { keyPath: "uuid" });
-        store.createIndex("lastname", "lastname", { unique: false });
-        store.createIndex("modifiedAt", "modifiedAt", { unique: false });
-      }
-    };
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
-  });
-}
-
-function idbGetAll() {
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, "readonly");
-    const req = tx.objectStore(STORE_NAME).getAll();
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
-  });
-}
-
-function idbGet(uuid) {
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, "readonly");
-    const req = tx.objectStore(STORE_NAME).get(uuid);
-    req.onsuccess = () => resolve(req.result ?? null);
-    req.onerror = () => reject(req.error);
-  });
-}
-
-function idbPut(record) {
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, "readwrite");
-    const req = tx.objectStore(STORE_NAME).put(record);
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
-  });
-}
 
 // ── Server API ─────────────────────────────────────────────────────
 
@@ -847,420 +761,6 @@ function exportToJSON() {
   URL.revokeObjectURL(url);
 
   notify(`Exported ${filteredRecords.length} records to JSON`, "success");
-}
-
-// ── Codeberg API ───────────────────────────────────────────────────
-
-async function pullFromGuestRepo() {
-  const owner = "lvansnippenburg";
-  const repo = "json_storage";
-  const branch = "LivornoProsopography";
-
-  showProgress("Guest Mode - Loading Data", "Fetching repository files...");
-
-  try {
-    // Get all JSON files from the public repository
-    const res = await fetch(
-      `https://codeberg.org/api/v1/repos/${owner}/${repo}/git/trees/${branch}?recursive=true`,
-    );
-
-    if (!res.ok) {
-      throw new Error(`Failed to fetch repository: ${res.status}`);
-    }
-
-    const data = await res.json();
-    const files = data.tree
-      .filter((i) => i.type === "blob" && i.path.endsWith(".json"))
-      .map((i) => i.path);
-
-    if (!files.length) {
-      hideProgress();
-      notify("No data files found in guest repository.", "warning");
-      return;
-    }
-
-    updateProgress(0, files.length, "Loading records...");
-
-
-    let loaded = 0;
-    for (let i = 0; i < files.length; i++) {
-      const path = files[i];
-      updateProgress(i + 1, files.length, `Loading ${path}...`);
-
-      try {
-        const fileRes = await fetch(
-          `https://codeberg.org/api/v1/repos/${owner}/${repo}/contents/${path}?ref=${branch}`,
-        );
-
-        if (!fileRes.ok) continue;
-
-        const fileData = await fileRes.json();
-        if (!fileData?.content) continue;
-
-        const remote = decodeContent(fileData.content);
-
-        // Only load non-deleted records
-        if (!remote.deletedAt) {
-          await apiPut(remote);
-          loaded++;
-        }
-      } catch (err) {
-        console.warn(`Failed to load ${path}:`, err);
-      }
-    }
-
-    hideProgress();
-    notify(`Guest mode: Loaded ${loaded} records from public repository.`, "success");
-    await refreshRecords();
-  } catch (err) {
-    hideProgress();
-    notify(`Failed to load guest data: ${err.message}`, "error");
-  }
-}
-
-async function updateFromGuestRepo() {
-  const owner = "lvansnippenburg";
-  const repo = "json_storage";
-  const branch = "LivornoProsopography";
-
-  showProgress("Guest Mode - Updating Data", "Fetching repository files...");
-
-  try {
-    // Get all JSON files from the public repository
-    const res = await fetch(
-      `https://codeberg.org/api/v1/repos/${owner}/${repo}/git/trees/${branch}?recursive=true`,
-    );
-
-    if (!res.ok) {
-      throw new Error(`Failed to fetch repository: ${res.status}`);
-    }
-
-    const data = await res.json();
-    const files = data.tree
-      .filter((i) => i.type === "blob" && i.path.endsWith(".json"))
-      .map((i) => i.path);
-
-    if (!files.length) {
-      hideProgress();
-      notify("No data files found in guest repository.", "warning");
-      return;
-    }
-
-    updateProgress(0, files.length, "Checking for updates...");
-
-    let updated = 0;
-    let skipped = 0;
-    let added = 0;
-
-    for (let i = 0; i < files.length; i++) {
-      const path = files[i];
-      updateProgress(i + 1, files.length, `Processing ${path}...`);
-
-      try {
-        const fileRes = await fetch(
-          `https://codeberg.org/api/v1/repos/${owner}/${repo}/contents/${path}?ref=${branch}`,
-        );
-
-        if (!fileRes.ok) continue;
-
-        const fileData = await fileRes.json();
-        if (!fileData?.content) continue;
-
-        const remote = decodeContent(fileData.content);
-
-        // Check if record exists on server
-        const local = await apiGet(remote.uuid);
-
-        if (local) {
-          // Compare modification dates
-          const localDate = new Date(local.modifiedAt);
-          const remoteDate = new Date(remote.modifiedAt);
-
-          if (remoteDate > localDate) {
-            // Remote is newer, update server
-            await apiPut(remote);
-            updated++;
-          } else {
-            // Local is same or newer, skip
-            skipped++;
-          }
-        } else {
-          // New record, add it
-          if (!remote.deletedAt) {
-            await apiPut(remote);
-            added++;
-          }
-        }
-      } catch (err) {
-        console.warn(`Failed to process ${path}:`, err);
-      }
-    }
-
-    hideProgress();
-    notify(
-      `Guest mode: Updated ${updated} records, added ${added} new records, skipped ${skipped} unchanged.`,
-      "success",
-    );
-    await refreshRecords();
-  } catch (err) {
-    hideProgress();
-    notify(`Failed to update guest data: ${err.message}`, "error");
-  }
-}
-
-async function codebergRequest(method, endpoint, body = null) {
-  const s = loadSettings();
-  if (!s.token || !s.owner || !s.repo) throw new Error("Codeberg settings not configured.");
-  const opts = {
-    method,
-    headers: {
-      Authorization: `token ${s.token}`,
-      "Content-Type": "application/json",
-      Accept: "application/json",
-    },
-  };
-  if (body) opts.body = JSON.stringify(body);
-  const res = await fetch(`https://codeberg.org/api/v1${endpoint}`, opts);
-  if (res.status === 404) return null;
-  if (!res.ok) {
-    const t = await res.text();
-    throw new Error(`Codeberg [${res.status}]: ${t}`);
-  }
-  return res.json();
-}
-
-function encodeContent(record) {
-  return btoa(unescape(encodeURIComponent(JSON.stringify(record, null, 2))));
-}
-
-function decodeContent(base64) {
-  return JSON.parse(decodeURIComponent(escape(atob(base64.replace(/\n/g, "")))));
-}
-
-async function getAllRepoFiles() {
-  const s = loadSettings();
-  const res = await codebergRequest(
-    "GET",
-    `/repos/${s.owner}/${s.repo}/git/trees/${s.branch}?recursive=true`,
-  );
-  if (!res?.tree) return [];
-  return res.tree.filter((i) => i.type === "blob" && i.path.endsWith(".json")).map((i) => i.path);
-}
-
-async function pushToCodeberg(fullSync = false) {
-  const s = loadSettings();
-  const records = await apiGetAll();
-  if (!records.length) {
-    notify("No records to push.", "info");
-    return;
-  }
-
-  // Filter records by timestamp if not doing full sync
-  let recordsToCheck = records;
-  if (!fullSync && s.lastSyncPush) {
-    const lastSync = new Date(s.lastSyncPush);
-    recordsToCheck = records.filter((r) => {
-      const created = new Date(r.createdAt);
-      const modified = new Date(r.modifiedAt);
-      const deleted = r.deletedAt ? new Date(r.deletedAt) : null;
-      return created > lastSync || modified > lastSync || (deleted && deleted > lastSync);
-    });
-
-    if (recordsToCheck.length === 0) {
-      notify("No records have changed since last push.", "info");
-      return;
-    }
-  }
-
-  showProgress(
-    fullSync ? "Full Sync - Pushing to Codeberg" : "Pushing to Codeberg",
-    fullSync ? "Checking all records..." : `Pushing ${recordsToCheck.length} changed records...`,
-  );
-
-  const shaCache = loadSHACache();
-  const recordsToPush = [];
-
-  // For quick sync, use cached SHAs; for full sync, fetch from Codeberg
-  if (fullSync) {
-    // Full sync: check each record against Codeberg
-    for (let i = 0; i < recordsToCheck.length; i++) {
-      const record = recordsToCheck[i];
-      updateProgress(i + 1, recordsToCheck.length, `Checking ${record.uuid.substring(0, 8)}...`);
-
-      try {
-        const endpoint = `/repos/${s.owner}/${s.repo}/contents/${record.uuid}.json`;
-        const existing = await codebergRequest("GET", `${endpoint}?ref=${s.branch}`);
-
-        if (existing) {
-          const remote = decodeContent(existing.content);
-          if (new Date(remote.modifiedAt) < new Date(record.modifiedAt)) {
-            recordsToPush.push({ record, endpoint, sha: existing.sha, action: "update" });
-          }
-        } else {
-          recordsToPush.push({ record, endpoint, sha: null, action: "create" });
-        }
-      } catch {
-        // File doesn't exist, needs to be created
-        const endpoint = `/repos/${s.owner}/${s.repo}/contents/${record.uuid}.json`;
-        recordsToPush.push({ record, endpoint, sha: null, action: "create" });
-      }
-    }
-  } else {
-    // Quick sync: use cached SHAs, assume all filtered records need pushing
-    for (const record of recordsToCheck) {
-      const endpoint = `/repos/${s.owner}/${s.repo}/contents/${record.uuid}.json`;
-      const cachedSHA = shaCache[record.uuid];
-      recordsToPush.push({
-        record,
-        endpoint,
-        sha: cachedSHA || null,
-        action: cachedSHA ? "update" : "create",
-      });
-    }
-  }
-
-  if (recordsToPush.length === 0) {
-    hideProgress();
-    notify("All records are up to date. Nothing to push.", "info");
-    return;
-  }
-
-  // Push records
-  let pushed = 0;
-  let errors = 0;
-
-  for (let i = 0; i < recordsToPush.length; i++) {
-    const { record, endpoint, sha, action } = recordsToPush[i];
-    updateProgress(
-      i + 1,
-      recordsToPush.length,
-      `${action === "create" ? "Creating" : "Updating"} ${record.uuid.substring(0, 8)}...`,
-    );
-
-    try {
-      let result;
-      if (action === "update" && sha) {
-        result = await codebergRequest("PUT", endpoint, {
-          message: `update: ${record.uuid}`,
-          content: encodeContent(record),
-          sha: sha,
-          branch: s.branch,
-        });
-      } else {
-        // For creates or updates without SHA, try PUT first with fetch of current SHA
-        try {
-          const existing = await codebergRequest("GET", `${endpoint}?ref=${s.branch}`);
-          result = await codebergRequest("PUT", endpoint, {
-            message: `update: ${record.uuid}`,
-            content: encodeContent(record),
-            sha: existing.sha,
-            branch: s.branch,
-          });
-        } catch {
-          // Doesn't exist, create it
-          result = await codebergRequest("POST", endpoint, {
-            message: `create: ${record.uuid}`,
-            content: encodeContent(record),
-            branch: s.branch,
-          });
-        }
-      }
-
-      // Cache the new SHA
-      if (result?.content?.sha) {
-        shaCache[record.uuid] = result.content.sha;
-      }
-
-      pushed++;
-    } catch {
-      errors++;
-    }
-  }
-
-  // Save SHA cache and sync timestamp
-  saveSHACache(shaCache);
-  s.lastSyncPush = now();
-  saveSettings(s);
-  updateSyncTimestamps();
-
-  hideProgress();
-  const skipped = recordsToCheck.length - recordsToPush.length;
-  notify(
-    `Push done. Pushed: ${pushed}, Skipped: ${skipped}, Errors: ${errors}`,
-    errors ? "error" : "success",
-  );
-}
-
-async function pullFromCodeberg(fullSync = false) {
-  const files = await getAllRepoFiles();
-  if (!files.length) {
-    notify("No files found in repository.", "info");
-    return;
-  }
-
-  showProgress(
-    fullSync ? "Full Sync - Pulling from Codeberg" : "Pulling from Codeberg",
-    "Fetching remote records...",
-  );
-
-  const s = loadSettings();
-  const shaCache = loadSHACache();
-  let pulled = 0,
-    skipped = 0,
-    errors = 0;
-
-  for (let i = 0; i < files.length; i++) {
-    const path = files[i];
-    updateProgress(i + 1, files.length, `Checking ${path.substring(0, 20)}...`);
-
-    try {
-      const fd = await codebergRequest(
-        "GET",
-        `/repos/${s.owner}/${s.repo}/contents/${path}?ref=${s.branch}`,
-      );
-      if (!fd?.content) continue;
-      const remote = decodeContent(fd.content);
-
-      // If not full sync and we have a last pull timestamp, skip old records
-      if (!fullSync && s.lastSyncPull) {
-        const lastSync = new Date(s.lastSyncPull);
-        const remoteModified = new Date(remote.modifiedAt);
-        if (remoteModified <= lastSync) {
-          skipped++;
-          continue;
-        }
-      }
-
-      const local = await apiGet(remote.uuid);
-      if (local && new Date(local.modifiedAt) >= new Date(remote.modifiedAt)) {
-        skipped++;
-        continue;
-      }
-      await apiPut(remote);
-
-      // Cache the SHA
-      if (fd.sha) {
-        shaCache[remote.uuid] = fd.sha;
-      }
-
-      pulled++;
-    } catch {
-      errors++;
-    }
-  }
-
-  // Save SHA cache and sync timestamp
-  saveSHACache(shaCache);
-  s.lastSyncPull = now();
-  saveSettings(s);
-  updateSyncTimestamps();
-
-  hideProgress();
-  notify(
-    `Pull done. Pulled: ${pulled}, Skipped: ${skipped}, Errors: ${errors}`,
-    errors ? "error" : "success",
-  );
-  await refreshRecords();
 }
 
 // ── Records display ────────────────────────────────────────────────
@@ -2173,7 +1673,7 @@ async function showRelationshipNetwork() {
 
       // If graph view is active, re-render the graph too
       const graphContainer = document.getElementById("relationship-graph-container");
-      if (graphContainer.style.display === "block") {
+      if (graphContainer.style.display !== "none") {
         renderRelationshipGraph();
       }
     });
@@ -2183,6 +1683,11 @@ async function showRelationshipNetwork() {
 
   // Render legend with grouped sections
   legendItems.innerHTML = "";
+
+  const filterHint = document.createElement("div");
+  filterHint.style.cssText = "font-size:10px; color:var(--mid-grey); margin-bottom:2px";
+  filterHint.textContent = "click chips to filter";
+  legendItems.appendChild(filterHint);
 
   // Family Relations group
   const familyGroup = document.createElement("div");
@@ -2248,6 +1753,20 @@ async function showRelationshipNetwork() {
   });
 
   legendItems.appendChild(otherGroup);
+
+  // Filter button toggles legend items
+  const btnLegendFilter = document.getElementById("btn-legend-filter");
+  if (btnLegendFilter && !btnLegendFilter._hasToggleListener) {
+    btnLegendFilter._hasToggleListener = true;
+    btnLegendFilter.addEventListener("click", () => {
+      const sidebar = btnLegendFilter.closest(".network-sidebar");
+      const open = legendItems.style.display === "none";
+      legendItems.style.display = open ? "flex" : "none";
+      btnLegendFilter.style.background = open ? "var(--ice-blue-dark)" : "";
+      btnLegendFilter.style.color = open ? "var(--white)" : "";
+      sidebar.classList.toggle("legend-open", open);
+    });
+  }
 
   // Render network
   content.innerHTML = "";
@@ -2326,7 +1845,7 @@ function saveGraphAsPNG() {
 
   // Get the SVG dimensions
   const width = svg.getAttribute("width") || container.clientWidth || 800;
-  const height = svg.getAttribute("height") || 600;
+  const height = svg.getAttribute("height") || container.clientHeight || 600;
 
   // Clone the SVG to avoid modifying the original
   const svgClone = svg.cloneNode(true);
@@ -2386,7 +1905,7 @@ function renderRelationshipGraph() {
   const svg = d3.select("#relationship-graph");
   const container = document.getElementById("relationship-graph-container");
   const width = container.clientWidth || 800;
-  const height = 600;
+  const height = container.clientHeight || 600;
 
   svg.attr("width", width).attr("height", height);
   svg.selectAll("*").remove(); // Clear previous graph
@@ -2873,39 +2392,22 @@ async function openEditModal(uuid) {
 
   const entityTypeLabel = ENTITY_TYPES[record.entityType || "person"];
 
-  if (s.guestMode) {
-    document.getElementById("modal-title").textContent = `View ${entityTypeLabel} (Read-Only)`;
-    document.getElementById("btn-delete-person").classList.add("hidden");
-    document.getElementById("btn-save-person").style.display = "none";
-  } else {
-    document.getElementById("modal-title").textContent = `Edit ${entityTypeLabel}`;
-    document.getElementById("btn-delete-person").classList.remove("hidden");
-    document.getElementById("btn-save-person").style.display = "block";
-  }
+  document.getElementById("modal-title").textContent = `Edit ${entityTypeLabel}`;
+  document.getElementById("btn-delete-person").classList.remove("hidden");
+  document.getElementById("btn-save-person").style.display = "block";
 
   populateForm(record);
   document.getElementById("person-modal").classList.remove("hidden");
 
   const modal = document.getElementById("person-modal");
 
-  // Make all inputs read-only in guest mode, or re-enable in user mode
-  if (s.guestMode) {
-    modal.querySelectorAll("input, select, textarea").forEach((input) => {
-      input.disabled = true;
-    });
-    modal.querySelectorAll(".btn-secondary, .remove-item").forEach((btn) => {
-      btn.disabled = true;
-      btn.style.opacity = "0.5";
-    });
-  } else {
-    modal.querySelectorAll("input, select, textarea").forEach((input) => {
+  modal.querySelectorAll("input, select, textarea").forEach((input) => {
       input.disabled = false;
     });
-    modal.querySelectorAll(".btn-secondary, .remove-item").forEach((btn) => {
+  modal.querySelectorAll(".btn-secondary, .remove-item").forEach((btn) => {
       btn.disabled = false;
       btn.style.opacity = "1";
     });
-  }
 }
 
 function clearForm() {
@@ -3095,10 +2597,6 @@ async function boot() {
   // Populate settings UI
   const s = loadSettings();
   document.getElementById("setting-server-url").value = s.serverUrl;
-  document.getElementById("setting-token").value = s.token;
-  document.getElementById("setting-owner").value = s.owner;
-  document.getElementById("setting-repo").value = s.repo;
-  document.getElementById("setting-branch").value = s.branch;
 
   // Test server connection
   updateServerStatus("connecting");
@@ -3267,6 +2765,7 @@ function attachEventListeners() {
   document.getElementById("btn-list-view").addEventListener("click", function () {
     document.getElementById("relationship-network-content").style.display = "block";
     document.getElementById("relationship-graph-container").style.display = "none";
+    document.getElementById("btn-save-graph-png").style.display = "none";
     this.style.background = "var(--ice-blue-dark)";
     this.style.color = "var(--white)";
     document.getElementById("btn-graph-view").style.background = "";
@@ -3275,9 +2774,9 @@ function attachEventListeners() {
 
   document.getElementById("btn-graph-view").addEventListener("click", function () {
     document.getElementById("relationship-network-content").style.display = "none";
-    document.getElementById("relationship-graph-container").style.display = "block";
+    document.getElementById("relationship-graph-container").style.display = "flex";
+    document.getElementById("btn-save-graph-png").style.display = "";
     this.style.background = "var(--ice-blue-dark)";
-    document.getElementById("btn-graph-view").style.background = "var(--ice-blue-dark)";
     this.style.color = "var(--white)";
     document.getElementById("btn-list-view").style.background = "";
     document.getElementById("btn-list-view").style.color = "";
@@ -3368,42 +2867,6 @@ function attachEventListeners() {
     });
   });
 
-  // Codeberg sync (legacy — kept for manual backup use)
-  const pushBtn = document.getElementById("btn-sync-push");
-  if (pushBtn) {
-    pushBtn.addEventListener("click", async () => {
-      const s = loadSettings();
-      if (!s.token || !s.owner || !s.repo) {
-        notify("Configure Codeberg settings first.", "warning");
-        return;
-      }
-      const choice = await showDialog("Push to Codeberg", "Push all records to Codeberg as a backup?", [
-        { label: "Quick Sync", cls: "btn-primary", value: "quick" },
-        { label: "Full Sync", cls: "btn-secondary", value: "full" },
-        { label: "Cancel", cls: "btn-ghost", value: false },
-      ]);
-      if (choice === "quick") await pushToCodeberg(false);
-      else if (choice === "full") await pushToCodeberg(true);
-    });
-  }
-
-  const pullBtn = document.getElementById("btn-sync-pull");
-  if (pullBtn) {
-    pullBtn.addEventListener("click", async () => {
-      const s = loadSettings();
-      if (!s.token || !s.owner || !s.repo) {
-        notify("Configure Codeberg settings first.", "warning");
-        return;
-      }
-      const choice = await showDialog("Pull from Codeberg", "Pull records from Codeberg into the server?", [
-        { label: "Quick Sync", cls: "btn-primary", value: "quick" },
-        { label: "Full Sync", cls: "btn-secondary", value: "full" },
-        { label: "Cancel", cls: "btn-ghost", value: false },
-      ]);
-      if (choice === "quick") await pullFromCodeberg(false);
-      else if (choice === "full") await pullFromCodeberg(true);
-    });
-  }
 
   // Settings
   document.getElementById("btn-settings-toggle").addEventListener("click", () => {
@@ -3415,11 +2878,6 @@ function attachEventListeners() {
     const s = loadSettings();
     saveSettings({
       serverUrl: document.getElementById("setting-server-url").value.trim() || "http://localhost:8080",
-      token: document.getElementById("setting-token").value.trim(),
-      owner: document.getElementById("setting-owner").value.trim(),
-      repo: document.getElementById("setting-repo").value.trim(),
-      branch: document.getElementById("setting-branch").value.trim() || "main",
-      guestMode: s.guestMode,
     });
     notify("Settings saved.", "success");
     document.getElementById("settings-panel").style.display = "none";

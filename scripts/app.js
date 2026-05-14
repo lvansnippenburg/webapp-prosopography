@@ -365,6 +365,12 @@ async function apiSoftDelete(uuid) {
   return apiRequest("DELETE", `/api/records/${uuid}`);
 }
 
+// Server-side fuzzy name lookup. Returns [{uuid, name, matchType}] sorted by match quality.
+async function apiLookup(query) {
+  if (!query || query.length < 2) return [];
+  return apiRequest("GET", `/api/lookup?q=${encodeURIComponent(query)}`).catch(() => []);
+}
+
 async function testServerConnection(url) {
   try {
     const base = (url || getServerUrl()).replace(/\/$/, "");

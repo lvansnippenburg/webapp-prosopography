@@ -51,9 +51,14 @@ To see the log of the server:
 tail -f /tmp/prosopography-server.log
 ```
 
+## Special API calls 
 
-## Codeberg backup (optional)
+**GET /api/lookup?q=<string>** — server searches lastname + lastname variations for all non-deleted records using the same five-tier match cascade as the JS function: exact → prefix → contains → soundex → levenshtein (≤ 2 edits, min 3 chars). Results are sorted by match quality and returned as:
 
-The app no longer requires Codeberg for day-to-day use — the local server is the data store. A Codeberg push/pull is available as an optional backup under the "Codeberg Backup" section in Settings.
+[
+  { "uuid": "abc-123", "name": "Jan van der Berg", "matchType": "exact" },
+  { "uuid": "def-456", "name": "Johan van Bergh",  "matchType": "sounds like" }
+]
+async function apiLookup(query) in app.js — thin client wrapper, returns [] on any error so callers don't need try/catch.
 
-[Codeberg page](https://lvansnippenburg.codeberg.page/webapp-prosopography/) · [vansnippenburg.nl](https://livorno.vansnippenburg.nl)
+The Python _soundex implementation is a direct port of the JS version (including the cur || 0 reset behaviour across vowels), so results will be identical on both sides.

@@ -11,6 +11,7 @@ Usage:
 API:
     GET    /api/records          → all records (JSON array)
     GET    /api/records/<uuid>   → single record
+    GET    /api/lookup?q=<str>   → fuzzy name search; returns [{uuid, name, matchType}]
     POST   /api/records          → create / upsert record (body: JSON object)
     PUT    /api/records/<uuid>   → update record (body: JSON object)
     DELETE /api/records/<uuid>   → soft-delete (sets deletedAt)
@@ -25,7 +26,7 @@ import threading
 from datetime import datetime, timezone
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import urlparse, parse_qs
 
 # ── Defaults ───────────────────────────────────────────────────────────────
 
@@ -117,11 +118,15 @@ class Handler(SimpleHTTPRequestHandler):
         self.end_headers()
 
     def do_GET(self):
-        path = urlparse(self.path).path
+        parsed = urlparse(self.path)
+        path = parsed.path
         if path == "/api/records":
             self._get_all_records()
         elif m := re.fullmatch(r"/api/records/([^/]+)", path):
             self._get_record(m.group(1))
+        elif path == "/api/lookup":
+            q = parse_qs(parsed.query).get("q", [""])[0]
+            self._lookup(q)
         else:
             super().do_GET()
 
@@ -234,6 +239,50 @@ class Handler(SimpleHTTPRequestHandler):
     def _not_found(self):
         self._send_error_json(404, "Not found")
 
+    def _lookup(self, query: str):
+        if len(query) < 2:
+            self._send_json([])
+            return
+
+        ql = query.lower()
+        sx_query = _soundex(query)
+        results = []
+
+        with _lock:
+            records = list(_records.values())
+
+        for r in records:
+            if r.get("deletedAt"):
+                continue
+
+            names = [r.get("lastname")] + (r.get("lastnameVariations") or [])
+            match_type = None
+
+            for name in names:
+                if not name:
+                    continue
+                nl = name.lower()
+                if nl == ql:
+                    match_type = "exact"; break
+                if nl.startswith(ql):
+                    match_type = "prefix"; break
+                if ql in nl:
+                    match_type = "contains"; break
+                if _soundex(name) == sx_query:
+                    match_type = "sounds like"; break
+                if len(ql) >= 3 and _levenshtein(ql, nl) <= 2:
+                    match_type = "similar"; break
+
+            if match_type:
+                full_name = " ".join(
+                    p for p in [r.get("firstname"), r.get("lastname"), r.get("patronymic")] if p
+                )
+                results.append({"uuid": r["uuid"], "name": full_name, "matchType": match_type})
+
+        order = {"exact": 0, "prefix": 1, "contains": 2, "sounds like": 3, "similar": 4}
+        results.sort(key=lambda x: order.get(x["matchType"], 9))
+        self._send_json(results)
+
     def log_message(self, fmt, *args):
         # Suppress noisy static-file logs; keep API logs.
         if "/api/" in (args[0] if args else ""):
@@ -241,6 +290,44 @@ class Handler(SimpleHTTPRequestHandler):
 
 
 # ── Utility ────────────────────────────────────────────────────────────────
+
+def _soundex(s: str) -> str:
+    """Soundex implementation matching the JavaScript version in app.js."""
+    MAP = {
+        "B": "1", "F": "1", "P": "1", "V": "1",
+        "C": "2", "G": "2", "J": "2", "K": "2", "Q": "2", "S": "2", "X": "2", "Z": "2",
+        "D": "3", "T": "3",
+        "L": "4",
+        "M": "5", "N": "5",
+        "R": "6",
+    }
+    s = re.sub(r"[^A-Za-z]", "", s).upper()
+    if not s:
+        return ""
+    code = s[0]
+    prev = MAP.get(s[0], "0")
+    for ch in s[1:]:
+        if len(code) >= 4:
+            break
+        cur = MAP.get(ch)          # None for vowels / H / W / Y
+        if cur and cur != prev:
+            code += cur
+        prev = cur if cur else "0"  # reset across vowels, matching JS `cur || 0`
+    return code.ljust(4, "0")
+
+
+def _levenshtein(a: str, b: str) -> int:
+    """Edit distance between two strings."""
+    m, n = len(a), len(b)
+    dp = list(range(n + 1))
+    for i in range(1, m + 1):
+        prev, dp[0] = dp[0], i
+        for j in range(1, n + 1):
+            temp = dp[j]
+            dp[j] = prev if a[i - 1] == b[j - 1] else 1 + min(prev, dp[j], dp[j - 1])
+            prev = temp
+    return dp[n]
+
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"

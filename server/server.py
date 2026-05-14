@@ -104,8 +104,17 @@ class Handler(SimpleHTTPRequestHandler):
         full = WEBAPP_DIR / rel
         return str(full)
 
+    def end_headers(self):
+        """Inject CORS headers into every response, including static files and errors."""
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.send_header("Access-Control-Max-Age", "86400")
+        super().end_headers()
+
     def do_OPTIONS(self):
-        self._send_cors_preflight()
+        self.send_response(204)
+        self.end_headers()
 
     def do_GET(self):
         path = urlparse(self.path).path
@@ -214,7 +223,6 @@ class Handler(SimpleHTTPRequestHandler):
     def _send_json(self, payload, status: int = 200):
         body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
         self.send_response(status)
-        self._add_cors_headers()
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
@@ -225,16 +233,6 @@ class Handler(SimpleHTTPRequestHandler):
 
     def _not_found(self):
         self._send_error_json(404, "Not found")
-
-    def _add_cors_headers(self):
-        self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type")
-
-    def _send_cors_preflight(self):
-        self.send_response(204)
-        self._add_cors_headers()
-        self.end_headers()
 
     def log_message(self, fmt, *args):
         # Suppress noisy static-file logs; keep API logs.

@@ -3156,6 +3156,24 @@ function attachEventListeners() {
   });
 
   // License button
+  document.getElementById("btn-stop-server").addEventListener("click", async () => {
+    const choice = await showDialog(
+      "Stop Server",
+      "Stop the local data server? The app will stop working until you restart it.",
+      [
+        { label: "Stop Server", value: "stop", cls: "btn-danger" },
+        { label: "Cancel", value: "cancel", cls: "btn-ghost" },
+      ],
+    );
+    if (choice !== "stop") return;
+    try {
+      await apiRequest("POST", "/api/shutdown");
+    } catch {
+      // Server may close the connection before the response is fully sent — that's fine.
+    }
+    updateServerStatus("offline");
+  });
+
   document.getElementById("btn-license").addEventListener("click", async () => {
     const modal = document.getElementById("license-modal");
     const content = document.getElementById("license-content");

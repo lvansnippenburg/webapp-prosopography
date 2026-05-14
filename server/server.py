@@ -38,6 +38,7 @@ DATA_DIR: Path = Path(DEFAULT_DATA_DIR)
 WEBAPP_DIR: Path = Path(__file__).parent.parent   # one level up from server/
 _records: dict[str, dict] = {}                    # uuid → record (in-memory index)
 _lock = threading.Lock()                           # guard concurrent writes
+_httpserver: "HTTPServer | None" = None            # set in main(), used for shutdown
 
 
 # ── Disk helpers ───────────────────────────────────────────────────────────
@@ -119,6 +120,8 @@ class Handler(SimpleHTTPRequestHandler):
         path = urlparse(self.path).path
         if path == "/api/records":
             self._upsert_record(uuid_from_url=None)
+        elif path == "/api/shutdown":
+            self._shutdown()
         else:
             self._not_found()
 
@@ -174,6 +177,12 @@ class Handler(SimpleHTTPRequestHandler):
 
         status = 201 if is_new else 200
         self._send_json(body, status=status)
+
+    def _shutdown(self):
+        self._send_json({"status": "shutting down"})
+        # server.shutdown() blocks until serve_forever() returns, so run it in a
+        # background thread so the response is fully sent first.
+        threading.Thread(target=_httpserver.shutdown, daemon=True).start()
 
     def _delete_record(self, uuid: str):
         with _lock:
@@ -257,14 +266,17 @@ def main():
 
     _load_all()
 
-    server = HTTPServer(("", args.port), Handler)
+    global _httpserver
+    _httpserver = HTTPServer(("", args.port), Handler)
     print(f"Listening on http://localhost:{args.port}/")
     print("Press Ctrl-C to stop.\n")
 
     try:
-        server.serve_forever()
+        _httpserver.serve_forever()
     except KeyboardInterrupt:
-        print("\nServer stopped.")
+        pass
+    finally:
+        print("Server stopped.")
 
 
 if __name__ == "__main__":

@@ -1,36 +1,52 @@
-# Livorno Prosopography - Database Guide
+# Livorno Prosopography
 
-[Visit this site](https://lvansnippenburg.codeberg.page/webapp-prosopography/)
-
-A comprehensive historical prosopography database application with advanced search capabilities for researching persons, associations, institutions, companies, and their relationships.
+A historical prosopography database for researching persons, associations, institutions, companies, and their relationships. Built as a single-page web app backed by a local Python data server that stores each record as a JSON file on disk.
 
 ## This webapp is primarily for personal use
 
-Before using, copying, changing or whatever:
+Before using, copying, or modifying this code: **read the LICENSE.md file.**
 
-**Read the LICENCE.md file**
+If you adapt this for your own project, the things most likely to need changing are:
 
-This webapp uses several settings that are particularly geared to my use of the code. When creating a copy of the files for your own use, make sure to change these. The ones most important are:
-1. The name of the webapp. Change "Livorno" to whatever suits you best.
-2. When hosting the files somewhere the files "CNAME" and ".domains" should either be deleted or modified.
-3. In the file "app.js" you'll find (more than once)
+1. The name — replace "Livorno" throughout `index.html`, `manifest.json`, and the app header.
+2. The default data directory — in `server/server.py`, change `DEFAULT_DATA_DIR`.
+3. The Codeberg backup settings — if you use the optional Codeberg backup, the hardcoded owner/repo/branch values in `app.js` (inside `pullFromGuestRepo`) should point to your own repository.
+4. `CNAME` and `.domains` — delete or update if you are hosting the files somewhere.
+
+## Running locally
+
+### Quickest way
+
+Double-click **Livorno Prosopography.app** in the project root. It starts the server and opens the app in your default browser. If the server is already running it just opens the browser.
+
+### Manual
+
+Start the server from the project directory:
 
 ```
-const owner = "lvansnippenburg";
-const repo = "json_storage";
-const branch = "LivornoProsopography";
-```
-These should be changed to your specific Codeberg instance, the location where you want to store a backup copy of your data. For this you'll need a public Codeberg repository with the possibilty to access it via a token. See the Codeberg documentation.
-
-
-# Running locally
-While in the working directory, use the terminal to start a Python webserver instance:
-
-```
-python3 -m http.server 8080
+python3 server/server.py
 ```
 
-# Codeberg Hosted 
-[Codeberg link](https://lvansnippenburg.codeberg.page/webapp-prosopography/)
+Then open `http://localhost:8080` in your browser.
 
-[vansnippenburg domain](https://livorno.vansnippenburg.nl)
+Options:
+
+```
+python3 server/server.py --port 9000
+python3 server/server.py --data-dir ~/path/to/json/files
+```
+
+The server serves the web app's static files **and** handles all data via a REST API. Each record is stored as `{uuid}.json` in the data directory (default: `/Users/lvansnippenburg/Sources/Persons/`).
+
+To stop the server (as it is running in the background):
+```
+lsof -ti :8080 | xargs kill
+```
+(assuming you started it on port 8080)
+
+
+## Codeberg backup (optional)
+
+The app no longer requires Codeberg for day-to-day use — the local server is the data store. A Codeberg push/pull is available as an optional backup under the "Codeberg Backup" section in Settings.
+
+[Codeberg page](https://lvansnippenburg.codeberg.page/webapp-prosopography/) · [vansnippenburg.nl](https://livorno.vansnippenburg.nl)

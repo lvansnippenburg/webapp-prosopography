@@ -34,8 +34,8 @@
 <body>
     <header>
         <h1>Livorno prosopography</h1>
-        <div style="display: flex; gap: 10px">
-            <button class="btn-ghost btn-small" id="btn-sync-push">↑ Push</button>
+        <div style="display: flex; gap: 10px; align-items: center">
+            <span id="server-status" style="font-size: 13px; color: var(--mid-grey); cursor: default">◌ Server</span>
             <button class="btn-ghost btn-small" id="btn-help">? Help</button>
             <button class="btn-ghost btn-small" id="btn-settings-toggle">⚙ Settings</button>
         </div>
@@ -45,54 +45,61 @@
         <!-- Settings panel -->
         <div id="settings-panel">
             <h3>Settings</h3>
-            <div id="mode-indicator" style="
-                        margin-bottom: 14px;
-                        padding: 10px;
-                        background: var(--ice-blue);
-                        border-radius: 4px;
-                        font-size: 12px;
-                        display: flex;
-                        justify-content: space-between;
-                        align-items: center;
-                    ">
-                <div><strong>Mode:</strong> <span id="current-mode">User Mode</span></div>
-                <button class="btn-ghost btn-small" id="btn-switch-mode">Switch Mode</button>
-            </div>
-            <div class="form-grid">
-                <div class="form-group">
-                    <label>Codeberg API Token</label>
-                    <input type="text" id="setting-token" placeholder="your_api_token" />
-                </div>
-                <div class="form-group">
-                    <label>Codeberg Username</label>
-                    <input type="text" id="setting-owner" placeholder="your_username" />
-                </div>
-                <div class="form-group">
-                    <label>Repository Name</label>
-                    <input type="text" id="setting-repo" placeholder="your_repo" />
-                </div>
-                <div class="form-group">
-                    <label>Branch</label>
-                    <input type="text" id="setting-branch" placeholder="main" />
+
+            <!-- Data server -->
+            <div class="form-grid" style="margin-bottom: 14px;">
+                <div class="form-group full-width" style="display: flex; gap: 8px; align-items: flex-end;">
+                    <div style="flex: 1;">
+                        <label>Data Server URL</label>
+                        <input type="text" id="setting-server-url" placeholder="http://localhost:8080" />
+                    </div>
+                    <button class="btn-ghost btn-small" id="btn-test-connection" style="white-space: nowrap; margin-bottom: 1px;">Test</button>
                 </div>
             </div>
-            <div style="
-                        margin-top: 14px;
-                        padding: 10px;
-                        background: var(--ice-blue);
-                        border-radius: 4px;
-                        font-size: 12px;
-                        color: var(--mid-grey);
-                    ">
-                <div><strong>Last Push:</strong> <span id="last-push-time">Never</span></div>
-                <div style="margin-top: 4px">
-                    <strong>Last Pull:</strong> <span id="last-pull-time">Never</span>
+
+            <!-- Codeberg (optional backup) -->
+            <details style="margin-bottom: 14px;">
+                <summary style="font-size: 13px; font-weight: 600; cursor: pointer; color: var(--mid-grey); padding: 4px 0;">
+                    Codeberg Backup (optional)
+                </summary>
+                <div class="form-grid" style="margin-top: 10px;">
+                    <div class="form-group">
+                        <label>API Token</label>
+                        <input type="text" id="setting-token" placeholder="your_api_token" />
+                    </div>
+                    <div class="form-group">
+                        <label>Username</label>
+                        <input type="text" id="setting-owner" placeholder="your_username" />
+                    </div>
+                    <div class="form-group">
+                        <label>Repository</label>
+                        <input type="text" id="setting-repo" placeholder="your_repo" />
+                    </div>
+                    <div class="form-group">
+                        <label>Branch</label>
+                        <input type="text" id="setting-branch" placeholder="main" />
+                    </div>
                 </div>
-            </div>
-            <div style="margin-top: 14px; display: flex; gap: 10px; flex-wrap: wrap">
+                <div style="margin-top: 10px; display: flex; gap: 8px;">
+                    <button class="btn-ghost btn-small" id="btn-sync-push">↑ Push to Codeberg</button>
+                    <button class="btn-ghost btn-small" id="btn-sync-pull">↓ Pull from Codeberg</button>
+                </div>
+                <div style="
+                            margin-top: 10px;
+                            padding: 8px;
+                            background: var(--ice-blue);
+                            border-radius: 4px;
+                            font-size: 11px;
+                            color: var(--mid-grey);
+                        ">
+                    <div><strong>Last Push:</strong> <span id="last-push-time">Never</span></div>
+                    <div style="margin-top: 2px"><strong>Last Pull:</strong> <span id="last-pull-time">Never</span></div>
+                </div>
+            </details>
+
+            <div style="display: flex; gap: 10px; flex-wrap: wrap">
                 <button class="btn-primary" id="btn-save-settings">Save Settings</button>
                 <button class="btn-ghost btn-small" id="btn-show-deleted">Show Deleted</button>
-                <button class="btn-ghost btn-small" id="btn-sync-pull">↓ Pull</button>
                 <button class="btn-secondary btn-small" id="btn-import">⬆ Import Excel</button>
                 <button class="btn-secondary btn-small" id="btn-export">⬇ Export</button>
                 <button class="btn-ghost btn-small" id="btn-license">📄 License</button>

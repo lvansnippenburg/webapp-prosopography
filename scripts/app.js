@@ -86,6 +86,7 @@ const RELATIONSHIP_GROUPS = {
 // cb = codeberg, since these were the first cookievalues set. Now all cookies of this app start with cb to be consistent.
 function loadSettings() {
   return {
+    serverUrl: localStorage.getItem("cb_server_url") || "http://localhost:8080",
     token: localStorage.getItem("cb_token") || "",
     owner: localStorage.getItem("cb_owner") || "",
     repo: localStorage.getItem("cb_repo") || "",
@@ -106,6 +107,7 @@ function saveSHACache(cache) {
 }
 
 function saveSettings(s) {
+  localStorage.setItem("cb_server_url", s.serverUrl || "http://localhost:8080");
   localStorage.setItem("cb_token", s.token);
   localStorage.setItem("cb_owner", s.owner);
   localStorage.setItem("cb_repo", s.repo);
@@ -412,6 +414,63 @@ function idbPut(record) {
   });
 }
 
+// ── Server API ─────────────────────────────────────────────────────
+
+function getServerUrl() {
+  return (localStorage.getItem("cb_server_url") || "http://localhost:8080").replace(/\/$/, "");
+}
+
+async function apiRequest(method, path, body = null) {
+  const opts = { method, headers: {} };
+  if (body !== null) {
+    opts.headers["Content-Type"] = "application/json";
+    opts.body = JSON.stringify(body);
+  }
+  const res = await fetch(`${getServerUrl()}${path}`, opts);
+  if (res.status === 404) return null;
+  if (!res.ok) {
+    const text = await res.text().catch(() => res.statusText);
+    throw new Error(`Server [${res.status}]: ${text}`);
+  }
+  return res.json();
+}
+
+async function apiGetAll() {
+  return apiRequest("GET", "/api/records");
+}
+
+async function apiGet(uuid) {
+  return apiRequest("GET", `/api/records/${uuid}`);
+}
+
+async function apiPut(record) {
+  return apiRequest("PUT", `/api/records/${record.uuid}`, record);
+}
+
+async function apiSoftDelete(uuid) {
+  return apiRequest("DELETE", `/api/records/${uuid}`);
+}
+
+async function testServerConnection(url) {
+  try {
+    const base = (url || getServerUrl()).replace(/\/$/, "");
+    const res = await fetch(`${base}/api/records`, { method: "GET", signal: AbortSignal.timeout(4000) });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+function updateServerStatus(state) {
+  const el = document.getElementById("server-status");
+  if (!el) return;
+  const labels = { online: "● Server", offline: "● Server", connecting: "◌ Server" };
+  const colors = { online: "var(--green, #27ae60)", offline: "var(--red, #e74c3c)", connecting: "var(--mid-grey)" };
+  el.textContent = labels[state] || "● Server";
+  el.style.color = colors[state] || "var(--mid-grey)";
+  el.title = state === "online" ? `Connected to ${getServerUrl()}` : state === "offline" ? `Cannot reach ${getServerUrl()}` : "Connecting...";
+}
+
 // ── Parsing helpers ────────────────────────────────────────────────
 
 /**
@@ -447,14 +506,6 @@ function parseRefArray(raw) {
 
 // ── Import Excel ───────────────────────────────────────────────────
 
-async function clearAllRecords() {
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, "readwrite");
-    const req = tx.objectStore(STORE_NAME).clear();
-    req.onsuccess = () => resolve();
-    req.onerror = () => reject(req.error);
-  });
-}
 
 function parseGender(raw) {
   if (!raw) return "M";
@@ -462,7 +513,7 @@ function parseGender(raw) {
   return val.includes("F") ? "F" : "M";
 }
 
-async function importExcel(file, deleteExisting = false) {
+async function importExcel(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = async (e) => {
@@ -483,7 +534,7 @@ async function importExcel(file, deleteExisting = false) {
             if (!row.Lastname && !row.Firstname) continue;
 
             const uuid = row.UUID && row.UUID.trim() ? row.UUID.trim() : generateUUID();
-            const existing = await idbGet(uuid);
+            const existing = await apiGet(uuid);
             const isUpdate = !!existing;
 
             // Parse variations from semicolon-separated strings
@@ -573,7 +624,7 @@ async function importExcel(file, deleteExisting = false) {
               archief: archief,
             };
 
-            await idbPut(record);
+            await apiPut(record);
             if (isUpdate) {
               updated++;
             } else {
@@ -590,9 +641,6 @@ async function importExcel(file, deleteExisting = false) {
             reject(new Error("Sheet appears to be empty."));
             return;
           }
-
-          // Optionally wipe existing records
-          if (deleteExisting) await clearAllRecords();
 
           // First row = headers, skip it
           const dataRows = rows.slice(1);
@@ -672,7 +720,7 @@ async function importExcel(file, deleteExisting = false) {
               notes: String(row[18] || "").trim(),
             };
 
-            await idbPut(record);
+            await apiPut(record);
             imported++;
           }
 
@@ -833,11 +881,6 @@ async function pullFromGuestRepo() {
 
     updateProgress(0, files.length, "Loading records...");
 
-    // Clear existing data
-    const allRecords = await idbGetAll();
-    for (const record of allRecords) {
-      await idbDelete(record.uuid);
-    }
 
     let loaded = 0;
     for (let i = 0; i < files.length; i++) {
@@ -858,7 +901,7 @@ async function pullFromGuestRepo() {
 
         // Only load non-deleted records
         if (!remote.deletedAt) {
-          await idbPut(remote);
+          await apiPut(remote);
           loaded++;
         }
       } catch (err) {
@@ -925,8 +968,8 @@ async function updateFromGuestRepo() {
 
         const remote = decodeContent(fileData.content);
 
-        // Check if record exists locally
-        const local = await idbGet(remote.uuid);
+        // Check if record exists on server
+        const local = await apiGet(remote.uuid);
 
         if (local) {
           // Compare modification dates
@@ -934,8 +977,8 @@ async function updateFromGuestRepo() {
           const remoteDate = new Date(remote.modifiedAt);
 
           if (remoteDate > localDate) {
-            // Remote is newer, update local
-            await idbPut(remote);
+            // Remote is newer, update server
+            await apiPut(remote);
             updated++;
           } else {
             // Local is same or newer, skip
@@ -944,7 +987,7 @@ async function updateFromGuestRepo() {
         } else {
           // New record, add it
           if (!remote.deletedAt) {
-            await idbPut(remote);
+            await apiPut(remote);
             added++;
           }
         }
@@ -1006,9 +1049,9 @@ async function getAllRepoFiles() {
 
 async function pushToCodeberg(fullSync = false) {
   const s = loadSettings();
-  const records = await idbGetAll();
+  const records = await apiGetAll();
   if (!records.length) {
-    notify("No local records to push.", "info");
+    notify("No records to push.", "info");
     return;
   }
 
@@ -1188,12 +1231,12 @@ async function pullFromCodeberg(fullSync = false) {
         }
       }
 
-      const local = await idbGet(remote.uuid);
+      const local = await apiGet(remote.uuid);
       if (local && new Date(local.modifiedAt) >= new Date(remote.modifiedAt)) {
         skipped++;
         continue;
       }
-      await idbPut(remote);
+      await apiPut(remote);
 
       // Cache the SHA
       if (fd.sha) {
@@ -1223,7 +1266,12 @@ async function pullFromCodeberg(fullSync = false) {
 // ── Records display ────────────────────────────────────────────────
 
 async function refreshRecords(query = "") {
-  allRecords = await idbGetAll();
+  try {
+    allRecords = await apiGetAll();
+  } catch (err) {
+    notify(`Failed to load records from server: ${err.message}`, "error");
+    allRecords = [];
+  }
   let filtered = showDeleted ? allRecords : allRecords.filter((r) => !r.deletedAt);
 
   if (query.trim()) {
@@ -1775,7 +1823,7 @@ function renderTable(records) {
 
 async function runLastnameLookup(query) {
   if (!query || query.length < 2) return [];
-  const records = await idbGetAll();
+  const records = await apiGetAll().catch(() => []);
   const matches = [];
 
   records.forEach((r) => {
@@ -1907,7 +1955,7 @@ function showPersonPicker() {
 
     // Render all persons initially
     const renderResults = async (query = "") => {
-      const records = await idbGetAll();
+      const records = await apiGetAll().catch(() => []);
       const filtered = records
         .filter((r) => !r.deletedAt)
         .filter((r) => {
@@ -2050,7 +2098,7 @@ async function showRelationshipNetwork() {
   const activeRecords =
     filteredRecords.length > 0
       ? filteredRecords
-      : await idbGetAll().then((records) => records.filter((r) => !r.deletedAt));
+      : await apiGetAll().then((records) => records.filter((r) => !r.deletedAt)).catch(() => []);
 
   // Update entity count display
   const entityCountEl = document.getElementById("network-entity-count");
@@ -2351,9 +2399,9 @@ function renderRelationshipGraph() {
     Promise.resolve(
       filteredRecords.length > 0
         ? filteredRecords
-        : idbGetAll().then((records) => records.filter((r) => !r.deletedAt)),
+        : apiGetAll().then((records) => records.filter((r) => !r.deletedAt)).catch(() => []),
     ),
-    idbGetAll(),
+    apiGetAll().catch(() => []),
   ]).then(([activeRecords, allRecords]) => {
     // Create a lookup map for all records by UUID
     const recordLookup = new Map();
@@ -2746,7 +2794,7 @@ async function updateBidirectionalRelationships(record, oldRelationships = []) {
 
   // Apply updates to related persons
   for (const [uuid, changes] of Object.entries(updates)) {
-    const relatedPerson = await idbGet(uuid);
+    const relatedPerson = await apiGet(uuid);
     if (!relatedPerson) continue;
 
     let rels = relatedPerson.relationships || [];
@@ -2769,7 +2817,7 @@ async function updateBidirectionalRelationships(record, oldRelationships = []) {
     // Save updated related person
     relatedPerson.relationships = rels;
     relatedPerson.modifiedAt = now();
-    await idbPut(relatedPerson);
+    await apiPut(relatedPerson);
   }
 }
 
@@ -2817,7 +2865,7 @@ async function openNewModal() {
 }
 
 async function openEditModal(uuid) {
-  const record = await idbGet(uuid);
+  const record = await apiGet(uuid);
   if (!record) return;
   editingUUID = uuid;
 
@@ -2968,7 +3016,7 @@ async function savePerson() {
 
   const isNew = !editingUUID;
   const ts = now();
-  const existing = editingUUID ? await idbGet(editingUUID) : null;
+  const existing = editingUUID ? await apiGet(editingUUID) : null;
   const oldRelationships = existing?.relationships || [];
 
   const record = {
@@ -3015,7 +3063,7 @@ async function savePerson() {
   // Update bidirectional relationships
   await updateBidirectionalRelationships(record, oldRelationships);
 
-  await idbPut(record);
+  await apiPut(record);
   document.getElementById("person-modal").classList.add("hidden");
   notify(isNew ? "Person created." : "Person updated.", "success");
   await refreshRecords(document.getElementById("search-input").value);
@@ -3033,11 +3081,7 @@ async function deletePerson() {
   );
   if (!confirmed) return;
 
-  const record = await idbGet(editingUUID);
-  if (!record) return;
-  record.deletedAt = now();
-  record.modifiedAt = now();
-  await idbPut(record);
+  await apiSoftDelete(editingUUID);
   document.getElementById("person-modal").classList.add("hidden");
   notify("Record marked as deleted.", "info");
   await refreshRecords(document.getElementById("search-input").value);
@@ -3046,142 +3090,32 @@ async function deletePerson() {
 // ── Boot ───────────────────────────────────────────────────────────
 
 async function boot() {
-  db = await openDatabase();
-  const records = await idbGetAll();
-
-  // Load search history
   loadSearchHistory();
 
   // Populate settings UI
-  let s = loadSettings();
+  const s = loadSettings();
+  document.getElementById("setting-server-url").value = s.serverUrl;
   document.getElementById("setting-token").value = s.token;
   document.getElementById("setting-owner").value = s.owner;
   document.getElementById("setting-repo").value = s.repo;
   document.getElementById("setting-branch").value = s.branch;
-  updateSyncTimestamps();
 
-  // Update mode indicator
-  const modeIndicator = document.getElementById("current-mode");
-  if (modeIndicator) {
-    modeIndicator.textContent = s.guestMode ? "Guest Mode (Read-Only)" : "User Mode";
-    modeIndicator.style.color = s.guestMode ? "var(--mid-grey)" : "var(--dark-grey)";
-  }
-
-  // Check if user needs to select mode (first time or no mode set)
-  if (!localStorage.getItem("cb_modeSelected")) {
-    const modeChoice = await showDialog(
-      "Welcome to Livorno Prosopography",
-      "Please select how you want to use this application:",
-      [
-        { label: "Guest Mode (Read-Only)", cls: "btn-primary", value: "guest" },
-        { label: "User Mode (Full Access)", cls: "btn-secondary", value: "user" },
-      ],
-    );
-
-    if (modeChoice === "guest") {
-      // Set guest mode
-      s.guestMode = true;
-      saveSettings(s);
-      localStorage.setItem("cb_modeSelected", "true");
-
-      // Load guest data
-      await pullFromGuestRepo();
-
-      // Disable push button but enable pull in guest mode
-      document.getElementById("btn-sync-push").disabled = true;
-      document.getElementById("btn-sync-push").style.opacity = "0.5";
-      document.getElementById("btn-sync-push").title = "Disabled in guest mode";
-      document.getElementById("btn-sync-pull").disabled = false;
-      document.getElementById("btn-sync-pull").style.opacity = "1";
-      document.getElementById("btn-sync-pull").title = "Pull updates from public repository";
-    } else {
-      // Set user mode
-      s.guestMode = false;
-      saveSettings(s);
-      localStorage.setItem("cb_modeSelected", "true");
-    }
-  }
-
-  // Reload settings after mode selection
-  s = loadSettings();
-
-  // If in guest mode, disable sync buttons and modification features
-  if (s.guestMode) {
-    document.getElementById("btn-sync-push").disabled = true;
-    document.getElementById("btn-sync-push").style.opacity = "0.5";
-    document.getElementById("btn-sync-push").title = "Disabled in guest mode";
-    // Enable pull button in guest mode
-    document.getElementById("btn-sync-pull").disabled = false;
-    document.getElementById("btn-sync-pull").style.opacity = "1";
-    document.getElementById("btn-sync-pull").title = "Pull updates from public repository";
-
-    // Disable import button
-    document.getElementById("btn-import").disabled = true;
-    document.getElementById("btn-import").style.opacity = "0.5";
-    document.getElementById("btn-import").title = "Disabled in guest mode";
-
-    // Make settings inputs read-only
-    document.getElementById("setting-token").disabled = true;
-    document.getElementById("setting-owner").disabled = true;
-    document.getElementById("setting-repo").disabled = true;
-    document.getElementById("setting-branch").disabled = true;
-
-    // Hide New Person button
-    document.getElementById("btn-new").style.display = "none";
-
-    // Add guest mode indicator to header
-    const header = document.querySelector("header h1");
-    if (header && !header.textContent.includes("(Guest)")) {
-      header.textContent += " (Guest Mode)";
-    }
+  // Test server connection
+  updateServerStatus("connecting");
+  const connected = await testServerConnection(s.serverUrl);
+  if (connected) {
+    updateServerStatus("online");
   } else {
-    // User mode - normal flow
-    // First-time import prompt or pull prompt
-    if (records.length === 0) {
-      const choice = await showDialog(
-        "Welcome",
-        "No local records found. Would you like to import from an Excel file or pull from Codeberg?",
-        [
-          { label: "Import Excel", cls: "btn-primary", value: "excel" },
-          { label: "Pull from Codeberg", cls: "btn-secondary", value: "codeberg" },
-          { label: "Start Empty", cls: "btn-ghost", value: "empty" },
-        ],
-      );
-      if (choice === "excel") {
-        document.getElementById("file-input").click();
-      } else if (choice === "codeberg") {
-        if (!s.token) {
-          notify("Please configure Codeberg settings first.", "error");
-        } else {
-          await pullFromCodeberg();
-        }
-      }
-    } else {
-      // Ask about update from Codeberg
-      if (s.token && s.owner && s.repo) {
-        const doUpdate = await showDialog(
-          "Sync with Codeberg",
-          "Would you like to pull the latest updates from Codeberg?",
-          [
-            { label: "Yes, pull updates", cls: "btn-primary", value: true },
-            { label: "No thanks", cls: "btn-secondary", value: false },
-          ],
-        );
-        if (doUpdate) await pullFromCodeberg();
-      }
-    }
+    updateServerStatus("offline");
+    notify(
+      `Cannot connect to server at ${s.serverUrl}. Open Settings to change the server URL.`,
+      "error",
+      8000,
+    );
   }
 
   await refreshRecords();
   attachEventListeners();
-
-  // Warn before closing (only in user mode)
-  if (!s.guestMode) {
-    window.addEventListener("beforeunload", (e) => {
-      e.preventDefault();
-      e.returnValue = "Push changes to Codeberg before leaving?";
-    });
-  }
 }
 
 // ── Event Listeners ────────────────────────────────────────────────
@@ -3358,21 +3292,11 @@ function attachEventListeners() {
 
   // New person
   document.getElementById("btn-new").addEventListener("click", () => {
-    const s = loadSettings();
-    if (s.guestMode) {
-      notify("Cannot create new records in guest mode.", "warning");
-      return;
-    }
     openNewModal();
   });
 
   // Import Excel
   document.getElementById("btn-import").addEventListener("click", () => {
-    const s = loadSettings();
-    if (s.guestMode) {
-      notify("Cannot import data in guest mode.", "warning");
-      return;
-    }
     document.getElementById("file-input").click();
   });
 
@@ -3399,40 +3323,17 @@ function attachEventListeners() {
     const file = e.target.files[0];
     if (!file) return;
 
-    // Ask whether to append or replace
-    const choice = await showDialog(
-      "Import Excel",
-      "Do you want to add the imported records to the existing database, or delete all current records first?",
-      [
-        { label: "Append to existing", cls: "btn-secondary", value: "append" },
-        { label: "Delete all & import", cls: "btn-danger", value: "replace" },
-        { label: "Cancel", cls: "btn-ghost", value: "cancel" },
-      ],
-    );
-
-    if (choice === "cancel") {
-      e.target.value = "";
-      return;
-    }
-
     try {
-      const deleteExisting = choice === "replace";
-      const result = await importExcel(file, deleteExisting);
+      const result = await importExcel(file);
 
       // Handle both old format (number) and new format (object)
       if (typeof result === "number") {
-        notify(
-          `${deleteExisting ? "Replaced all records. " : ""}Imported ${result} records.`,
-          "success",
-        );
+        notify(`Imported ${result} records.`, "success");
       } else {
         const { imported, updated, total } = result;
-        let message = deleteExisting ? "Replaced all records. " : "";
-        if (updated > 0) {
-          message += `Imported ${imported} new record${imported !== 1 ? "s" : ""}, updated ${updated} existing record${updated !== 1 ? "s" : ""}.`;
-        } else {
-          message += `Imported ${total} record${total !== 1 ? "s" : ""}.`;
-        }
+        const message = updated > 0
+          ? `Imported ${imported} new record${imported !== 1 ? "s" : ""}, updated ${updated} existing record${updated !== 1 ? "s" : ""}.`
+          : `Imported ${total} record${total !== 1 ? "s" : ""}.`;
         notify(message, "success");
       }
 
@@ -3467,68 +3368,42 @@ function attachEventListeners() {
     });
   });
 
-  // Codeberg sync
-  document.getElementById("btn-sync-push").addEventListener("click", async () => {
-    const s = loadSettings();
-
-    // Check if guest mode
-    if (s.guestMode) {
-      notify("Sync is disabled in guest mode.", "warning");
-      return;
-    }
-
-    const lastPush = s.lastSyncPush ? new Date(s.lastSyncPush).toLocaleString() : "Never";
-    const message = s.lastSyncPush
-      ? `Quick sync: only push records changed since ${lastPush}\n\nOr do a full sync to check all records?`
-      : "No previous sync found. A full sync will be performed.";
-
-    const choice = await showDialog("Push to Codeberg", message, [
-      { label: "Quick Sync", cls: "btn-primary", value: "quick" },
-      { label: "Full Sync", cls: "btn-secondary", value: "full" },
-      { label: "Cancel", cls: "btn-ghost", value: false },
-    ]);
-
-    if (choice === "quick") await pushToCodeberg(false);
-    else if (choice === "full") await pushToCodeberg(true);
-  });
-
-  document.getElementById("btn-sync-pull").addEventListener("click", async () => {
-    const s = loadSettings();
-
-    // Check if guest mode - use guest pull instead
-    if (s.guestMode) {
-      const choice = await showDialog(
-        "Pull from Guest Repository",
-        "Update your local data from the public Livorno Prosopography repository:",
-        [
-          { label: "Replace All Data", cls: "btn-danger", value: "replace" },
-          { label: "Update Existing Only", cls: "btn-primary", value: "update" },
-          { label: "Cancel", cls: "btn-ghost", value: false },
-        ],
-      );
-
-      if (choice === "replace") {
-        await pullFromGuestRepo();
-      } else if (choice === "update") {
-        await updateFromGuestRepo();
+  // Codeberg sync (legacy — kept for manual backup use)
+  const pushBtn = document.getElementById("btn-sync-push");
+  if (pushBtn) {
+    pushBtn.addEventListener("click", async () => {
+      const s = loadSettings();
+      if (!s.token || !s.owner || !s.repo) {
+        notify("Configure Codeberg settings first.", "warning");
+        return;
       }
-      return;
-    }
+      const choice = await showDialog("Push to Codeberg", "Push all records to Codeberg as a backup?", [
+        { label: "Quick Sync", cls: "btn-primary", value: "quick" },
+        { label: "Full Sync", cls: "btn-secondary", value: "full" },
+        { label: "Cancel", cls: "btn-ghost", value: false },
+      ]);
+      if (choice === "quick") await pushToCodeberg(false);
+      else if (choice === "full") await pushToCodeberg(true);
+    });
+  }
 
-    const lastPull = s.lastSyncPull ? new Date(s.lastSyncPull).toLocaleString() : "Never";
-    const message = s.lastPull
-      ? `Quick sync: only pull records changed since ${lastPull}\n\nOr do a full sync to check all records?`
-      : "No previous sync found. A full sync will be performed.";
-
-    const choice = await showDialog("Pull from Codeberg", message, [
-      { label: "Quick Sync", cls: "btn-primary", value: "quick" },
-      { label: "Full Sync", cls: "btn-secondary", value: "full" },
-      { label: "Cancel", cls: "btn-ghost", value: "false" },
-    ]);
-
-    if (choice === "quick") await pullFromCodeberg(false);
-    else if (choice === "full") await pullFromCodeberg(true);
-  });
+  const pullBtn = document.getElementById("btn-sync-pull");
+  if (pullBtn) {
+    pullBtn.addEventListener("click", async () => {
+      const s = loadSettings();
+      if (!s.token || !s.owner || !s.repo) {
+        notify("Configure Codeberg settings first.", "warning");
+        return;
+      }
+      const choice = await showDialog("Pull from Codeberg", "Pull records from Codeberg into the server?", [
+        { label: "Quick Sync", cls: "btn-primary", value: "quick" },
+        { label: "Full Sync", cls: "btn-secondary", value: "full" },
+        { label: "Cancel", cls: "btn-ghost", value: false },
+      ]);
+      if (choice === "quick") await pullFromCodeberg(false);
+      else if (choice === "full") await pullFromCodeberg(true);
+    });
+  }
 
   // Settings
   document.getElementById("btn-settings-toggle").addEventListener("click", () => {
@@ -3539,37 +3414,39 @@ function attachEventListeners() {
   document.getElementById("btn-save-settings").addEventListener("click", () => {
     const s = loadSettings();
     saveSettings({
+      serverUrl: document.getElementById("setting-server-url").value.trim() || "http://localhost:8080",
       token: document.getElementById("setting-token").value.trim(),
       owner: document.getElementById("setting-owner").value.trim(),
       repo: document.getElementById("setting-repo").value.trim(),
       branch: document.getElementById("setting-branch").value.trim() || "main",
-      guestMode: s.guestMode, // Preserve guest mode setting
+      guestMode: s.guestMode,
     });
     notify("Settings saved.", "success");
     document.getElementById("settings-panel").style.display = "none";
+    // Re-test connection with new URL
+    updateServerStatus("connecting");
+    testServerConnection(getServerUrl()).then((ok) => {
+      updateServerStatus(ok ? "online" : "offline");
+      if (ok) refreshRecords(document.getElementById("search-input").value);
+      else notify(`Cannot connect to ${getServerUrl()}`, "error");
+    });
   });
 
-  document.getElementById("btn-switch-mode").addEventListener("click", async () => {
-    const s = loadSettings();
-    const currentMode = s.guestMode ? "Guest Mode" : "User Mode";
-    const targetMode = s.guestMode ? "User Mode" : "Guest Mode";
-
-    const confirm = await showDialog(
-      "Switch Mode",
-      `You are currently in ${currentMode}.\n\nSwitching to ${targetMode} will reload the application and may replace your local data.\n\nAre you sure you want to continue?`,
-      [
-        { label: "Yes, Switch Mode", cls: "btn-primary", value: true },
-        { label: "Cancel", cls: "btn-ghost", value: false },
-      ],
-    );
-
-    if (confirm) {
-      // Clear mode selection flag to trigger mode selection dialog
-      localStorage.removeItem("cb_modeSelected");
-      // Reload the page
-      window.location.reload();
+  document.getElementById("btn-test-connection").addEventListener("click", async () => {
+    const url = document.getElementById("setting-server-url").value.trim() || getServerUrl();
+    const btn = document.getElementById("btn-test-connection");
+    btn.disabled = true;
+    btn.textContent = "Testing...";
+    const ok = await testServerConnection(url);
+    btn.disabled = false;
+    btn.textContent = "Test";
+    if (ok) {
+      notify(`Connected to ${url}`, "success");
+    } else {
+      notify(`Cannot reach ${url}`, "error");
     }
   });
+
 
   // Modal controls
   document.getElementById("modal-close-btn").addEventListener("click", () => {
@@ -3579,62 +3456,27 @@ function attachEventListeners() {
     document.getElementById("person-modal").classList.add("hidden");
   });
   document.getElementById("btn-save-person").addEventListener("click", () => {
-    const s = loadSettings();
-    if (s.guestMode) {
-      notify("Cannot save changes in guest mode.", "warning");
-      return;
-    }
     savePerson();
   });
   document.getElementById("btn-delete-person").addEventListener("click", () => {
-    const s = loadSettings();
-    if (s.guestMode) {
-      notify("Cannot delete records in guest mode.", "warning");
-      return;
-    }
     deletePerson();
   });
 
   // Variation add buttons
   document.getElementById("add-lastname-variation").addEventListener("click", () => {
-    const s = loadSettings();
-    if (s.guestMode) {
-      notify("Cannot modify records in guest mode.", "warning");
-      return;
-    }
     document.getElementById("lastname-variations-container").appendChild(makeVariationItem());
   });
   document.getElementById("add-firstname-variation").addEventListener("click", () => {
-    const s = loadSettings();
-    if (s.guestMode) {
-      notify("Cannot modify records in guest mode.", "warning");
-      return;
-    }
     document.getElementById("firstname-variations-container").appendChild(makeVariationItem());
   });
   document.getElementById("add-zotero").addEventListener("click", () => {
-    const s = loadSettings();
-    if (s.guestMode) {
-      notify("Cannot modify records in guest mode.", "warning");
-      return;
-    }
     document.getElementById("zotero-container").appendChild(makeRefItem());
   });
   document.getElementById("add-archief").addEventListener("click", () => {
-    const s = loadSettings();
-    if (s.guestMode) {
-      notify("Cannot modify records in guest mode.", "warning");
-      return;
-    }
     document.getElementById("archief-container").appendChild(makeRefItem());
   });
 
   document.getElementById("add-relationship").addEventListener("click", () => {
-    const s = loadSettings();
-    if (s.guestMode) {
-      notify("Cannot modify records in guest mode.", "warning");
-      return;
-    }
     document.getElementById("relationships-container").appendChild(makeRelationshipItem());
   });
 

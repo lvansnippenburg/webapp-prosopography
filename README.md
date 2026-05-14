@@ -36,7 +36,7 @@ python3 server/server.py --data-dir ~/path/to/json/files
 
 The server serves the web app's static files **and** handles all data via a REST API. Each record is stored as `{uuid}.json` in the data directory (default: `/Users/lvansnippenburg/Sources/Persons/`).
 
-To stop the server (as it is running in the background):
+To stop the server you can go to the settings and the click the "Stop server" button. If you wang to stop the server from the terminal, use one of these commands (as it is running in the background):
 ```
 lsof -ti :8080 | xargs kill
 

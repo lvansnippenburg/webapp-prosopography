@@ -78,12 +78,6 @@ Each record is stored as a separate file named `{uuid}.json` in the server's dat
 
 **To back up:** copy the data directory anywhere. The JSON files are self-contained.
 
-### Codeberg Backup (optional)
-
-The collapsible "Codeberg Backup" section in settings allows pushing records to a Codeberg git repository as a backup. This is entirely optional — the server is the primary data store.
-
-To use it, configure your Codeberg API token, username, repository name, and branch, then use the **↑ Push** / **↓ Pull** buttons inside that section.
-
 ---
 
 ## Entity Types and Relationships
@@ -584,6 +578,6 @@ Requires JavaScript ES6+, CSS Grid/Flexbox.
 
 ## Credits
 
-Developed for historical prosopographical research of the Livorno merchant communities.
+Developed for historical prosopographical research of the Livorno migrant communities.
 
 **Technologies:** Vanilla JavaScript (ES6+) · Python 3 (http.server) · D3.js v7 · SheetJS (xlsx)

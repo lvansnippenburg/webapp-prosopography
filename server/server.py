@@ -255,7 +255,13 @@ class Handler(SimpleHTTPRequestHandler):
             if r.get("deletedAt"):
                 continue
 
-            names = [r.get("lastname")] + (r.get("lastnameVariations") or [])
+            names = (
+                [r.get("lastname")]
+                + (r.get("lastnameVariations") or [])
+                + [r.get("firstname")]
+                + (r.get("firstnameVariations") or [])
+                + [r.get("patronymic")]
+            )
             match_type = None
 
             for name in names:

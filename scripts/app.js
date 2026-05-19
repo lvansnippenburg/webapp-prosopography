@@ -81,12 +81,12 @@ const RELATIONSHIP_GROUPS = {
 
 function loadSettings() {
   return {
-    serverUrl: localStorage.getItem("cb_server_url") || "http://localhost:8080",
+    serverUrl: localStorage.getItem("cb_server_url") || "http://localhost:8081",
   };
 }
 
 function saveSettings(s) {
-  localStorage.setItem("cb_server_url", s.serverUrl || "http://localhost:8080");
+  localStorage.setItem("cb_server_url", s.serverUrl || "http://localhost:8081");
 }
 
 // ── Search History ─────────────────────────────────────────────────
@@ -331,7 +331,7 @@ function levenshtein(a, b) {
 // ── Server API ─────────────────────────────────────────────────────
 
 function getServerUrl() {
-  return (localStorage.getItem("cb_server_url") || "http://localhost:8080").replace(/\/$/, "");
+  return (localStorage.getItem("cb_server_url") || "http://localhost:8081").replace(/\/$/, "");
 }
 
 async function apiRequest(method, path, body = null) {
@@ -460,56 +460,56 @@ async function importExcel(file) {
             // Parse variations from semicolon-separated strings
             const lastnameVariations = row["Lastname Variations"]
               ? String(row["Lastname Variations"])
-                  .split(";")
-                  .map((v) => v.trim())
-                  .filter(Boolean)
+                .split(";")
+                .map((v) => v.trim())
+                .filter(Boolean)
               : [];
             const firstnameVariations = row["Firstname Variations"]
               ? String(row["Firstname Variations"])
-                  .split(";")
-                  .map((v) => v.trim())
-                  .filter(Boolean)
+                .split(";")
+                .map((v) => v.trim())
+                .filter(Boolean)
               : [];
 
             // Parse relationships
             const relationships = row.Relationships
               ? String(row.Relationships)
-                  .split(";")
-                  .map((r) => {
-                    const parts = r.trim().split(":");
-                    if (parts.length === 2) {
-                      return {
-                        type: parts[0].trim(),
-                        personName: parts[1].trim(),
-                        personUuid: "", // Will need to be resolved later
-                      };
-                    }
-                    return null;
-                  })
-                  .filter(Boolean)
+                .split(";")
+                .map((r) => {
+                  const parts = r.trim().split(":");
+                  if (parts.length === 2) {
+                    return {
+                      type: parts[0].trim(),
+                      personName: parts[1].trim(),
+                      personUuid: "", // Will need to be resolved later
+                    };
+                  }
+                  return null;
+                })
+                .filter(Boolean)
               : [];
 
             // Parse zotero and archief references
             const zotero = row.Zotero
               ? String(row.Zotero)
-                  .split(";")
-                  .map((ref) => ({
-                    reference: ref.trim(),
-                    year: "",
-                    remarks: "",
-                  }))
-                  .filter((r) => r.reference)
+                .split(";")
+                .map((ref) => ({
+                  reference: ref.trim(),
+                  year: "",
+                  remarks: "",
+                }))
+                .filter((r) => r.reference)
               : [];
 
             const archief = row.Archief
               ? String(row.Archief)
-                  .split(";")
-                  .map((ref) => ({
-                    reference: ref.trim(),
-                    year: "",
-                    remarks: "",
-                  }))
-                  .filter((r) => r.reference)
+                .split(";")
+                .map((ref) => ({
+                  reference: ref.trim(),
+                  year: "",
+                  remarks: "",
+                }))
+                .filter((r) => r.reference)
               : [];
 
             const record = {
@@ -2408,12 +2408,12 @@ async function openEditModal(uuid) {
   const modal = document.getElementById("person-modal");
 
   modal.querySelectorAll("input, select, textarea").forEach((input) => {
-      input.disabled = false;
-    });
+    input.disabled = false;
+  });
   modal.querySelectorAll(".btn-secondary, .remove-item").forEach((btn) => {
-      btn.disabled = false;
-      btn.style.opacity = "1";
-    });
+    btn.disabled = false;
+    btn.style.opacity = "1";
+  });
 }
 
 function clearForm() {
@@ -2883,7 +2883,7 @@ function attachEventListeners() {
   document.getElementById("btn-save-settings").addEventListener("click", () => {
     const s = loadSettings();
     saveSettings({
-      serverUrl: document.getElementById("setting-server-url").value.trim() || "http://localhost:8080",
+      serverUrl: document.getElementById("setting-server-url").value.trim() || "http://localhost:8081",
     });
     notify("Settings saved.", "success");
     document.getElementById("settings-panel").style.display = "none";

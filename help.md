@@ -40,7 +40,7 @@ You'll need to have Python installed.
 ```
 python3 server/server.py
 ```
-Then open `http://localhost:8080` in your browser.
+Then open `http://localhost:8081` in your browser.
 
 **Custom port or data directory:**
 ```
@@ -65,8 +65,8 @@ Open the settings panel with the **⚙ Settings** button in the header.
 
 The most important setting. This is the base URL of the running server.
 
-- Default: `http://localhost:8080`
-- Can be any reachable host: `http://192.168.1.10:8080`
+- Default: `http://localhost:8081`
+- Can be any reachable host: `http://192.168.1.10:8081`
 - Click **Test** to verify the connection before saving
 - Click **Save Settings** to apply — the app will reconnect immediately
 

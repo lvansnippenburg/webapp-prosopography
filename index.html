@@ -51,7 +51,7 @@
                 <div class="form-group" style="display: flex; gap: 8px; align-items: normal;">
                     <div>
                         <label>Data Server URL</label>
-                        <input type="text" id="setting-server-url" placeholder="http://localhost:8080" />
+                        <input type="text" id="setting-server-url" placeholder="http://localhost:8081" />
                     </div>
                     <button class="btn-ghost btn-small" id="btn-test-connection"
                         style="white-space: nowrap; margin-bottom: 1px;">Test</button>
@@ -65,7 +65,8 @@
                 <button class="btn-secondary btn-small" id="btn-import">⬆ Import Excel</button>
                 <button class="btn-secondary btn-small" id="btn-export">⬇ Export</button>
                 <button class="btn-ghost btn-small" id="btn-license">📄 License</button>
-                <button class="btn-ghost btn-small" id="btn-stop-server" style="color: var(--red, #e74c3c); margin-left: auto">⏹ Stop Server</button>
+                <button class="btn-ghost btn-small" id="btn-stop-server"
+                    style="color: var(--red, #e74c3c); margin-left: auto">⏹ Stop Server</button>
                 <input type="file" id="file-input" accept=".xlsx,.xls" class="hidden" />
             </div>
         </div>
@@ -569,11 +570,17 @@
                 <!-- Sidebar: view toggles + legend (left in landscape, top in portrait) -->
                 <div class="network-sidebar">
                     <div class="network-view-btns">
-                        <button class="btn-ghost btn-small network-icon-btn" id="btn-list-view" title="List View">📋</button>
-                        <button class="btn-ghost btn-small network-icon-btn" id="btn-graph-view" title="Graph View">🕸</button>
-                        <button class="btn-ghost btn-small network-icon-btn" id="btn-save-graph-png" title="Save graph as PNG" style="display:none">📷</button>
-                        <button class="btn-ghost btn-small network-icon-btn" id="btn-legend-filter" title="Filter by relationship type">
-                            <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor"><path d="M1 2h14l-5 7v5l-4-2V9z"/></svg>
+                        <button class="btn-ghost btn-small network-icon-btn" id="btn-list-view"
+                            title="List View">📋</button>
+                        <button class="btn-ghost btn-small network-icon-btn" id="btn-graph-view"
+                            title="Graph View">🕸</button>
+                        <button class="btn-ghost btn-small network-icon-btn" id="btn-save-graph-png"
+                            title="Save graph as PNG" style="display:none">📷</button>
+                        <button class="btn-ghost btn-small network-icon-btn" id="btn-legend-filter"
+                            title="Filter by relationship type">
+                            <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor">
+                                <path d="M1 2h14l-5 7v5l-4-2V9z" />
+                            </svg>
                         </button>
                     </div>
                     <!-- Legend items (hidden by default, toggled by filter button) -->

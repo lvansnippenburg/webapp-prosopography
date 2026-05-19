@@ -6,7 +6,7 @@ Replaces IndexedDB + Codeberg sync with a local REST API backed by one JSON
 file per record on disk.  Also serves the webapp's static files.
 
 Usage:
-    python3 server.py [--port 8080] [--data-dir /path/to/Persons]
+    python3 server.py [--port 8081] [--data-dir /path/to/Persons]
 
 API:
     GET    /api/records          → all records (JSON array)
@@ -31,7 +31,7 @@ from urllib.parse import urlparse, parse_qs
 # ── Defaults ───────────────────────────────────────────────────────────────
 
 DEFAULT_DATA_DIR = "/Users/lvansnippenburg/Sources/Persons"
-DEFAULT_PORT = 8080
+DEFAULT_PORT = 8081
 
 # ── Globals (set in main) ──────────────────────────────────────────────────
 

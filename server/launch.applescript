@@ -1,9 +1,9 @@
--- Livorno Prosopography Ñ Server Launcher
+-- Livorno Prosopography ï¿½ Server Launcher
 -- Starts server.py if not already running, then opens the app in the default browser.
 
 set python3Path to "/Library/Frameworks/Python.framework/Versions/3.14/bin/python3"
 set serverScript to "/Users/lvansnippenburg/Documents/Ontwikkeling/webapp-prosopography/server/server.py"
-set serverURL to "http://localhost:8080"
+set serverURL to "http://localhost:8081"
 set logFile to "/tmp/prosopography-server.log"
 
 -- Check if server is already running

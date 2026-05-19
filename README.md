@@ -25,7 +25,7 @@ Start the server from the project directory:
 python3 server/server.py
 ```
 
-Then open `http://localhost:8080` in your browser.
+Then open `http://localhost:8081` in your browser.
 
 Options:
 
@@ -38,13 +38,13 @@ The server serves the web app's static files **and** handles all data via a REST
 
 To stop the server you can go to the settings and the click the "Stop server" button. If you wang to stop the server from the terminal, use one of these commands (as it is running in the background):
 ```
-lsof -ti :8080 | xargs kill
+lsof -ti :8081 | xargs kill
 
 or
 
 pkill -f server.py
 ```
-(assuming you started it on port 8080)
+(assuming you started it on port 8081)
 
 To see the log of the server:
 ```

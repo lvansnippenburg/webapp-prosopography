@@ -36,7 +36,8 @@ DEFAULT_PORT = 8081
 # ── Globals (set in main) ──────────────────────────────────────────────────
 
 DATA_DIR: Path = Path(DEFAULT_DATA_DIR)
-WEBAPP_DIR: Path = Path(__file__).parent.parent   # one level up from server/
+ROOT_DIR: Path = Path(__file__).parent.parent     # project root
+WEBAPP_DIR: Path = ROOT_DIR / "src"               # web root served at /
 _records: dict[str, dict] = {}                    # uuid → record (in-memory index)
 _lock = threading.Lock()                           # guard concurrent writes
 _httpserver: "HTTPServer | None" = None            # set in main(), used for shutdown
@@ -96,14 +97,14 @@ class Handler(SimpleHTTPRequestHandler):
     SimpleHTTPRequestHandler which serves files from WEBAPP_DIR.
     """
 
-    # Serve static files from the webapp root, not from the current directory.
+    # Serve static files from src/, with a fallback to the project root for
+    # top-level files (LICENSE.md, robots.txt) that live outside src/.
     def translate_path(self, path):
-        # Strip query string
         path = urlparse(path).path
-        # Normalise and join onto WEBAPP_DIR
         rel = path.lstrip("/")
-        full = WEBAPP_DIR / rel
-        return str(full)
+        if rel in ("LICENSE.md", "robots.txt"):
+            return str(ROOT_DIR / rel)
+        return str(WEBAPP_DIR / rel)
 
     def end_headers(self):
         """Inject CORS headers into every response, including static files and errors."""
@@ -358,7 +359,7 @@ def main():
 
     DATA_DIR = Path(args.data_dir).expanduser().resolve()
     print(f"Data directory : {DATA_DIR}")
-    print(f"Webapp directory: {WEBAPP_DIR}")
+    print(f"Web root       : {WEBAPP_DIR}")
 
     _load_all()
 

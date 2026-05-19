@@ -8,7 +8,7 @@ Before using, copying, or modifying this code: **read the LICENSE.md file.**
 
 If you adapt this for your own project, the things most likely to need changing are:
 
-1. The name — replace "Livorno" throughout `index.html`, `manifest.json`, and the app header.
+1. The name — replace "Livorno" throughout `index.html` and the app header.
 2. The default data directory — in `server/server.py`, change `DEFAULT_DATA_DIR`.
 
 ## Running locally
@@ -36,29 +36,44 @@ python3 server/server.py --data-dir ~/path/to/json/files
 
 The server serves the web app's static files **and** handles all data via a REST API. Each record is stored as `{uuid}.json` in the data directory (default: `/Users/lvansnippenburg/Sources/Persons/`).
 
-To stop the server you can go to the settings and the click the "Stop server" button. If you wang to stop the server from the terminal, use one of these commands (as it is running in the background):
+To stop the server, go to Settings and click the "Stop Server" button. To stop it from the terminal:
+
 ```
 lsof -ti :8081 | xargs kill
+```
 
 or
 
+```
 pkill -f server.py
 ```
-(assuming you started it on port 8081)
 
-To see the log of the server:
+To tail the server log:
+
 ```
 tail -f /tmp/prosopography-server.log
 ```
 
-## Special API calls 
+## REST API
 
-**GET /api/lookup?q=<string>** — server searches lastname + lastname variations for all non-deleted records using the same five-tier match cascade as the JS function: exact → prefix → contains → soundex → levenshtein (≤ 2 edits, min 3 chars). Results are sorted by match quality and returned as:
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/records` | All records (JSON array) |
+| GET | `/api/records/<uuid>` | Single record |
+| GET | `/api/lookup?q=<string>` | Fuzzy name search |
+| POST | `/api/records` | Create / upsert record |
+| PUT | `/api/records/<uuid>` | Update record |
+| DELETE | `/api/records/<uuid>` | Soft-delete (sets `deletedAt`) |
 
+### Fuzzy name lookup
+
+`GET /api/lookup?q=<string>` searches lastname and lastname variations for all non-deleted records using a five-tier match cascade: exact → prefix → contains → soundex → levenshtein (≤ 2 edits, min 3 chars). Results are sorted by match quality:
+
+```json
 [
   { "uuid": "abc-123", "name": "Jan van der Berg", "matchType": "exact" },
   { "uuid": "def-456", "name": "Johan van Bergh",  "matchType": "sounds like" }
 ]
-async function apiLookup(query) in app.js — thin client wrapper, returns [] on any error so callers don't need try/catch.
+```
 
-The Python _soundex implementation is a direct port of the JS version (including the cur || 0 reset behaviour across vowels), so results will be identical on both sides.
+The Python soundex implementation is a direct port of the JS version, so results are identical on both sides. The client-side wrapper is `apiLookup(query)` in `scripts/app.js`.

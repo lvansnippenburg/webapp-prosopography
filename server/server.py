@@ -127,6 +127,8 @@ class Handler(SimpleHTTPRequestHandler):
         elif path == "/api/lookup":
             q = parse_qs(parsed.query).get("q", [""])[0]
             self._lookup(q)
+        elif path == "/api/config":
+            self._get_config()
         else:
             super().do_GET()
 
@@ -289,9 +291,12 @@ class Handler(SimpleHTTPRequestHandler):
         results.sort(key=lambda x: order.get(x["matchType"], 9))
         self._send_json(results)
 
+    def _get_config(self):
+        self._send_json({"dataDir": str(DATA_DIR)})
+
     def log_message(self, fmt, *args):
         # Suppress noisy static-file logs; keep API logs.
-        if "/api/" in (args[0] if args else ""):
+        if "/api/" in str(args[0] if args else ""):
             super().log_message(fmt, *args)
 
 

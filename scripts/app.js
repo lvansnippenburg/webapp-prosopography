@@ -39,6 +39,7 @@ let advancedMode = false;
 let searchHistory = [];
 const MAX_SEARCH_HISTORY = 20;
 let activeRelationshipTypes = new Set(); // Tracks which relationship types are active in network view
+let serverDataDir = "";
 
 // ── Entity Types ───────────────────────────────────────────────────
 
@@ -1417,18 +1418,42 @@ function makeVariationItem(value = "") {
   return div;
 }
 
+function resolveRefLink(value) {
+  if (!value) return null;
+  if (value.startsWith("https://")) return { url: value };
+  if (/^[^/]+\/[^/]+\/[^/]+\/[^/]+\.pdf$/i.test(value)) {
+    // const filePath = serverDataDir ? `${serverDataDir}/${value}` : `/${value}`;
+    const filePath = `${value}`;
+    return { url: `${location.protocol}//${location.hostname}:8080/?file=${encodeURIComponent(filePath)}` };
+  }
+  return null;
+}
+
 function makeRefItem(ref = {}) {
   const div = document.createElement("div");
   div.className = "array-item";
   div.innerHTML = `
         <div class="array-item-fields">
-            <input type="text" class="ref-reference" value="${ref.reference || ""}" placeholder="Reference">
-            <input type="text" class="ref-year"      value="${ref.year || ""}" placeholder="Year (optional)">
-            <input type="text" class="ref-remarks"   value="${ref.remarks || ""}" placeholder="Remarks (optional)">
+            <input type="text" class="ref-reference" value="${(ref.reference || "").replace(/"/g, "&quot;")}" placeholder="Reference">
+            <input type="text" class="ref-year"      value="${(ref.year || "").replace(/"/g, "&quot;")}" placeholder="Year (optional)">
+            <input type="text" class="ref-remarks"   value="${(ref.remarks || "").replace(/"/g, "&quot;")}" placeholder="Remarks (optional)">
         </div>
+        <button class="btn-small ref-open-link" title="Open reference" style="display:none;align-self:flex-start;padding:4px 7px;line-height:1;">&#8599;</button>
         <button class="btn-danger btn-small remove-item" style="align-self:flex-start;">✕</button>
     `;
-  div.querySelector(".remove-item").addEventListener("click", () => div.remove());
+  const refInput = div.querySelector(".ref-reference");
+  const openBtn = div.querySelector(".ref-open-link");
+  function updateOpenBtn() {
+    const link = resolveRefLink(refInput.value.trim());
+    openBtn.style.display = link ? "" : "none";
+    openBtn.onclick = link ? () => window.open(link.url, "_blank") : null;
+  }
+  refInput.addEventListener("input", updateOpenBtn);
+  updateOpenBtn();
+  div.querySelector(".remove-item").addEventListener("click", () => {
+    const val = refInput.value.trim();
+    if (!val || confirm(`Remove this reference?\n\n"${val}"`)) div.remove();
+  });
   return div;
 }
 
@@ -2609,6 +2634,10 @@ async function boot() {
   const connected = await testServerConnection(s.serverUrl);
   if (connected) {
     updateServerStatus("online");
+    try {
+      const cfg = await apiRequest("GET", "/api/config");
+      if (cfg?.dataDir) serverDataDir = cfg.dataDir;
+    } catch { }
   } else {
     updateServerStatus("offline");
     notify(

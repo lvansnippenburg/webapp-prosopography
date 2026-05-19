@@ -10,7 +10,9 @@
 	<string>applet</string>
 	<key>CFBundleIconFile</key>
 	<string>applet</string>
-<key>CFBundleInfoDictionaryVersion</key>
+	<key>CFBundleIdentifier</key>
+	<string>com.apple.ScriptEditor.id.8F89F07E-0EC7-45A2-9801-3672EE715B41</string>
+	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
 	<string>Livorno Prosopography</string>
@@ -49,5 +51,24 @@
 	<string>This script needs access to administer this system to run.</string>
 	<key>OSAAppletShowStartupScreen</key>
 	<false/>
+	<key>WindowState</key>
+	<dict>
+		<key>bundleDividerCollapsed</key>
+		<true/>
+		<key>bundlePositionOfDivider</key>
+		<real>0.0</real>
+		<key>dividerCollapsed</key>
+		<false/>
+		<key>eventLogLevel</key>
+		<integer>2</integer>
+		<key>name</key>
+		<string>ScriptWindowState</string>
+		<key>positionOfDivider</key>
+		<real>430</real>
+		<key>savedFrame</key>
+		<string>20 238 700 682 0 0 1470 923 </string>
+		<key>selectedTab</key>
+		<string>description</string>
+	</dict>
 </dict>
 </plist>

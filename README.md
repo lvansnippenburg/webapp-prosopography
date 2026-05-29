@@ -40,7 +40,7 @@ To stop the server, go to Settings and click the "Stop Server" button. To stop i
 
 ```
 lsof -ti :8081 | xargs kill
-```
+``` 
 
 or (will kill all servers with script name server.py ...)
 

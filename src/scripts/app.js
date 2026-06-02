@@ -1933,6 +1933,27 @@ function saveGraphAsPNG() {
 }
 
 // See https://d3js.org/getting-started
+// Open the full app in a separate window that auto-opens the Relationship
+// Network pane in graph view. Because the whole app re-runs there, every bit
+// of functionality (drag, zoom, legend filters, PNG export, click-to-edit)
+// works natively. The current search filter is carried over via the URL so the
+// popped-out window shows the same set of entities.
+function popOutNetwork() {
+  const query = document.getElementById("search-input").value || "";
+  const base = window.location.href.split("#")[0].split("?")[0];
+  const params = new URLSearchParams();
+  params.set("network", "1");
+  if (query) params.set("q", query);
+  const url = `${base}?${params.toString()}`;
+
+  const win = window.open(url, "prosopographyNetwork", "width=1200,height=850");
+  if (!win) {
+    notify("Pop-out blocked by the browser. Please allow pop-ups for this site.", "error");
+  } else {
+    win.focus();
+  }
+}
+
 function renderRelationshipGraph() {
   const svg = d3.select("#relationship-graph");
   const container = document.getElementById("relationship-graph-container");
@@ -2648,8 +2669,22 @@ async function boot() {
     );
   }
 
-  await refreshRecords();
+  // Honour pop-out parameters: carry over the originating window's search
+  // filter before the first load so the same entities are shown.
+  const urlParams = new URLSearchParams(window.location.search);
+  const incomingQuery = urlParams.get("q") || "";
+  if (incomingQuery) {
+    document.getElementById("search-input").value = incomingQuery;
+  }
+
+  await refreshRecords(incomingQuery);
   attachEventListeners();
+
+  // If launched as a pop-out, open the Relationship Network pane in graph view.
+  if (urlParams.get("network") === "1") {
+    showRelationshipNetwork();
+    document.getElementById("btn-graph-view").click();
+  }
 }
 
 // ── Event Listeners ────────────────────────────────────────────────
@@ -2823,6 +2858,11 @@ function attachEventListeners() {
   // Save graph as PNG
   document.getElementById("btn-save-graph-png").addEventListener("click", () => {
     saveGraphAsPNG();
+  });
+
+  // Pop the network pane out into a separate window (e.g. a second screen)
+  document.getElementById("btn-popout-network").addEventListener("click", () => {
+    popOutNetwork();
   });
 
   // New person

@@ -1628,7 +1628,8 @@ async function showRelationshipNetwork() {
       ...RELATIONSHIP_GROUPS.organizational,
       ...RELATIONSHIP_GROUPS.other,
     ];
-    allRelTypes.forEach((type) => activeRelationshipTypes.add(type));
+    // Hide "member" relationships by default.
+    allRelTypes.forEach((type) => { if (type !== "member") activeRelationshipTypes.add(type); });
   }
 
   // Use currently filtered records from the view
@@ -1723,7 +1724,7 @@ async function showRelationshipNetwork() {
 
   const filterHint = document.createElement("div");
   filterHint.style.cssText = "font-size:10px; color:var(--mid-grey); margin-bottom:2px";
-  filterHint.textContent = "click chips to filter";
+  filterHint.textContent = "click to filter";
   legendItems.appendChild(filterHint);
 
   // Family Relations group

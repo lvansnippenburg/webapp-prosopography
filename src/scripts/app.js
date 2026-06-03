@@ -388,7 +388,7 @@ async function testServerConnection(url) {
 function updateServerStatus(state) {
   const el = document.getElementById("server-status");
   if (!el) return;
-  const labels = { online: "● Server", offline: "● Server", connecting: "◌ Server" };
+  const labels = { online: "⏻", offline: "🔺", connecting: "◌" };
   const colors = { online: "var(--green, #27ae60)", offline: "var(--red, #e74c3c)", connecting: "var(--mid-grey)" };
   el.textContent = labels[state] || "● Server";
   el.style.color = colors[state] || "var(--mid-grey)";
@@ -3378,8 +3378,8 @@ function attachEventListeners() {
     document.getElementById("help-modal").classList.add("hidden");
   });
 
-  // License button
-  document.getElementById("btn-stop-server").addEventListener("click", async () => {
+  // Stop server button
+  document.getElementById("server-status").addEventListener("click", async () => {
     const choice = await showDialog(
       "Stop Server",
       "Stop the local data server? The app will stop working until you restart it.",
@@ -3391,12 +3391,14 @@ function attachEventListeners() {
     if (choice !== "stop") return;
     try {
       await apiRequest("POST", "/api/shutdown");
+      window.close();
     } catch {
       // Server may close the connection before the response is fully sent — that's fine.
     }
     updateServerStatus("offline");
   });
 
+  // license button
   document.getElementById("btn-license").addEventListener("click", async () => {
     const modal = document.getElementById("license-modal");
     const content = document.getElementById("license-content");

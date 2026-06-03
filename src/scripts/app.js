@@ -36,6 +36,9 @@ let sortAsc = true;
 let searchScopes = ["all"]; // Multiple scopes for search
 let regexMode = false;
 let advancedMode = false;
+let graphLayoutMode = "force"; // "force" or "tree"
+let networkGraphNodesSelection = null; // To store D3 node selection
+let networkGraphLinkSelection = null;  // To store D3 link selection
 let searchHistory = [];
 const MAX_SEARCH_HISTORY = 20;
 let activeRelationshipTypes = new Set(); // Tracks which relationship types are active in network view
@@ -847,7 +850,8 @@ function searchInRecord(record, query, scopes) {
     if (regexMode) {
       try {
         return new RegExp(q, "i").test(v);
-      } catch {
+      } catch (e) {
+        console.error("Invalid Regex:", e);
         return false; // Invalid regex
       }
     }
@@ -963,8 +967,10 @@ function matchTimespan(record, query) {
 
   if (rangeMatch) {
     // Query is a range: "1630-1650"
-    const queryStart = parseInt(rangeMatch[1], 10);
-    const queryEnd = parseInt(rangeMatch[2], 10);
+    const y1 = parseInt(rangeMatch[1], 10);
+    const y2 = parseInt(rangeMatch[2], 10);
+    const queryStart = Math.min(y1, y2);
+    const queryEnd = Math.max(y1, y2);
 
     if (firstseen !== null && lastseen !== null) {
       // Both dates available: person's timespan must fall within query range
@@ -1793,11 +1799,46 @@ async function showRelationshipNetwork() {
       const sidebar = btnLegendFilter.closest(".network-sidebar");
       const open = legendItems.style.display === "none";
       legendItems.style.display = open ? "flex" : "none";
-      btnLegendFilter.style.background = open ? "var(--ice-blue-dark)" : "";
-      btnLegendFilter.style.color = open ? "var(--white)" : "";
+      btnLegendFilter.classList.toggle("active", open);
       sidebar.classList.toggle("legend-open", open);
     });
   }
+
+  // Network search input for graph view
+  const networkSearchInput = document.getElementById("network-search-input");
+  if (networkSearchInput && !networkSearchInput._hasSearchListener) {
+    networkSearchInput._hasSearchListener = true;
+    let searchDebounce;
+    networkSearchInput.addEventListener("input", (e) => {
+      clearTimeout(searchDebounce);
+      searchDebounce = setTimeout(() => {
+        applyNetworkSearchHighlight(e.target.value);
+      }, 200);
+    });
+    // Clear highlight on blur, re-apply on focus if text exists
+    networkSearchInput.addEventListener("focus", () => applyNetworkSearchHighlight(networkSearchInput.value));
+    networkSearchInput.addEventListener("blur", () => applyNetworkSearchHighlight(""));
+  }
+
+  // Layout toggle button
+  const viewBtns = document.querySelector(".network-view-btns");
+  if (viewBtns && !document.getElementById("btn-layout-toggle")) {
+    const btn = document.createElement("button");
+    btn.id = "btn-layout-toggle";
+    btn.className = "btn-ghost btn-small network-icon-btn";
+    btn.title = "Toggle Layout (Force/Tree)";
+    btn.innerHTML = "&#x2146;"; // Symbol for hierarchy/mapping
+    btn.style.display = "none"; // Hidden by default, shown when graph view is active
+    btn.onclick = () => {
+      graphLayoutMode = graphLayoutMode === "force" ? "tree" : "force";
+      renderRelationshipGraph();
+    };
+    viewBtns.appendChild(btn);
+  }
+
+  // Set initial active state for view buttons
+  document.getElementById("btn-list-view").classList.add("active");
+  document.getElementById("btn-graph-view").classList.remove("active");
 
   // Render network
   content.innerHTML = "";
@@ -2074,6 +2115,42 @@ function renderRelationshipGraph() {
       return;
     }
 
+    // Create a lookup for highlighting neighbors
+    const linkedByIndex = {};
+    links.forEach(d => {
+      linkedByIndex[`${d.source},${d.target}`] = 1;
+    });
+    function isConnected(a, b) {
+      return linkedByIndex[`${a.id},${b.id}`] || linkedByIndex[`${b.id},${a.id}`] || a.id === b.id;
+    }
+
+    // Compute depths for hierarchical layout
+    const depths = {};
+    nodes.forEach(n => depths[n.id] = 0);
+
+    // Simple multi-pass depth calculation for family hierarchy
+    // Parents (Father/Mother) are considered level 0, children level 1, etc.
+    for (let i = 0; i < 5; i++) { // Max 5 generations deep for layout
+      links.forEach(l => {
+        const sId = typeof l.source === 'string' ? l.source : l.source.id;
+        const tId = typeof l.target === 'string' ? l.target : l.target.id;
+        const relType = l.type;
+
+        if (relType === 'child' || relType === 'son' || relType === 'daughter') {
+          depths[tId] = Math.max(depths[tId], depths[sId] + 1);
+        } else if (relType === 'father' || relType === 'mother') {
+          depths[sId] = Math.max(depths[sId], depths[tId] + 1);
+        }
+      });
+    }
+
+    // Update toggle button appearance
+    const layoutBtn = document.getElementById("btn-layout-toggle");
+    if (layoutBtn) {
+      layoutBtn.innerHTML = graphLayoutMode === "force" ? "&#x2146;" : "&#x2608;";
+      layoutBtn.classList.toggle("active", graphLayoutMode === "tree");
+    }
+
     // Create force simulation
     const simulation = d3
       .forceSimulation(nodes)
@@ -2082,11 +2159,26 @@ function renderRelationshipGraph() {
         d3
           .forceLink(links)
           .id((d) => d.id)
-          .distance(150),
+          .distance((d) => {
+            const isFamily = [...RELATIONSHIP_GROUPS.family, "child", "sibling"].includes(d.type);
+            return isFamily ? 80 : 180;
+          }),
       )
-      .force("charge", d3.forceManyBody().strength(-300))
-      .force("center", d3.forceCenter(width / 2, height / 2))
+      .force("charge", d3.forceManyBody().strength(graphLayoutMode === "tree" ? -500 : -300))
       .force("collision", d3.forceCollide().radius(50));
+
+    // Apply mode-specific forces
+    if (graphLayoutMode === "tree") {
+      simulation
+        .force("y", d3.forceY(d => (depths[d.id] * 150) + 100).strength(1))
+        .force("x", d3.forceX(width / 2).strength(0.1))
+        .force("center", null);
+    } else {
+      simulation
+        .force("center", d3.forceCenter(width / 2, height / 2))
+        .force("x", null)
+        .force("y", null);
+    }
 
     // Create arrow markers for directed edges (in svg, not g)
     svg
@@ -2106,6 +2198,7 @@ function renderRelationshipGraph() {
       .attr("d", "M0,-5L10,0L0,5");
 
     // Create links
+    // Create links
     const link = g
       .append("g")
       .selectAll("line")
@@ -2115,6 +2208,7 @@ function renderRelationshipGraph() {
       .attr("stroke-width", 2)
       .attr("stroke-opacity", 0.6)
       .attr("marker-end", (d) => `url(#arrow-${d.type})`);
+    networkGraphLinkSelection = link; // Store for external access
 
     // Create nodes
     const node = g
@@ -2122,6 +2216,7 @@ function renderRelationshipGraph() {
       .selectAll("g")
       .data(nodes)
       .join("g")
+      .attr("class", "graph-node") // Add a class for easier selection
       .call(d3.drag().on("start", dragstarted).on("drag", dragged).on("end", dragended));
 
     // Helper function to get node color based on entity type and gender
@@ -2140,6 +2235,7 @@ function renderRelationshipGraph() {
       }
       return "#5a9db5"; // Blue for men (default)
     };
+    networkGraphNodesSelection = node; // Store for external access
 
     // Add circles to nodes
     node
@@ -2195,10 +2291,18 @@ function renderRelationshipGraph() {
     // Add hover effects
     node
       .on("mouseover", function (event, d) {
-        d3.select(this).select("circle").attr("r", 25).attr("fill", getNodeHoverColor(d));
+        d3.select(this).select("circle").transition().duration(200).attr("r", 25).attr("fill", getNodeHoverColor(d));
+
+        // Dim unrelated elements
+        node.transition().duration(200).style("opacity", o => isConnected(d, o) ? 1 : 0.1);
+        link.transition().duration(200).style("opacity", o => (o.source.id === d.id || o.target.id === d.id) ? 1 : 0.1);
       })
       .on("mouseout", function (event, d) {
-        d3.select(this).select("circle").attr("r", 20).attr("fill", getNodeColor(d));
+        d3.select(this).select("circle").transition().duration(200).attr("r", 20).attr("fill", getNodeColor(d));
+
+        // Reset opacity
+        node.transition().duration(200).style("opacity", 1);
+        link.transition().duration(200).style("opacity", 0.6);
       })
       .on("click", function (event, d) {
         // Only handle click if not dragging
@@ -2251,6 +2355,49 @@ function renderRelationshipGraph() {
 
     function zoomed(event) {
       g.attr("transform", event.transform);
+    }
+
+    // Apply initial search highlight if there's a query
+    const networkSearchInput = document.getElementById("network-search-input");
+    if (networkSearchInput && networkSearchInput.value) {
+      applyNetworkSearchHighlight(networkSearchInput.value);
+    }
+  });
+}
+
+function applyNetworkSearchHighlight(query) {
+  const q = query.toLowerCase().trim();
+  const networkSearchInput = document.getElementById("network-search-input");
+
+  if (!networkGraphNodesSelection || !networkGraphLinkSelection) return;
+
+  if (!q) {
+    // Reset all opacities if query is empty
+    networkGraphNodesSelection.transition().duration(200).style("opacity", 1);
+    networkGraphLinkSelection.transition().duration(200).style("opacity", 0.6);
+    networkGraphNodesSelection.selectAll("circle").transition().duration(200).attr("r", 20);
+    networkSearchInput.style.borderColor = "var(--light-grey)";
+    networkSearchInput.style.boxShadow = "none";
+    return;
+  }
+
+  networkSearchInput.style.borderColor = "var(--ice-blue-dark)";
+  networkSearchInput.style.boxShadow = "0 0 0 2px var(--ice-blue)";
+
+  // Dim all elements first
+  networkGraphNodesSelection.transition().duration(200).style("opacity", 0.1);
+  networkGraphLinkSelection.transition().duration(200).style("opacity", 0.1);
+
+  // Highlight matching nodes and their direct neighbors
+  networkGraphNodesSelection.each(function (d) {
+    const nameMatch = d.name.toLowerCase().includes(q);
+    const detailsMatch = d.details.toLowerCase().includes(q);
+    if (nameMatch || detailsMatch) {
+      d3.select(this).transition().duration(200).style("opacity", 1);
+      networkGraphLinkSelection.filter(l => l.source.id === d.id || l.target.id === d.id)
+        .transition().duration(200).style("opacity", 1);
+      // Optionally make the matching node slightly larger
+      d3.select(this).select("circle").transition().duration(200).attr("r", 25);
     }
   });
 }
@@ -2837,20 +2984,20 @@ function attachEventListeners() {
     document.getElementById("relationship-network-content").style.display = "block";
     document.getElementById("relationship-graph-container").style.display = "none";
     document.getElementById("btn-save-graph-png").style.display = "none";
-    this.style.background = "var(--ice-blue-dark)";
-    this.style.color = "var(--white)";
-    document.getElementById("btn-graph-view").style.background = "";
-    document.getElementById("btn-graph-view").style.color = "";
+    document.getElementById("network-search-input").style.display = "none";
+    document.getElementById("btn-layout-toggle").style.display = "none";
+    this.classList.add("active");
+    document.getElementById("btn-graph-view").classList.remove("active");
   });
 
   document.getElementById("btn-graph-view").addEventListener("click", function () {
     document.getElementById("relationship-network-content").style.display = "none";
     document.getElementById("relationship-graph-container").style.display = "flex";
     document.getElementById("btn-save-graph-png").style.display = "";
-    this.style.background = "var(--ice-blue-dark)";
-    this.style.color = "var(--white)";
-    document.getElementById("btn-list-view").style.background = "";
-    document.getElementById("btn-list-view").style.color = "";
+    document.getElementById("network-search-input").style.display = "block";
+    document.getElementById("btn-layout-toggle").style.display = "flex";
+    this.classList.add("active");
+    document.getElementById("btn-list-view").classList.remove("active");
 
     renderRelationshipGraph();
   });

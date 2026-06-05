@@ -22,9 +22,10 @@ import json
 import os
 import sys
 import re
+import shutil
 import threading
 from datetime import datetime, timezone
-from http.server import HTTPServer, SimpleHTTPRequestHandler
+from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 from pathlib import Path
 from urllib.parse import urlparse, parse_qs
 
@@ -32,12 +33,15 @@ from urllib.parse import urlparse, parse_qs
 
 DEFAULT_DATA_DIR = "/Users/lvansnippenburg/Sources/Persons"
 DEFAULT_PORT = 8081
+DEFAULT_HOST = "127.0.0.1"   # loopback only; the data has no auth layer
+MAX_BACKUPS = 20             # per-record rolling backups kept in .backups/
 
 # ── Globals (set in main) ──────────────────────────────────────────────────
 
 DATA_DIR: Path = Path(DEFAULT_DATA_DIR)
 ROOT_DIR: Path = Path(__file__).parent.parent     # project root
 WEBAPP_DIR: Path = ROOT_DIR / "src"               # web root served at /
+SERVER_PORT: int = DEFAULT_PORT                    # set in main(), used for CORS
 _records: dict[str, dict] = {}                    # uuid → record (in-memory index)
 _lock = threading.Lock()                           # guard concurrent writes
 _httpserver: "HTTPServer | None" = None            # set in main(), used for shutdown
@@ -78,10 +82,31 @@ def _load_all() -> None:
     print(f"Loaded {count} records from {DATA_DIR}" + (f" ({errors} skipped)" if errors else ""))
 
 
+def _backup_record(path: Path) -> None:
+    """Copy an existing record file into .backups/ before it is overwritten.
+
+    Keeps a rolling window of the MAX_BACKUPS most recent versions per record so
+    a client bug that blanks fields can always be recovered.  Must be called with
+    _lock held.
+    """
+    if not path.exists():
+        return
+    backup_dir = DATA_DIR / ".backups"
+    backup_dir.mkdir(parents=True, exist_ok=True)
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%f")
+    shutil.copy2(path, backup_dir / f"{path.stem}.{stamp}.json")
+
+    # Prune old backups for this record, keeping only the newest MAX_BACKUPS.
+    versions = sorted(backup_dir.glob(f"{path.stem}.*.json"))
+    for old in versions[:-MAX_BACKUPS]:
+        old.unlink(missing_ok=True)
+
+
 def _write_record(record: dict) -> None:
     """Write a single record to its JSON file (must be called with _lock held)."""
     uuid = record["uuid"]
     path = _record_path(uuid)
+    _backup_record(path)
     tmp = path.with_suffix(".tmp")
     with tmp.open("w", encoding="utf-8") as f:
         json.dump(record, f, ensure_ascii=False, indent=2)
@@ -104,14 +129,35 @@ class Handler(SimpleHTTPRequestHandler):
         rel = path.lstrip("/")
         if rel in ("LICENSE.md", "robots.txt"):
             return str(ROOT_DIR / rel)
-        return str(WEBAPP_DIR / rel)
+        # Resolve and confine to WEBAPP_DIR so crafted paths like
+        # "/../../etc/passwd" cannot escape the web root.
+        resolved = (WEBAPP_DIR / rel).resolve()
+        if resolved == WEBAPP_DIR.resolve() or WEBAPP_DIR.resolve() in resolved.parents:
+            return str(resolved)
+        return str(WEBAPP_DIR)   # outside the root → 403/404 from the base handler
+
+    def _cors_origin(self) -> str | None:
+        """Echo the Origin header only when it is a local loopback origin.
+
+        This app serves its own API same-origin, so wildcard CORS is unnecessary
+        and would let any website you visit read or delete your data.
+        """
+        origin = self.headers.get("Origin")
+        allowed = {
+            f"http://localhost:{SERVER_PORT}",
+            f"http://127.0.0.1:{SERVER_PORT}",
+        }
+        return origin if origin in allowed else None
 
     def end_headers(self):
         """Inject CORS headers into every response, including static files and errors."""
-        self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type")
-        self.send_header("Access-Control-Max-Age", "86400")
+        origin = self._cors_origin()
+        if origin:
+            self.send_header("Access-Control-Allow-Origin", origin)
+            self.send_header("Vary", "Origin")
+            self.send_header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+            self.send_header("Access-Control-Allow-Headers", "Content-Type")
+            self.send_header("Access-Control-Max-Age", "86400")
         super().end_headers()
 
     def do_OPTIONS(self):
@@ -174,6 +220,10 @@ class Handler(SimpleHTTPRequestHandler):
     def _upsert_record(self, uuid_from_url: str | None):
         body = self._read_json_body()
         if body is None:
+            return
+
+        if not isinstance(body, dict):
+            self._send_error_json(400, "Record must be a JSON object")
             return
 
         uuid = uuid_from_url or body.get("uuid")
@@ -348,24 +398,28 @@ def _now_iso() -> str:
 # ── Entry point ────────────────────────────────────────────────────────────
 
 def main():
-    global DATA_DIR
+    global DATA_DIR, SERVER_PORT
 
     parser = argparse.ArgumentParser(description="Prosopography data server")
     parser.add_argument("--port", type=int, default=DEFAULT_PORT,
                         help=f"Port to listen on (default: {DEFAULT_PORT})")
+    parser.add_argument("--host", default=DEFAULT_HOST,
+                        help=f"Address to bind to (default: {DEFAULT_HOST}, loopback only). "
+                             "Use 0.0.0.0 to expose on the network — there is no auth, so don't.")
     parser.add_argument("--data-dir", default=DEFAULT_DATA_DIR,
                         help=f"Directory where record JSON files are stored (default: {DEFAULT_DATA_DIR})")
     args = parser.parse_args()
 
     DATA_DIR = Path(args.data_dir).expanduser().resolve()
+    SERVER_PORT = args.port
     print(f"Data directory : {DATA_DIR}")
     print(f"Web root       : {WEBAPP_DIR}")
 
     _load_all()
 
     global _httpserver
-    _httpserver = HTTPServer(("", args.port), Handler)
-    print(f"Listening on http://localhost:{args.port}/")
+    _httpserver = ThreadingHTTPServer((args.host, args.port), Handler)
+    print(f"Listening on http://{args.host}:{args.port}/")
     print("Press Ctrl-C to stop.\n")
 
     try:

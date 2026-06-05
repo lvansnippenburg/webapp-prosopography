@@ -17,6 +17,8 @@ If you adapt this for your own project, the things most likely to need changing 
 
 Double-click **Livorno Prosopography.app** in the project root. It starts the server and opens the app in your default browser. If the server is already running it just opens the browser.
 
+Alternatively use the `run.sh` command from the terminal while in this directory (it will do the same as the Livorno Prosopography.app)
+
 ### Manual
 
 Start the server from the project directory:
@@ -32,11 +34,18 @@ Options:
 ```
 python3 server/server.py --port 9000
 python3 server/server.py --data-dir ~/path/to/json/files
+python3 server/server.py --host 0.0.0.0      # expose on the LAN (see warning below)
 ```
 
-The server serves the web app's static files **and** handles all data via a REST API. Each record is stored as `{uuid}.json` in the data directory (default: `/Users/lvansnippenburg/Sources/Persons/`).
+The server serves the web app's static files **and** handles all data via a REST API. Each record is stored as `{uuid}.json` in the data directory (default: `/Users/lvansnippenburg/Sources/Persons/`). Before any record is overwritten, the previous version is copied into `<data-dir>/.backups/` (the most recent 20 versions per record are kept), so an accidental edit can always be recovered.
 
-To stop the server, go to Settings and click the "Stop Server" button. To stop it from the terminal:
+### A note on access
+
+By default the server binds to **`127.0.0.1` (loopback only)** and only honours CORS requests from `localhost`. The data has no authentication layer, so don't change this unless you understand the implications: passing `--host 0.0.0.0` makes every record on your machine readable, editable, and deletable by anything on the same network.
+
+The third-party libraries (SheetJS, D3) are vendored under `src/vendor/`, so the app runs fully offline.
+
+To stop the server, you can click on the ⏻ symbol in the top-right of the window. This will stop the server and close the current window/tab. To stop it from the terminal:
 
 ```
 lsof -ti :8081 | xargs kill
@@ -76,4 +85,14 @@ tail -f /tmp/prosopography-server.log
 ]
 ```
 
-The Python soundex implementation is a direct port of the JS version, so results are identical on both sides. The client-side wrapper is `apiLookup(query)` in `scripts/app.js`.
+The Python soundex implementation is a direct port of the JS version (`scripts/core.js`), so results are identical on both sides. The client-side wrapper is `apiLookup(query)` in `scripts/data.js`.
+
+The front-end is split into plain scripts that share one global scope, loaded in order by `index.html`: `core.js` (constants, state, utilities, soundex/levenshtein) → `data.js` (server API, parsing, import/export) → `records.js` (table & stats) → `modal.js` (record form & relationship graph) → `boot.js` (startup & event wiring).
+
+## Tests
+
+`tests/cases.json` holds expected outputs for the soundex/levenshtein helpers, asserted by **both** the Python and JavaScript copies so they cannot drift apart:
+
+```
+bash tests/run.sh
+```

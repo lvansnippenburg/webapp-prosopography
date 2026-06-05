@@ -1,0 +1,24 @@
+{
+  "_comment": "Shared expected outputs for the soundex/levenshtein functions that are duplicated in server/server.py (Python) and src/scripts/app.js (JavaScript). Both test_search.py and test_search.mjs assert against this table, so the two implementations cannot silently drift apart.",
+  "soundex": [
+    ["", ""],
+    ["   ", ""],
+    ["R", "R000"],
+    ["Lee", "L000"],
+    ["Gauss", "G200"],
+    ["Robert", "R163"],
+    ["Rupert", "R163"],
+    ["Pfister", "P236"],
+    ["Tymczak", "T522"],
+    ["van Snippenburg", "V525"]
+  ],
+  "levenshtein": [
+    ["", "", 0],
+    ["a", "", 1],
+    ["", "abc", 3],
+    ["abc", "abc", 0],
+    ["kitten", "sitting", 3],
+    ["flaw", "lawn", 2],
+    ["book", "back", 2]
+  ]
+}

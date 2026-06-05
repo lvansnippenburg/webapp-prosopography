@@ -21,21 +21,19 @@
     <link rel="apple-touch-icon" href="icons/icon-152x152.png" />
     <!-- Style sheet  -->
     <link rel="stylesheet" href="css/styles.css" />
-    <!-- SheetJS for Excel import -->
-    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
-    <!-- D3.js for network visualization -->
-    <script src="https://d3js.org/d3.v7.min.js"></script>
-    <script src="https://cdn.counter.dev/script.js" data-id="96139af8-131d-4e14-9d43-b16c553ceece"
-        data-utcoffset="1"></script>
+    <!-- SheetJS for Excel import (vendored locally so the app works offline) -->
+    <script src="vendor/xlsx.full.min.js"></script>
+    <!-- D3.js for network visualization (vendored locally) -->
+    <script src="vendor/d3.v7.min.js"></script>
 </head>
 
 <body>
     <header>
         <h1>Livorno prosopography</h1>
-        <div style="display: flex; gap: 10px; align-items: center">
+        <div class="header-actions">
             <button class="btn-ghost btn-small" id="btn-help">? Help</button>
             <button class="btn-ghost btn-small" id="btn-settings-toggle">⚙ Settings</button>
-            <span id="server-status" style="font-size: 13px; color: var(--mid-grey); cursor: default">⏻</span>
+            <span id="server-status">⏻</span>
         </div>
     </header>
 
@@ -477,63 +475,63 @@
                 Select which fields to search:
             </p>
             <div style="max-height: 300px; overflow-y: auto">
-                <label style="display: block; margin-bottom: 8px; cursor: pointer">
+                <label class="col-option">
                     <input type="checkbox" class="scope-checkbox" value="all" checked />
                     All Fields
                 </label>
-                <label style="display: block; margin-bottom: 8px; cursor: pointer">
+                <label class="col-option">
                     <input type="checkbox" class="scope-checkbox" value="name" />
                     Name (all name fields)
                 </label>
-                <label style="display: block; margin-bottom: 8px; cursor: pointer">
+                <label class="col-option">
                     <input type="checkbox" class="scope-checkbox" value="lastname" />
                     Lastname
                 </label>
-                <label style="display: block; margin-bottom: 8px; cursor: pointer">
+                <label class="col-option">
                     <input type="checkbox" class="scope-checkbox" value="firstname" />
                     Firstname
                 </label>
-                <label style="display: block; margin-bottom: 8px; cursor: pointer">
+                <label class="col-option">
                     <input type="checkbox" class="scope-checkbox" value="entityType" />
                     Entity Type
                 </label>
-                <label style="display: block; margin-bottom: 8px; cursor: pointer">
+                <label class="col-option">
                     <input type="checkbox" class="scope-checkbox" value="patronymic" />
                     Patronymic
                 </label>
-                <label style="display: block; margin-bottom: 8px; cursor: pointer">
+                <label class="col-option">
                     <input type="checkbox" class="scope-checkbox" value="gender" />
                     Gender
                 </label>
-                <label style="display: block; margin-bottom: 8px; cursor: pointer">
+                <label class="col-option">
                     <input type="checkbox" class="scope-checkbox" value="origin" />
                     Origin
                 </label>
-                <label style="display: block; margin-bottom: 8px; cursor: pointer">
+                <label class="col-option">
                     <input type="checkbox" class="scope-checkbox" value="city" />
                     City
                 </label>
-                <label style="display: block; margin-bottom: 8px; cursor: pointer">
+                <label class="col-option">
                     <input type="checkbox" class="scope-checkbox" value="profession" />
                     Profession
                 </label>
-                <label style="display: block; margin-bottom: 8px; cursor: pointer">
+                <label class="col-option">
                     <input type="checkbox" class="scope-checkbox" value="religion" />
                     Religion
                 </label>
-                <label style="display: block; margin-bottom: 8px; cursor: pointer">
+                <label class="col-option">
                     <input type="checkbox" class="scope-checkbox" value="notes" />
                     Notes
                 </label>
-                <label style="display: block; margin-bottom: 8px; cursor: pointer">
+                <label class="col-option">
                     <input type="checkbox" class="scope-checkbox" value="references" />
                     References
                 </label>
-                <label style="display: block; margin-bottom: 8px; cursor: pointer">
+                <label class="col-option">
                     <input type="checkbox" class="scope-checkbox" value="relationships" />
                     Relationships
                 </label>
-                <label style="display: block; margin-bottom: 8px; cursor: pointer">
+                <label class="col-option">
                     <input type="checkbox" class="scope-checkbox" value="timespan" />
                     Timespan (Firstseen-Lastseen)
                 </label>
@@ -640,7 +638,13 @@
     <!-- Notification -->
     <div id="notification"></div>
 
-    <script src="scripts/app.js"></script>
+    <!-- App scripts: classic scripts sharing one global scope, loaded in order.
+         boot.js must be last (it kicks off the app). -->
+    <script src="scripts/core.js"></script>
+    <script src="scripts/data.js"></script>
+    <script src="scripts/records.js"></script>
+    <script src="scripts/modal.js"></script>
+    <script src="scripts/boot.js"></script>
 </body>
 
 </html>

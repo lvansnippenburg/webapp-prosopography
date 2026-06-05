@@ -1079,3 +1079,23 @@ hr {
 #help-content tr:nth-child(even) td {
     background: var(--ice-blue);
 }
+/* ── Extracted from inline styles ──────────────────────────────────── */
+
+.header-actions {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+#server-status {
+    font-size: 13px;
+    color: var(--mid-grey);
+    cursor: default;
+}
+
+/* Checkbox rows in the "choose columns to export" dialog */
+.col-option {
+    display: block;
+    margin-bottom: 8px;
+    cursor: pointer;
+}

@@ -13,15 +13,24 @@ function makeVariationItem(value = "") {
   return div;
 }
 
+// Detect and resolve URLs in reference text.
+// Supports: https://, zotero://, and local PDF paths.
 function resolveRefLink(value) {
   if (!value) return null;
   if (value.startsWith("https://")) return { url: value };
+  if (value.startsWith("zotero://")) return { url: value, isZotero: true };
   if (/^[^/]+\/[^/]+\/[^/]+\/[^/]+\.pdf$/i.test(value)) {
-    // const filePath = serverDataDir ? `${serverDataDir}/${value}` : `/${value}`;
     const filePath = `${value}`;
     return { url: `${location.protocol}//${location.hostname}:8080/?file=${encodeURIComponent(filePath)}` };
   }
   return null;
+}
+
+// Extract the first zotero:// URL from a text field (remarks might contain surrounding text).
+function extractZoteroUrl(text) {
+  if (!text) return null;
+  const match = text.match(/zotero:\/\/[^\s]+/);
+  return match ? match[0] : null;
 }
 
 function makeRefItem(ref = {}) {
@@ -37,13 +46,25 @@ function makeRefItem(ref = {}) {
         <button class="btn-danger btn-small remove-item" style="align-self:flex-start;">✕</button>
     `;
   const refInput = div.querySelector(".ref-reference");
+  const remarksInput = div.querySelector(".ref-remarks");
   const openBtn = div.querySelector(".ref-open-link");
+
   function updateOpenBtn() {
-    const link = resolveRefLink(refInput.value.trim());
+    // Try reference field first, then remarks (for zotero:// URLs).
+    let link = resolveRefLink(refInput.value.trim());
+    if (!link) {
+      const zoteroUrl = extractZoteroUrl(remarksInput.value.trim());
+      if (zoteroUrl) link = resolveRefLink(zoteroUrl);
+    }
     openBtn.style.display = link ? "" : "none";
-    openBtn.onclick = link ? () => window.open(link.url, "_blank") : null;
+    if (link) {
+      openBtn.title = link.isZotero ? "Open in Zotero" : "Open reference";
+      openBtn.onclick = () => window.open(link.url, "_blank");
+    }
   }
+
   refInput.addEventListener("input", updateOpenBtn);
+  remarksInput.addEventListener("input", updateOpenBtn);
   updateOpenBtn();
   div.querySelector(".remove-item").addEventListener("click", () => {
     const val = refInput.value.trim();

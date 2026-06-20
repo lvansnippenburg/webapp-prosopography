@@ -6,6 +6,7 @@ cd "$(dirname "$0")/.."
 
 echo "== Python tests =="
 python3 tests/test_search.py
+python3 tests/test_restore.py
 
 echo
 echo "== JavaScript tests =="

@@ -38,6 +38,16 @@ async function apiSoftDelete(uuid) {
   return apiRequest("DELETE", `/api/records/${uuid}`);
 }
 
+// List a record's backed-up versions (newest first); each: {timestamp, modifiedAt, deleted, name}.
+async function apiListVersions(uuid) {
+  return apiRequest("GET", `/api/records/${uuid}/versions`);
+}
+
+// Restore a record to a backed-up version. Returns the restored record.
+async function apiRestoreVersion(uuid, timestamp) {
+  return apiRequest("POST", `/api/records/${uuid}/restore`, { timestamp });
+}
+
 // Server-side fuzzy name lookup. Returns [{uuid, name, matchType}] sorted by match quality.
 async function apiLookup(query) {
   if (!query || query.length < 2) return [];

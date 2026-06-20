@@ -19,35 +19,37 @@ API:
 
 import argparse
 import json
-import os
-import sys
 import re
 import shutil
+
+# import os
+import sys
 import threading
 from datetime import datetime, timezone
-from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
+from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import urlparse, parse_qs
+from urllib.parse import parse_qs, urlparse
 
 # ── Defaults ───────────────────────────────────────────────────────────────
 
 DEFAULT_DATA_DIR = "/Users/lvansnippenburg/Sources/Persons"
 DEFAULT_PORT = 8081
-DEFAULT_HOST = "127.0.0.1"   # loopback only; the data has no auth layer
-MAX_BACKUPS = 20             # per-record rolling backups kept in .backups/
+DEFAULT_HOST = "127.0.0.1"  # loopback only; the data has no auth layer
+MAX_BACKUPS = 20  # per-record rolling backups kept in .backups/
 
 # ── Globals (set in main) ──────────────────────────────────────────────────
 
 DATA_DIR: Path = Path(DEFAULT_DATA_DIR)
-ROOT_DIR: Path = Path(__file__).parent.parent     # project root
-WEBAPP_DIR: Path = ROOT_DIR / "src"               # web root served at /
-SERVER_PORT: int = DEFAULT_PORT                    # set in main(), used for CORS
-_records: dict[str, dict] = {}                    # uuid → record (in-memory index)
-_lock = threading.Lock()                           # guard concurrent writes
-_httpserver: "HTTPServer | None" = None            # set in main(), used for shutdown
+ROOT_DIR: Path = Path(__file__).parent.parent  # project root
+WEBAPP_DIR: Path = ROOT_DIR / "src"  # web root served at /
+SERVER_PORT: int = DEFAULT_PORT  # set in main(), used for CORS
+_records: dict[str, dict] = {}  # uuid → record (in-memory index)
+_lock = threading.Lock()  # guard concurrent writes
+_httpserver: "HTTPServer | None" = None  # set in main(), used for shutdown
 
 
 # ── Disk helpers ───────────────────────────────────────────────────────────
+
 
 def _record_path(uuid: str) -> Path:
     """Return the JSON file path for a given UUID."""
@@ -65,13 +67,19 @@ def _load_all() -> None:
                 record = json.load(f)
             uuid = record.get("uuid")
             if not uuid:
-                print(f"  [warn] {path.name}: missing 'uuid' field, skipped", file=sys.stderr)
+                print(
+                    f"  [warn] {path.name}: missing 'uuid' field, skipped",
+                    file=sys.stderr,
+                )
                 errors += 1
                 continue
             # Ensure filename matches uuid (self-healing)
             expected = f"{uuid}.json"
             if path.name != expected:
-                print(f"  [warn] {path.name}: filename does not match uuid '{uuid}', skipped", file=sys.stderr)
+                print(
+                    f"  [warn] {path.name}: filename does not match uuid '{uuid}', skipped",
+                    file=sys.stderr,
+                )
                 errors += 1
                 continue
             _records[uuid] = record
@@ -79,7 +87,10 @@ def _load_all() -> None:
         except (json.JSONDecodeError, OSError) as exc:
             print(f"  [warn] {path.name}: {exc}", file=sys.stderr)
             errors += 1
-    print(f"Loaded {count} records from {DATA_DIR}" + (f" ({errors} skipped)" if errors else ""))
+    print(
+        f"Loaded {count} records from {DATA_DIR}"
+        + (f" ({errors} skipped)" if errors else "")
+    )
 
 
 def _backup_record(path: Path) -> None:
@@ -102,6 +113,57 @@ def _backup_record(path: Path) -> None:
         old.unlink(missing_ok=True)
 
 
+def _list_backups(uuid: str) -> list[dict]:
+    """Return the saved versions for a record, newest first, with a light preview.
+
+    Each entry: {timestamp, modifiedAt, deleted, name}. The timestamp is the
+    filename stamp written by _backup_record and is what /restore expects back.
+    """
+    backup_dir = DATA_DIR / ".backups"
+    if not backup_dir.is_dir():
+        return []
+    versions = []
+    for path in sorted(backup_dir.glob(f"{uuid}.*.json"), reverse=True):
+        stamp = path.name[len(uuid) + 1 : -len(".json")]
+        try:
+            with path.open(encoding="utf-8") as f:
+                rec = json.load(f)
+        except (json.JSONDecodeError, OSError):
+            continue
+        versions.append(
+            {
+                "timestamp": stamp,
+                "modifiedAt": rec.get("modifiedAt"),
+                "deleted": bool(rec.get("deletedAt")),
+                "name": " ".join(
+                    p for p in [rec.get("firstname"), rec.get("lastname")] if p
+                ),
+            }
+        )
+    return versions
+
+
+def _restore_record(uuid: str, timestamp: str) -> dict | None:
+    """Restore a record to a backed-up version, returning the restored record.
+
+    Writing goes through _write_record, so the current version is itself backed
+    up first — a restore is reversible. Returns None if no such backup exists.
+    The timestamp is client-supplied and lands in a filename, so callers must
+    validate it (see _restore handler) to prevent path traversal.
+    """
+    backup_path = DATA_DIR / ".backups" / f"{uuid}.{timestamp}.json"
+    if not backup_path.is_file():
+        return None
+    with backup_path.open(encoding="utf-8") as f:
+        record = json.load(f)
+    record["uuid"] = uuid
+    record["modifiedAt"] = _now_iso()
+    with _lock:
+        _records[uuid] = record
+        _write_record(record)
+    return record
+
+
 def _write_record(record: dict) -> None:
     """Write a single record to its JSON file (must be called with _lock held)."""
     uuid = record["uuid"]
@@ -111,10 +173,11 @@ def _write_record(record: dict) -> None:
     with tmp.open("w", encoding="utf-8") as f:
         json.dump(record, f, ensure_ascii=False, indent=2)
         f.write("\n")
-    tmp.replace(path)   # atomic rename
+    tmp.replace(path)  # atomic rename
 
 
 # ── HTTP handler ───────────────────────────────────────────────────────────
+
 
 class Handler(SimpleHTTPRequestHandler):
     """
@@ -134,7 +197,7 @@ class Handler(SimpleHTTPRequestHandler):
         resolved = (WEBAPP_DIR / rel).resolve()
         if resolved == WEBAPP_DIR.resolve() or WEBAPP_DIR.resolve() in resolved.parents:
             return str(resolved)
-        return str(WEBAPP_DIR)   # outside the root → 403/404 from the base handler
+        return str(WEBAPP_DIR)  # outside the root → 403/404 from the base handler
 
     def _cors_origin(self) -> str | None:
         """Echo the Origin header only when it is a local loopback origin.
@@ -155,7 +218,9 @@ class Handler(SimpleHTTPRequestHandler):
         if origin:
             self.send_header("Access-Control-Allow-Origin", origin)
             self.send_header("Vary", "Origin")
-            self.send_header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+            self.send_header(
+                "Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS"
+            )
             self.send_header("Access-Control-Allow-Headers", "Content-Type")
             self.send_header("Access-Control-Max-Age", "86400")
         super().end_headers()
@@ -169,6 +234,8 @@ class Handler(SimpleHTTPRequestHandler):
         path = parsed.path
         if path == "/api/records":
             self._get_all_records()
+        elif m := re.fullmatch(r"/api/records/([^/]+)/versions", path):
+            self._get_versions(m.group(1))
         elif m := re.fullmatch(r"/api/records/([^/]+)", path):
             self._get_record(m.group(1))
         elif path == "/api/lookup":
@@ -183,6 +250,8 @@ class Handler(SimpleHTTPRequestHandler):
         path = urlparse(self.path).path
         if path == "/api/records":
             self._upsert_record(uuid_from_url=None)
+        elif m := re.fullmatch(r"/api/records/([^/]+)/restore", path):
+            self._restore(m.group(1))
         elif path == "/api/shutdown":
             self._shutdown()
         else:
@@ -212,6 +281,25 @@ class Handler(SimpleHTTPRequestHandler):
     def _get_record(self, uuid: str):
         with _lock:
             record = _records.get(uuid)
+        if record is None:
+            self._not_found()
+        else:
+            self._send_json(record)
+
+    def _get_versions(self, uuid: str):
+        self._send_json(_list_backups(uuid))
+
+    def _restore(self, uuid: str):
+        body = self._read_json_body()
+        if body is None:
+            return
+        timestamp = body.get("timestamp") if isinstance(body, dict) else None
+        # The timestamp lands in a filename, so only accept the digits/T shape
+        # that _backup_record produces — never a path fragment.
+        if not isinstance(timestamp, str) or not re.fullmatch(r"[0-9T]+", timestamp):
+            self._send_error_json(400, "Missing or invalid 'timestamp'")
+            return
+        record = _restore_record(uuid, timestamp)
         if record is None:
             self._not_found()
         else:
@@ -322,21 +410,34 @@ class Handler(SimpleHTTPRequestHandler):
                     continue
                 nl = name.lower()
                 if nl == ql:
-                    match_type = "exact"; break
+                    match_type = "exact"
+                    break
                 if nl.startswith(ql):
-                    match_type = "prefix"; break
+                    match_type = "prefix"
+                    break
                 if ql in nl:
-                    match_type = "contains"; break
+                    match_type = "contains"
+                    break
                 if _soundex(name) == sx_query:
-                    match_type = "sounds like"; break
+                    match_type = "sounds like"
+                    break
                 if len(ql) >= 3 and _levenshtein(ql, nl) <= 2:
-                    match_type = "similar"; break
+                    match_type = "similar"
+                    break
 
             if match_type:
                 full_name = " ".join(
-                    p for p in [r.get("firstname"), r.get("lastname"), r.get("patronymic")] if p
+                    p
+                    for p in [
+                        r.get("firstname"),
+                        r.get("lastname"),
+                        r.get("patronymic"),
+                    ]
+                    if p
                 )
-                results.append({"uuid": r["uuid"], "name": full_name, "matchType": match_type})
+                results.append(
+                    {"uuid": r["uuid"], "name": full_name, "matchType": match_type}
+                )
 
         order = {"exact": 0, "prefix": 1, "contains": 2, "sounds like": 3, "similar": 4}
         results.sort(key=lambda x: order.get(x["matchType"], 9))
@@ -353,14 +454,27 @@ class Handler(SimpleHTTPRequestHandler):
 
 # ── Utility ────────────────────────────────────────────────────────────────
 
+
 def _soundex(s: str) -> str:
     """Soundex implementation matching the JavaScript version in app.js."""
     MAP = {
-        "B": "1", "F": "1", "P": "1", "V": "1",
-        "C": "2", "G": "2", "J": "2", "K": "2", "Q": "2", "S": "2", "X": "2", "Z": "2",
-        "D": "3", "T": "3",
+        "B": "1",
+        "F": "1",
+        "P": "1",
+        "V": "1",
+        "C": "2",
+        "G": "2",
+        "J": "2",
+        "K": "2",
+        "Q": "2",
+        "S": "2",
+        "X": "2",
+        "Z": "2",
+        "D": "3",
+        "T": "3",
         "L": "4",
-        "M": "5", "N": "5",
+        "M": "5",
+        "N": "5",
         "R": "6",
     }
     s = re.sub(r"[^A-Za-z]", "", s).upper()
@@ -371,7 +485,7 @@ def _soundex(s: str) -> str:
     for ch in s[1:]:
         if len(code) >= 4:
             break
-        cur = MAP.get(ch)          # None for vowels / H / W / Y
+        cur = MAP.get(ch)  # None for vowels / H / W / Y
         if cur and cur != prev:
             code += cur
         prev = cur if cur else "0"  # reset across vowels, matching JS `cur || 0`
@@ -397,17 +511,28 @@ def _now_iso() -> str:
 
 # ── Entry point ────────────────────────────────────────────────────────────
 
+
 def main():
     global DATA_DIR, SERVER_PORT
 
     parser = argparse.ArgumentParser(description="Prosopography data server")
-    parser.add_argument("--port", type=int, default=DEFAULT_PORT,
-                        help=f"Port to listen on (default: {DEFAULT_PORT})")
-    parser.add_argument("--host", default=DEFAULT_HOST,
-                        help=f"Address to bind to (default: {DEFAULT_HOST}, loopback only). "
-                             "Use 0.0.0.0 to expose on the network — there is no auth, so don't.")
-    parser.add_argument("--data-dir", default=DEFAULT_DATA_DIR,
-                        help=f"Directory where record JSON files are stored (default: {DEFAULT_DATA_DIR})")
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=DEFAULT_PORT,
+        help=f"Port to listen on (default: {DEFAULT_PORT})",
+    )
+    parser.add_argument(
+        "--host",
+        default=DEFAULT_HOST,
+        help=f"Address to bind to (default: {DEFAULT_HOST}, loopback only). "
+        "Use 0.0.0.0 to expose on the network — there is no auth, so don't.",
+    )
+    parser.add_argument(
+        "--data-dir",
+        default=DEFAULT_DATA_DIR,
+        help=f"Directory where record JSON files are stored (default: {DEFAULT_DATA_DIR})",
+    )
     args = parser.parse_args()
 
     DATA_DIR = Path(args.data_dir).expanduser().resolve()

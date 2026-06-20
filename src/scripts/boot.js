@@ -353,6 +353,12 @@ function attachEventListeners() {
   document.getElementById("btn-delete-person").addEventListener("click", () => {
     deletePerson();
   });
+  document.getElementById("btn-history-person").addEventListener("click", () => {
+    showVersionHistory(editingUUID);
+  });
+  document.getElementById("version-history-close").addEventListener("click", () => {
+    document.getElementById("version-history-modal").classList.add("hidden");
+  });
 
   // Variation add buttons
   document.getElementById("add-lastname-variation").addEventListener("click", () => {

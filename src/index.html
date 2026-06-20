@@ -409,6 +409,9 @@
                 <button class="btn-danger btn-small hidden" id="btn-delete-person">
                     Delete
                 </button>
+                <button class="btn-secondary btn-small hidden" id="btn-history-person">
+                    History
+                </button>
                 <button class="btn-secondary" id="btn-cancel-modal">Cancel</button>
                 <button class="btn-primary" id="btn-save-person">Save</button>
             </div>
@@ -444,6 +447,22 @@
                         "></div>
             </div>
             <p id="progress-details" style="font-size: 12px; color: var(--mid-grey)"></p>
+        </div>
+    </div>
+
+    <!-- Version history modal -->
+    <div id="version-history-modal" class="modal-overlay hidden">
+        <div class="modal">
+            <div class="modal-header">
+                <h2>Version History</h2>
+                <button class="modal-close" id="version-history-close">✕</button>
+            </div>
+            <div class="modal-body">
+                <p style="font-size: 12px; color: var(--mid-grey); margin-bottom: 12px">
+                    Restoring a version saves the current one as a new backup first, so it can be undone.
+                </p>
+                <div id="version-history-results" style="max-height: 400px; overflow-y: auto"></div>
+            </div>
         </div>
     </div>
 

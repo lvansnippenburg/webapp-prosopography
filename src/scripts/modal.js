@@ -1180,6 +1180,7 @@ async function openNewModal() {
   clearForm();
   document.getElementById("modal-title").textContent = "New Entity";
   document.getElementById("btn-delete-person").classList.add("hidden");
+  document.getElementById("btn-history-person").classList.add("hidden");
   document.getElementById("btn-save-person").style.display = "block";
   document.getElementById("person-modal").classList.remove("hidden");
 
@@ -1205,6 +1206,7 @@ async function openEditModal(uuid) {
 
   document.getElementById("modal-title").textContent = `Edit ${entityTypeLabel}`;
   document.getElementById("btn-delete-person").classList.remove("hidden");
+  document.getElementById("btn-history-person").classList.remove("hidden");
   document.getElementById("btn-save-person").style.display = "block";
 
   populateForm(record);
@@ -1398,5 +1400,66 @@ async function deletePerson() {
   document.getElementById("person-modal").classList.add("hidden");
   notify("Record marked as deleted.", "info");
   await refreshRecords(document.getElementById("search-input").value);
+}
+
+// Format a backup timestamp (UTC "YYYYMMDDThhmmss…") into a readable local date.
+function formatStamp(stamp) {
+  const m = /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})/.exec(stamp || "");
+  if (!m) return stamp || "";
+  const [, y, mo, d, h, mi, s] = m;
+  return new Date(Date.UTC(+y, +mo - 1, +d, +h, +mi, +s)).toLocaleString();
+}
+
+// Show the saved versions of a record and let the user restore one.
+async function showVersionHistory(uuid) {
+  if (!uuid) return;
+  const modal = document.getElementById("version-history-modal");
+  const results = document.getElementById("version-history-results");
+  results.innerHTML = '<p style="color:var(--mid-grey);">Loading…</p>';
+  modal.classList.remove("hidden");
+
+  let versions;
+  try {
+    versions = await apiListVersions(uuid);
+  } catch (err) {
+    results.innerHTML = `<p style="color:var(--mid-grey);">Error loading versions: ${escapeHtml(err.message)}</p>`;
+    return;
+  }
+
+  if (!versions || !versions.length) {
+    results.innerHTML = '<p style="color:var(--mid-grey);">No previous versions saved yet.</p>';
+    return;
+  }
+
+  results.innerHTML = "";
+  versions.forEach((v) => {
+    const item = document.createElement("div");
+    item.className = "version-item";
+    const deletedBadge = v.deleted ? '<span class="tag">deleted</span>' : "";
+    item.innerHTML = `
+      <div class="version-info">
+        <div class="version-when">${escapeHtml(formatStamp(v.timestamp))}</div>
+        <div class="version-name">${escapeHtml(v.name) || "—"} ${deletedBadge}</div>
+      </div>
+      <button class="btn-secondary btn-small version-restore">Restore</button>
+    `;
+    item.querySelector(".version-restore").addEventListener("click", async () => {
+      if (!confirm(
+        `Restore the version from ${formatStamp(v.timestamp)}?\n\n` +
+        "The current version is saved as a new backup first, so this can be undone.",
+      )) return;
+      try {
+        await apiRestoreVersion(uuid, v.timestamp);
+      } catch (err) {
+        notify("Restore failed: " + err.message, "error");
+        return;
+      }
+      modal.classList.add("hidden");
+      notify("Version restored.", "success");
+      await openEditModal(uuid); // reload the form with the restored data
+      await refreshRecords(document.getElementById("search-input").value);
+    });
+    results.appendChild(item);
+  });
 }
 

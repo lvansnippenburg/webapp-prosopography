@@ -13,6 +13,9 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent / "server"))
 
+# server.py is added to sys.path at runtime, so static checkers see it as an
+# empty namespace package and can't resolve its members — silence that here.
+# pyright: reportAttributeAccessIssue=false
 import server  # noqa: E402
 
 
@@ -41,7 +44,7 @@ class RestoreTests(unittest.TestCase):
         self.assertFalse(versions[0]["deleted"])
 
         restored = server._restore_record("t1", versions[0]["timestamp"])
-        self.assertIsNotNone(restored)
+        assert restored is not None  # narrow for type checkers
         self.assertEqual(restored["lastname"], "Old")
 
         # In-memory index and on-disk file both reflect the restored version.

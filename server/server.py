@@ -45,7 +45,7 @@ WEBAPP_DIR: Path = ROOT_DIR / "src"  # web root served at /
 SERVER_PORT: int = DEFAULT_PORT  # set in main(), used for CORS
 _records: dict[str, dict] = {}  # uuid → record (in-memory index)
 _lock = threading.Lock()  # guard concurrent writes
-_httpserver: "HTTPServer | None" = None  # set in main(), used for shutdown
+_httpserver: "ThreadingHTTPServer | None" = None  # set in main(), used for shutdown
 
 
 # ── Disk helpers ───────────────────────────────────────────────────────────
@@ -335,6 +335,8 @@ class Handler(SimpleHTTPRequestHandler):
 
     def _shutdown(self):
         self._send_json({"status": "shutting down"})
+        if _httpserver is None:
+            return
         # server.shutdown() blocks until serve_forever() returns, so run it in a
         # background thread so the response is fully sent first.
         threading.Thread(target=_httpserver.shutdown, daemon=True).start()
@@ -446,10 +448,10 @@ class Handler(SimpleHTTPRequestHandler):
     def _get_config(self):
         self._send_json({"dataDir": str(DATA_DIR)})
 
-    def log_message(self, fmt, *args):
+    def log_message(self, format, *args):
         # Suppress noisy static-file logs; keep API logs.
         if "/api/" in str(args[0] if args else ""):
-            super().log_message(fmt, *args)
+            super().log_message(format, *args)
 
 
 # ── Utility ────────────────────────────────────────────────────────────────

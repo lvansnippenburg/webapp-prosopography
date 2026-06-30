@@ -4,3 +4,4 @@ env/
 CLAUDE.md
 __pycache__/
 tools/init_get_purple.sh
+.ruff_cache/

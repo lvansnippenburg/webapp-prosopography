@@ -19,7 +19,7 @@ import assert from "node:assert/strict";
 const here = path.dirname(fileURLToPath(import.meta.url));
 const scriptsDir = path.join(here, "..", "src", "scripts");
 // Same order as the <script> tags in index.html; boot.js last.
-const SCRIPT_ORDER = ["core.js", "data.js", "records.js", "modal.js", "boot.js"];
+const SCRIPT_ORDER = ["core.js", "data.js", "records.js", "modal.js", "visualize.js", "boot.js"];
 const appSrc = SCRIPT_ORDER.map((f) => readFileSync(path.join(scriptsDir, f), "utf8")).join("\n");
 const cases = JSON.parse(readFileSync(path.join(here, "cases.json"), "utf8"));
 

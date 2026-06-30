@@ -31,6 +31,8 @@
     <header>
         <h1>Livorno prosopography</h1>
         <div class="header-actions">
+            <button class="btn-ghost btn-small" id="btn-visualize"
+                title="Map &amp; timeline of the current results">🗺 Visualize</button>
             <button class="btn-ghost btn-small" id="btn-help">? Help</button>
             <button class="btn-ghost btn-small" id="btn-settings-toggle">⚙ Settings</button>
             <span id="server-status">⏻</span>
@@ -570,7 +572,7 @@
         <div class="modal modalfullwidth">
             <div class="modal-header">
                 <h2>
-                    Relationship Network
+                    Explore
                     <span id="network-entity-count" style="
                                 font-size: 12px;
                                 font-weight: 400;
@@ -588,6 +590,10 @@
                             title="List View">📋</button>
                         <button class="btn-ghost btn-small network-icon-btn" id="btn-graph-view"
                             title="Graph View">🕸</button>
+                        <button class="btn-ghost btn-small network-icon-btn" id="btn-map-view"
+                            title="Map View">🗺</button>
+                        <button class="btn-ghost btn-small network-icon-btn" id="btn-timeline-view"
+                            title="Timeline View">📅</button>
                         <button class="btn-ghost btn-small network-icon-btn" id="btn-save-graph-png"
                             title="Save graph as PNG" style="display:none">📷</button>
                         <button class="btn-ghost btn-small network-icon-btn" id="btn-legend-filter"
@@ -611,6 +617,36 @@
                     </div>
                     <div id="relationship-graph-container" style="display:none">
                         <svg id="relationship-graph" width="100%" height="100%"></svg>
+                    </div>
+                    <div id="map-container" style="display:none">
+                        <div class="map-controls">
+                            <label for="map-field-select">Place field:</label>
+                            <select id="map-field-select">
+                                <option value="city">City (residence)</option>
+                                <option value="origin">Origin</option>
+                                <option value="bornin">Born in</option>
+                                <option value="diedin">Died in</option>
+                            </select>
+                        </div>
+                        <div class="map-body">
+                            <svg id="map-svg"></svg>
+                            <aside id="map-side">
+                                <div id="map-side-content"></div>
+                            </aside>
+                        </div>
+                    </div>
+                    <div id="timeline-container" style="display:none">
+                        <div class="timeline-controls">
+                            <label for="timeline-mode-select">Range:</label>
+                            <select id="timeline-mode-select">
+                                <option value="life">Lifespan (birth–death)</option>
+                                <option value="attest">Attestation (first–last seen)</option>
+                            </select>
+                            <span id="timeline-skipped" class="muted"></span>
+                        </div>
+                        <div class="timeline-scroll">
+                            <svg id="timeline-svg" width="100%"></svg>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -663,6 +699,7 @@
     <script src="scripts/data.js"></script>
     <script src="scripts/records.js"></script>
     <script src="scripts/modal.js"></script>
+    <script src="scripts/visualize.js"></script>
     <script src="scripts/boot.js"></script>
 </body>
 

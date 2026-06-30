@@ -190,28 +190,43 @@ function attachEventListeners() {
     document.getElementById("relationship-network-modal").classList.add("hidden");
   });
 
-  // View switcher for relationship network
-  document.getElementById("btn-list-view").addEventListener("click", function () {
-    document.getElementById("relationship-network-content").style.display = "block";
-    document.getElementById("relationship-graph-container").style.display = "none";
-    document.getElementById("btn-save-graph-png").style.display = "none";
-    document.getElementById("network-search-input").style.display = "none";
-    document.getElementById("btn-layout-toggle").style.display = "none";
-    this.classList.add("active");
-    document.getElementById("btn-graph-view").classList.remove("active");
-  });
+  // View switcher for the Explore modal (List / Graph / Map / Timeline).
+  // One helper keeps the four views mutually exclusive and shows only the
+  // controls each view needs (PNG export, in-graph search and layout toggle
+  // are graph-only).
+  function selectExploreView(view) {
+    const containers = {
+      list: ["relationship-network-content", "block"],
+      graph: ["relationship-graph-container", "flex"],
+      map: ["map-container", "flex"],
+      timeline: ["timeline-container", "flex"],
+    };
+    for (const [name, [id, disp]] of Object.entries(containers)) {
+      document.getElementById(id).style.display = name === view ? disp : "none";
+    }
+    const graphOnly = view === "graph";
+    document.getElementById("btn-save-graph-png").style.display = graphOnly ? "" : "none";
+    document.getElementById("network-search-input").style.display = graphOnly ? "block" : "none";
+    document.getElementById("btn-layout-toggle").style.display = graphOnly ? "flex" : "none";
 
-  document.getElementById("btn-graph-view").addEventListener("click", function () {
-    document.getElementById("relationship-network-content").style.display = "none";
-    document.getElementById("relationship-graph-container").style.display = "flex";
-    document.getElementById("btn-save-graph-png").style.display = "";
-    document.getElementById("network-search-input").style.display = "block";
-    document.getElementById("btn-layout-toggle").style.display = "flex";
-    this.classList.add("active");
-    document.getElementById("btn-list-view").classList.remove("active");
+    const buttons = { list: "btn-list-view", graph: "btn-graph-view", map: "btn-map-view", timeline: "btn-timeline-view" };
+    for (const [name, id] of Object.entries(buttons)) {
+      document.getElementById(id).classList.toggle("active", name === view);
+    }
 
-    renderRelationshipGraph();
-  });
+    if (view === "graph") renderRelationshipGraph();
+    else if (view === "map") renderMapView();
+    else if (view === "timeline") renderTimelineView();
+  }
+
+  document.getElementById("btn-list-view").addEventListener("click", () => selectExploreView("list"));
+  document.getElementById("btn-graph-view").addEventListener("click", () => selectExploreView("graph"));
+  document.getElementById("btn-map-view").addEventListener("click", () => selectExploreView("map"));
+  document.getElementById("btn-timeline-view").addEventListener("click", () => selectExploreView("timeline"));
+
+  // Re-render the active geo-temporal view when its controls change.
+  document.getElementById("map-field-select").addEventListener("change", () => renderMapView());
+  document.getElementById("timeline-mode-select").addEventListener("change", () => renderTimelineView());
 
   // Save graph as PNG
   document.getElementById("btn-save-graph-png").addEventListener("click", () => {
@@ -221,6 +236,12 @@ function attachEventListeners() {
   // Pop the network pane out into a separate window (e.g. a second screen)
   document.getElementById("btn-popout-network").addEventListener("click", () => {
     popOutNetwork();
+  });
+
+  // Open the Explore modal straight to the Map view.
+  document.getElementById("btn-visualize").addEventListener("click", async () => {
+    await showRelationshipNetwork();
+    selectExploreView("map");
   });
 
   // New person

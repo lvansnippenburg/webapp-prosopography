@@ -16,6 +16,9 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent / "server"))
 
+# server.py is added to sys.path at runtime, so static checkers see it as an
+# empty namespace package and can't resolve its members — silence that here.
+# pyright: reportAttributeAccessIssue=false
 import server  # noqa: E402  (path set up above)
 
 CASES = json.loads((HERE / "cases.json").read_text(encoding="utf-8"))

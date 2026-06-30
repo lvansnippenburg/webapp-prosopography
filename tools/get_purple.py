@@ -89,7 +89,6 @@ def build_annotation_link(attachment_key, annotation_data):
     )
 
     # Local Zotero link (opens in desktop app)
-    page_index = annotation_data.get("annotationPageLabel", "")
     zotero_link = f"zotero://open-pdf/library/items/{attachment_key}"
     if "annotationPosition" in annotation_data:
         try:

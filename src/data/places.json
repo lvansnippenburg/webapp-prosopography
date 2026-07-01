@@ -63,5 +63,14 @@
   "constantinopel": { "lat": 41.0082, "lon": 28.9784, "label": "Constantinopel" },
   "istanbul": { "lat": 41.0082, "lon": 28.9784, "label": "Istanbul" },
   "smyrna": { "lat": 38.4237, "lon": 27.1428, "label": "Smyrna" },
-  "izmir": { "lat": 38.4237, "lon": 27.1428, "label": "İzmir" }
+  "izmir": { "lat": 38.4237, "lon": 27.1428, "label": "İzmir" },
+
+  "dutch": { "lat": 52.1326, "lon": 5.2913, "label": "Netherlands", "approx": true },
+  "flemish": { "lat": 51.0500, "lon": 3.7303, "label": "Flanders", "approx": true },
+  "english": { "lat": 52.3555, "lon": -1.1743, "label": "England", "approx": true },
+  "german": { "lat": 51.1657, "lon": 10.4515, "label": "Germany", "approx": true },
+  "italian": { "lat": 41.8719, "lon": 12.5674, "label": "Italy", "approx": true },
+  "italy": { "lat": 41.8719, "lon": 12.5674, "label": "Italy", "approx": true },
+  "austrian": { "lat": 47.5162, "lon": 14.5501, "label": "Austria", "approx": true },
+  "venetian": { "lat": 45.4408, "lon": 12.3155, "label": "Venice", "approx": true }
 }

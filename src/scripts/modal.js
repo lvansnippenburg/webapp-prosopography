@@ -1149,6 +1149,15 @@ function validateRelationships(record) {
 }
 
 async function openNewModal() {
+  await Promise.all([
+    populateFieldSuggestions("city"),
+    populateFieldSuggestions("profession"),
+    populateFieldSuggestions("origin"),
+    populateFieldSuggestions("religion"),
+    populateFieldSuggestions("bornin"),
+    populateFieldSuggestions("diedin"),
+  ]);
+
   editingUUID = null;
   clearForm();
   document.getElementById("modal-title").textContent = "New Entity";
@@ -1168,7 +1177,45 @@ async function openNewModal() {
   });
 }
 
+async function populateFieldSuggestions(fieldName) {
+  const datalistId = `${fieldName}-suggestions`;
+  const datalist = document.getElementById(datalistId);
+  if (!datalist) return;
+
+  // Fetch all records and collect unique values for the given field.
+  const records = await apiGetAll().catch(() => []);
+  const values = new Set();
+  records.forEach((r) => {
+    const val = r[fieldName];
+    if (val && String(val).trim()) {
+      const trimmed = String(val).trim();
+      // Add the whole value
+      values.add(trimmed);
+      // For place fields (city, bornin, diedin) and origin, also add individual segments
+      if (["city", "bornin", "diedin", "origin"].includes(fieldName)) {
+        trimmed.split(/[/;,]/).forEach((seg) => {
+          const segTrimmed = seg.trim();
+          if (segTrimmed) values.add(segTrimmed);
+        });
+      }
+    }
+  });
+
+  // Sort and populate the datalist.
+  const sorted = Array.from(values).sort();
+  datalist.innerHTML = sorted.map((val) => `<option value="${escapeHtml(val)}"></option>`).join("");
+}
+
 async function openEditModal(uuid) {
+  await Promise.all([
+    populateFieldSuggestions("city"),
+    populateFieldSuggestions("profession"),
+    populateFieldSuggestions("origin"),
+    populateFieldSuggestions("religion"),
+    populateFieldSuggestions("bornin"),
+    populateFieldSuggestions("diedin"),
+  ]);
+
   const record = await apiGet(uuid);
   if (!record) return;
   editingUUID = uuid;

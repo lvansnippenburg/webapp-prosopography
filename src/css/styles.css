@@ -1192,6 +1192,18 @@ hr {
     fill-opacity: 0.95;
 }
 
+.place-dot--approx {
+    fill: #a8d4e0;
+    fill-opacity: 0.6;
+    stroke: var(--ice-blue-dark);
+    stroke-width: 1.5px;
+    stroke-dasharray: 3, 2;
+}
+
+.place:hover .place-dot--approx {
+    fill-opacity: 0.8;
+}
+
 .place-label {
     font-size: 10px;
     fill: #333;

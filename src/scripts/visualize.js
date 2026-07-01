@@ -86,16 +86,33 @@ async function renderMapView() {
   const records = await getActiveRecords();
 
   // Aggregate by resolved place; collect everything else as "unplaced".
+  // For compound values (e.g. "Flemish/Dutch"), split and resolve each segment,
+  // attributing the record to every place that resolves. If none resolve, the
+  // entire value goes to unplaced; if some resolve, unresolved segments are not
+  // separately listed (the record is covered by its resolved places).
   const byPlace = new Map(); // label -> { place, records: [] }
   const unplaced = new Map(); // raw value -> count
+  let hasOverlaps = false; // true if any record mapped to multiple places
   records.forEach((r) => {
     const val = (r[field] || "").trim();
     if (!val) return;
-    const place = resolvePlace(val);
-    if (place) {
-      if (!byPlace.has(place.label)) byPlace.set(place.label, { place, records: [] });
-      byPlace.get(place.label).records.push(r);
+    // Split on /, ;, or , to handle compound origins (e.g. "Flemish/Dutch").
+    const segments = val.split(/[/;,]/).map((s) => s.trim()).filter(Boolean);
+    const resolvedPlaces = [];
+    segments.forEach((seg) => {
+      const place = resolvePlace(seg);
+      if (place && !resolvedPlaces.some((p) => p.label === place.label)) {
+        resolvedPlaces.push(place);
+      }
+    });
+    if (resolvedPlaces.length > 0) {
+      if (resolvedPlaces.length > 1) hasOverlaps = true;
+      resolvedPlaces.forEach((place) => {
+        if (!byPlace.has(place.label)) byPlace.set(place.label, { place, records: [] });
+        byPlace.get(place.label).records.push(r);
+      });
     } else {
+      // No segments resolved; the entire value is unplaced.
       unplaced.set(val, (unplaced.get(val) || 0) + 1);
     }
   });
@@ -150,8 +167,14 @@ async function renderMapView() {
     .style("cursor", "pointer")
     .on("click", (event, d) => showPlaceRecords(d));
 
-  dot.append("circle").attr("class", "place-dot").attr("r", (d) => rScale(d.records.length));
-  dot.append("title").text((d) => `${d.place.label}: ${d.records.length}`); // .text() is safe
+  dot.append("circle")
+    .attr("class", (d) => `place-dot${d.place.approx ? " place-dot--approx" : ""}`)
+    .attr("r", (d) => rScale(d.records.length));
+  dot.append("title").text((d) => {
+    let label = `${d.place.label}: ${d.records.length}`;
+    if (d.place.approx) label += " (approximate regional centroid)";
+    return label;
+  }); // .text() is safe
   dot.append("text")
     .attr("class", "place-label")
     .attr("text-anchor", "middle")
@@ -174,7 +197,7 @@ async function renderMapView() {
       }),
   );
 
-  renderUnplacedPanel(unplaced, byPlace.size);
+  renderUnplacedPanel(unplaced, byPlace.size, hasOverlaps, field);
 }
 
 // Side panel: list the records at a clicked place, each opening its record.
@@ -194,24 +217,30 @@ function showPlaceRecords({ place, records }) {
   });
 }
 
-function renderUnplacedPanel(unplaced, placedCount) {
+function renderUnplacedPanel(unplaced, placedCount, hasOverlaps, field) {
   const side = document.getElementById("map-side-content");
   const entries = [...unplaced.entries()].sort((a, b) => b[1] - a[1]);
   const total = entries.reduce((sum, [, c]) => sum + c, 0);
   if (entries.length === 0) {
-    side.innerHTML =
-      `<h4>Placed</h4><p class="muted">${placedCount} place${placedCount === 1 ? "" : "s"} mapped. ` +
-      `Click a dot to list its people.</p>`;
+    let msg = `<h4>Placed</h4><p class="muted">${placedCount} place${placedCount === 1 ? "" : "s"} mapped. Click a dot to list its people.`;
+    if (hasOverlaps && field === "origin") {
+      msg += ` Note: combined origins (like Flemish/Dutch) count toward each place, so dot counts may add up to more than the total records.`;
+    }
+    side.innerHTML = msg + `</p>`;
     return;
   }
   const rows = entries
     .map(([val, c]) => `<li>${escapeHtml(val)} <span class="muted">(${c})</span></li>`)
     .join("");
-  side.innerHTML =
-    `<h4>Unplaced <span class="muted">(${total})</span></h4>` +
+  let msg = `<h4>Unplaced <span class="muted">(${total})</span></h4>` +
     `<p class="muted">Not in the gazetteer (ethnonyms, or add coordinates to ` +
-    `<code>data/places.json</code>):</p>` +
+    `<code>data/places.json</code>):`;
+  if (hasOverlaps && field === "origin") {
+    msg += ` Note: combined origins (like Flemish/Dutch) count toward each place.`;
+  }
+  msg += `</p>` +
     `<ul class="map-side-list">${rows}</ul>`;
+  side.innerHTML = msg;
 }
 
 // ── Timeline ───────────────────────────────────────────────────────

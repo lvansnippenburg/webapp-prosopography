@@ -44,6 +44,18 @@ async function getActiveRecords() {
     .catch(() => []);
 }
 
+// The graph sub-view currently shown; set by selectExploreView (boot.js).
+let currentExploreView = "list";
+
+// Re-render whichever sub-view is active. Called when the toolbar filter
+// changes while the graph view is open, so it tracks the same set as the table.
+async function renderActiveExploreView() {
+  await showRelationshipNetwork(); // rebuild list cards + entity count
+  if (currentExploreView === "graph") renderRelationshipGraph();
+  else if (currentExploreView === "map") renderMapView();
+  else if (currentExploreView === "timeline") renderTimelineView();
+}
+
 // ── Map ────────────────────────────────────────────────────────────
 
 // Normalize a free-text place into a gazetteer key: lowercase, drop

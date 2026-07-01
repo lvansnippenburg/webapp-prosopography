@@ -227,7 +227,6 @@ function collectRelationships(containerId) {
 }
 
 async function showRelationshipNetwork() {
-  const modal = document.getElementById("relationship-network-modal");
   const content = document.getElementById("relationship-network-content");
   const legendItems = document.getElementById("legend-items");
 
@@ -510,16 +509,12 @@ async function showRelationshipNetwork() {
 
       // Click to open person
       card.addEventListener("click", async () => {
-        modal.classList.add("hidden");
         await openEditModal(person.uuid);
       });
 
       content.appendChild(card);
     });
   }
-
-  // Show modal
-  modal.classList.remove("hidden");
 }
 
 function saveGraphAsPNG() {
@@ -585,27 +580,6 @@ function saveGraphAsPNG() {
 }
 
 // See https://d3js.org/getting-started
-// Open the full app in a separate window that auto-opens the Relationship
-// Network pane in graph view. Because the whole app re-runs there, every bit
-// of functionality (drag, zoom, legend filters, PNG export, click-to-edit)
-// works natively. The current search filter is carried over via the URL so the
-// popped-out window shows the same set of entities.
-function popOutNetwork() {
-  const query = document.getElementById("search-input").value || "";
-  const base = window.location.href.split("#")[0].split("?")[0];
-  const params = new URLSearchParams();
-  params.set("network", "1");
-  if (query) params.set("q", query);
-  const url = `${base}?${params.toString()}`;
-
-  const win = window.open(url, "prosopographyNetwork", "width=1200,height=850");
-  if (!win) {
-    notify("Pop-out blocked by the browser. Please allow pop-ups for this site.", "error");
-  } else {
-    win.focus();
-  }
-}
-
 function renderRelationshipGraph() {
   const svg = d3.select("#relationship-graph");
   const container = document.getElementById("relationship-graph-container");
@@ -921,7 +895,6 @@ function renderRelationshipGraph() {
           isDragging = false;
           return;
         }
-        document.getElementById("relationship-network-modal").classList.add("hidden");
         openEditModal(d.id);
       });
 

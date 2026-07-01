@@ -567,22 +567,12 @@
     <!-- Search history dropdown -->
     <div id="search-history-dropdown" class="lookup-dropdown hidden"></div>
 
-    <!-- Relationship Network Modal -->
-    <div id="relationship-network-modal" class="modal-overlay hidden">
-        <div class="modal modalfullwidth">
-            <div class="modal-header">
-                <h2>
-                    Explore
-                    <span id="network-entity-count" style="
-                                font-size: 12px;
-                                font-weight: 400;
-                                color: var(--mid-grey);
-                                margin-left: 8px;
-                            "></span>
-                </h2>
-                <button class="modal-close" id="relationship-network-close">✕</button>
-            </div>
-            <div class="modal-body network-modal-body">
+    <!-- Graph view: map / timeline / network / list — a sibling view to the records table -->
+    <div id="records-graph" class="hidden">
+        <div class="records-graph-header">
+            <span id="network-entity-count"></span>
+        </div>
+        <div class="network-modal-body">
                 <!-- Sidebar: view toggles + legend (left in landscape, top in portrait) -->
                 <div class="network-sidebar">
                     <div class="network-view-btns">
@@ -602,8 +592,6 @@
                                 <path d="M1 2h14l-5 7v5l-4-2V9z" />
                             </svg>
                         </button>
-                        <button class="btn-ghost btn-small network-icon-btn" id="btn-popout-network"
-                            title="Open in a separate window (e.g. a second screen)">⧉</button>
                     </div>
                     <!-- Legend items (hidden by default, toggled by filter button) -->
                     <div id="legend-items" style="display:none; flex-direction:column; gap:8px; font-size:11px"></div>
@@ -650,7 +638,6 @@
                     </div>
                 </div>
             </div>
-        </div>
     </div>
 
     <!-- Help Modal -->

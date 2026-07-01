@@ -42,7 +42,7 @@ header h1 {
 }
 
 #app {
-    max-width: 1200px;
+    max-width: 95%;
     margin: 0 auto;
     padding: 20px;
 }
@@ -1247,4 +1247,37 @@ hr {
 .tl-axis text {
     font-size: 10px;
     fill: var(--mid-grey);
+}
+
+/* ── Graph view: inline sibling of the records table ───────────────── */
+
+#records-graph {
+    display: flex;
+    flex-direction: column;
+    max-width: 95%;
+    margin: 0 auto;
+    padding: 0 20px 20px;
+    height: calc(100vh - 150px);
+    min-height: 460px;
+}
+
+.records-graph-header {
+    display: flex;
+    align-items: center;
+    padding: 6px 2px 10px;
+    font-size: 12px;
+    color: var(--mid-grey);
+}
+
+/* The former modal body now sits in a white card, like the records table. */
+#records-graph .network-modal-body {
+    background: var(--white);
+    border-radius: 6px;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* Highlight the active sub-view button (List / Graph / Map / Timeline). */
+.network-icon-btn.active {
+    background: var(--ice-blue);
+    border-color: var(--ice-blue-dark);
 }

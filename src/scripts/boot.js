@@ -37,12 +37,6 @@ async function boot() {
 
   await refreshRecords(incomingQuery);
   attachEventListeners();
-
-  // If launched as a pop-out, open the Relationship Network pane in graph view.
-  if (urlParams.get("network") === "1") {
-    showRelationshipNetwork();
-    document.getElementById("btn-graph-view").click();
-  }
 }
 
 // ── Event Listeners ────────────────────────────────────────────────
@@ -181,20 +175,47 @@ function attachEventListeners() {
     refreshRecords("F");
   });
 
-  // Relationship network modal
-  document.getElementById("stat-card-relationships").addEventListener("click", () => {
-    showRelationshipNetwork();
+  // ── Table ⇄ Graph: two views on the same (filtered) data ───────────
+  // The graph view lives inline in #records-graph; switching hides the table
+  // and stats and vice-versa. The current data flows to both via filteredRecords.
+  // (currentExploreView — the active sub-view — is a global in visualize.js so
+  // refreshRecords can re-render it when the filter changes.)
+
+  async function setDataView(view) {
+    const graph = view === "graph";
+    document.getElementById("records-container").classList.toggle("hidden", graph);
+    document.getElementById("stats-pane").classList.toggle("hidden", graph);
+    document.getElementById("records-graph").classList.toggle("hidden", !graph);
+
+    const btn = document.getElementById("btn-visualize");
+    btn.classList.toggle("active", graph);
+    btn.textContent = graph ? "📋 Table" : "🗺 Visualize";
+    btn.title = graph ? "Back to the records table" : "Map & timeline of the current results";
+
+    if (graph) {
+      await showRelationshipNetwork(); // build list cards + entity count
+      selectExploreView(currentExploreView); // show/render the active sub-view
+    }
+  }
+
+  // The Relationships stat card jumps straight to the network sub-view.
+  document.getElementById("stat-card-relationships").addEventListener("click", async () => {
+    currentExploreView = "graph";
+    await setDataView("graph");
   });
 
-  document.getElementById("relationship-network-close").addEventListener("click", () => {
-    document.getElementById("relationship-network-modal").classList.add("hidden");
+  // Visualize button toggles between the table and the graph view.
+  document.getElementById("btn-visualize").addEventListener("click", () => {
+    const goingToGraph = document.getElementById("records-graph").classList.contains("hidden");
+    setDataView(goingToGraph ? "graph" : "table");
   });
 
-  // View switcher for the Explore modal (List / Graph / Map / Timeline).
-  // One helper keeps the four views mutually exclusive and shows only the
-  // controls each view needs (PNG export, in-graph search and layout toggle
-  // are graph-only).
+  // Sub-view switcher within the graph view (List / Graph / Map / Timeline).
+  // One helper keeps the four sub-views mutually exclusive and shows only the
+  // controls each needs (PNG export, in-graph search and layout toggle are
+  // graph-only).
   function selectExploreView(view) {
+    currentExploreView = view;
     const containers = {
       list: ["relationship-network-content", "block"],
       graph: ["relationship-graph-container", "flex"],
@@ -231,17 +252,6 @@ function attachEventListeners() {
   // Save graph as PNG
   document.getElementById("btn-save-graph-png").addEventListener("click", () => {
     saveGraphAsPNG();
-  });
-
-  // Pop the network pane out into a separate window (e.g. a second screen)
-  document.getElementById("btn-popout-network").addEventListener("click", () => {
-    popOutNetwork();
-  });
-
-  // Open the Explore modal straight to the Map view.
-  document.getElementById("btn-visualize").addEventListener("click", async () => {
-    await showRelationshipNetwork();
-    selectExploreView("map");
   });
 
   // New person

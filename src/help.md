@@ -17,7 +17,7 @@ A historical prosopography database for researching persons, associations, insti
 9. [Advanced Query Syntax](#advanced-query-syntax)
 10. [Search History](#search-history)
 11. [Statistics Cards](#statistics-cards)
-12. [Relationship Network](#relationship-network)
+12. [Explore: Graph, Map & Timeline](#explore-graph-map--timeline)
 13. [Search Examples](#search-examples)
 14. [Tips & Best Practices](#tips--best-practices)
 15. [Troubleshooting](#troubleshooting)
@@ -392,26 +392,30 @@ Click any card to filter the table by that value.
 
 - **Total Entities** — all non-deleted records
 - **Male / Female** — filters by gender
-- **Relationships** — opens the Relationship Network modal
+- **Relationships** — switches to the Graph view (network sub-view)
 - **Object types** (toggle) — Persons, Associations, Institutions, Companies
 - **Origin** (toggle) — one card per unique origin value
 - **Religion** (toggle) — one card per unique religion value
 
 ---
 
-## Relationship Network
+## Explore: Graph, Map & Timeline
 
-Click the **Relationships** stat card to open the network modal. The network shows only entities from the **current filtered view** — use search first to narrow the set.
+The app has two views on your data: the **records table** and the **graph view**. Click **🗺 Visualize** in the header to switch between them (or the **Relationships** stat card to jump straight to the network). Click **📋 Table** to return. Every view shows only entities from the **current filtered set** — use search first to narrow it, and the filter applies to both views.
 
-### Views
+The graph view has a sidebar to switch between four sub-views:
 
-**List View:** Cards showing each entity and its relationships as coloured badges. Click a card to open that record.
+**📋 List:** Cards showing each entity and its relationships as coloured badges. Click a card to open that record.
 
-**Graph View:** Interactive D3.js force-directed graph.
+**🕸 Graph:** Interactive D3.js force-directed relationship graph.
 - Drag nodes to reposition
 - Scroll to zoom (0.5× – 3×)
 - Drag background to pan
 - Click **📷 Save PNG** to export the graph
+
+**🗺 Map:** Entities aggregated onto places, drawn on an offline world map. Choose which field to map (city, origin, born in, died in); dot size reflects how many entities share a place. Click a dot to list its people. Place names that aren't in the gazetteer (`data/places.json`) — including ethnonyms like "Flemish" — are listed under **Unplaced**; add coordinates there to map them.
+
+**📅 Timeline:** Each entity as a bar across the years, either its **lifespan** (birth–death) or **attestation** (first–last seen). Hover for details; click to open the record. Entities with no usable dates are counted but not drawn.
 
 ### Legend Filtering
 
@@ -497,7 +501,7 @@ Scope: Relationships → Van der Berg
 
 **Relationship navigation:**
 - Click coloured relationship chips inside a record to jump directly to the related entity
-- Open the network modal after filtering to see only the connections that matter
+- Switch to the graph view after filtering to see only the connections that matter
 
 **Data quality checks:**
 - Duplicate detection: search name variations of the same person

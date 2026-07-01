@@ -65,6 +65,12 @@ async function refreshRecords(query = "") {
   renderStats(allRecords);
   filteredRecords = filtered; // Store filtered records globally for export
   renderTable(filtered);
+
+  // Keep the graph view in sync with the filter when it is the active view.
+  const graphView = document.getElementById("records-graph");
+  if (graphView && !graphView.classList.contains("hidden")) {
+    renderActiveExploreView();
+  }
 }
 
 function searchInRecord(record, query, scopes) {

@@ -1,5 +1,5 @@
 {
-  "_comment": "Gazetteer for the Map view: lowercased place name -> {lat, lon, label}. resolvePlace() in visualize.js lowercases/trims the record's place field, strips parentheticals and trailing '?', and splits on ';'/',' before looking it up here. Add entries as needed; ethnonyms (e.g. 'Dutch', 'Flemish') are intentionally absent so they show under 'unplaced'.",
+  "_comment": "Gazetteer for the Map view: lowercased place name -> {lat, lon, label}. resolvePlace() in visualize.js lowercases/trims the record's place field, strips parentheticals and trailing '?', and splits on ';'/',' before looking it up here. Add entries as needed;",
 
   "livorno": { "lat": 43.5485, "lon": 10.3106, "label": "Livorno" },
   "pisa": { "lat": 43.7228, "lon": 10.4017, "label": "Pisa" },
@@ -13,7 +13,7 @@
   "rome": { "lat": 41.9028, "lon": 12.4964, "label": "Rome" },
   "napoli": { "lat": 40.8518, "lon": 14.2681, "label": "Napoli" },
   "naples": { "lat": 40.8518, "lon": 14.2681, "label": "Naples" },
-  "messina": { "lat": 38.1938, "lon": 15.5540, "label": "Messina" },
+  "messina": { "lat": 38.1938, "lon": 15.554, "label": "Messina" },
 
   "amsterdam": { "lat": 52.3676, "lon": 4.9041, "label": "Amsterdam" },
   "rotterdam": { "lat": 51.9244, "lon": 4.4777, "label": "Rotterdam" },
@@ -24,7 +24,7 @@
   "groningen": { "lat": 53.2194, "lon": 6.5665, "label": "Groningen" },
   "enkhuizen": { "lat": 52.7039, "lon": 5.2916, "label": "Enkhuizen" },
   "hoorn": { "lat": 52.6425, "lon": 5.0597, "label": "Hoorn" },
-  "steenwijk": { "lat": 52.7858, "lon": 6.1190, "label": "Steenwijk" },
+  "steenwijk": { "lat": 52.7858, "lon": 6.119, "label": "Steenwijk" },
 
   "antwerpen": { "lat": 51.2194, "lon": 4.4025, "label": "Antwerpen" },
   "antwerp": { "lat": 51.2194, "lon": 4.4025, "label": "Antwerp" },
@@ -32,14 +32,14 @@
   "brussels": { "lat": 50.8503, "lon": 4.3517, "label": "Brussels" },
   "bruges": { "lat": 51.2093, "lon": 3.2247, "label": "Bruges" },
   "brugge": { "lat": 51.2093, "lon": 3.2247, "label": "Brugge" },
-  "beveren": { "lat": 51.2110, "lon": 4.2570, "label": "Beveren" },
-  "dendermonde": { "lat": 51.0259, "lon": 4.1010, "label": "Dendermonde" },
+  "beveren": { "lat": 51.211, "lon": 4.257, "label": "Beveren" },
+  "dendermonde": { "lat": 51.0259, "lon": 4.101, "label": "Dendermonde" },
   "mons": { "lat": 50.4542, "lon": 3.9523, "label": "Mons" },
   "aarschot": { "lat": 50.9833, "lon": 4.8333, "label": "Aarschot" },
   "liege": { "lat": 50.6326, "lon": 5.5797, "label": "Liège" },
   "liège": { "lat": 50.6326, "lon": 5.5797, "label": "Liège" },
 
-  "douai": { "lat": 50.3714, "lon": 3.0800, "label": "Douai" },
+  "douai": { "lat": 50.3714, "lon": 3.08, "label": "Douai" },
   "arras": { "lat": 50.2833, "lon": 2.7833, "label": "Arras" },
   "atrecht": { "lat": 50.2833, "lon": 2.7833, "label": "Arras" },
   "sedan": { "lat": 49.7019, "lon": 4.9447, "label": "Sedan" },
@@ -66,11 +66,16 @@
   "izmir": { "lat": 38.4237, "lon": 27.1428, "label": "İzmir" },
 
   "dutch": { "lat": 52.1326, "lon": 5.2913, "label": "Netherlands", "approx": true },
-  "flemish": { "lat": 51.0500, "lon": 3.7303, "label": "Flanders", "approx": true },
+  "flemish": { "lat": 51.05, "lon": 3.7303, "label": "Flanders", "approx": true },
   "english": { "lat": 52.3555, "lon": -1.1743, "label": "England", "approx": true },
   "german": { "lat": 51.1657, "lon": 10.4515, "label": "Germany", "approx": true },
   "italian": { "lat": 41.8719, "lon": 12.5674, "label": "Italy", "approx": true },
   "italy": { "lat": 41.8719, "lon": 12.5674, "label": "Italy", "approx": true },
   "austrian": { "lat": 47.5162, "lon": 14.5501, "label": "Austria", "approx": true },
-  "venetian": { "lat": 45.4408, "lon": 12.3155, "label": "Venice", "approx": true }
+  "venetian": { "lat": 45.4408, "lon": 12.3155, "label": "Venice", "approx": true },
+
+  "portuguese": { "lat": 39.3999, "lon": -8.2245, "label": "Portugal", "approx": true },
+  "portugal": { "lat": 39.3999, "lon": -8.2245, "label": "Portugal", "approx": true },
+  "spanish": { "lat": 40.4637, "lon": -3.7492, "label": "Spain", "approx": true },
+  "spain": { "lat": 40.4637, "lon": -3.7492, "label": "Spain", "approx": true }
 }

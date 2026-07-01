@@ -1,80 +1,97 @@
 <!doctype html>
 <html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <meta name="robots" content="noindex" />
+        <title>Livorno prosopography</title>
+        <!-- Theme colors -->
+        <meta name="theme-color" content="#FFF" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="white-translucent" />
+        <meta name="apple-mobile-web-app-title" content="Livorno Prosopography" />
+        <!-- Icons -->
+        <link rel="icon" type="image/png" sizes="32x32" href="icons/icon-32x32.png" />
+        <link rel="icon" type="image/png" href="icons/favicon-96x96.png" sizes="96x96" />
+        <link rel="icon" type="image/x-icon" href="icons/favicon.ico" />
+        <link rel="icon" type="image/svg+xml" href="icons/favicon.svg" />
+        <link rel="shortcut icon" href="icons/favicon.ico" />
+        <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png" />
+        <link rel="apple-touch-icon" href="icons/icon-152x152.png" />
+        <!-- Style sheet  -->
+        <link rel="stylesheet" href="css/styles.css" />
+        <!-- SheetJS for Excel import (vendored locally so the app works offline) -->
+        <script src="vendor/xlsx.full.min.js"></script>
+        <!-- D3.js for network visualization (vendored locally) -->
+        <script src="vendor/d3.v7.min.js"></script>
+    </head>
 
-<head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="robots" content="noindex" />
-    <title>Livorno prosopography</title>
-    <!-- Theme colors -->
-    <meta name="theme-color" content="#FFF" />
-    <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="white-translucent" />
-    <meta name="apple-mobile-web-app-title" content="Livorno Prosopography" />
-    <!-- Icons -->
-    <link rel="icon" type="image/png" sizes="32x32" href="icons/icon-32x32.png" />
-    <link rel="icon" type="image/png" href="icons/favicon-96x96.png" sizes="96x96" />
-    <link rel="icon" type="image/x-icon" href="icons/favicon.ico" />
-    <link rel="icon" type="image/svg+xml" href="icons/favicon.svg" />
-    <link rel="shortcut icon" href="icons/favicon.ico" />
-    <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png" />
-    <link rel="apple-touch-icon" href="icons/icon-152x152.png" />
-    <!-- Style sheet  -->
-    <link rel="stylesheet" href="css/styles.css" />
-    <!-- SheetJS for Excel import (vendored locally so the app works offline) -->
-    <script src="vendor/xlsx.full.min.js"></script>
-    <!-- D3.js for network visualization (vendored locally) -->
-    <script src="vendor/d3.v7.min.js"></script>
-</head>
+    <body>
+        <header>
+            <h1>Livorno prosopography</h1>
+            <div class="header-actions">
+                <button
+                    class="btn-ghost btn-small"
+                    id="btn-visualize"
+                    title="Map &amp; timeline of the current results"
+                >
+                    🗺 Visualize
+                </button>
+                <button class="btn-ghost btn-small" id="btn-help">? Help</button>
+                <button class="btn-ghost btn-small" id="btn-settings-toggle">⚙ Settings</button>
+                <span id="server-status">⏻</span>
+            </div>
+        </header>
 
-<body>
-    <header>
-        <h1>Livorno prosopography</h1>
-        <div class="header-actions">
-            <button class="btn-ghost btn-small" id="btn-visualize"
-                title="Map &amp; timeline of the current results">🗺 Visualize</button>
-            <button class="btn-ghost btn-small" id="btn-help">? Help</button>
-            <button class="btn-ghost btn-small" id="btn-settings-toggle">⚙ Settings</button>
-            <span id="server-status">⏻</span>
-        </div>
-    </header>
+        <div id="app">
+            <!-- Settings panel -->
+            <div id="settings-panel">
+                <h3>Settings</h3>
 
-    <div id="app">
-        <!-- Settings panel -->
-        <div id="settings-panel">
-            <h3>Settings</h3>
-
-            <!-- Data server -->
-            <div class="form-grid" style="margin-bottom: 14px;">
-                <div class="form-group" style="display: flex; gap: 8px; align-items: normal;">
-                    <div>
-                        <label>Data Server URL</label>
-                        <input type="text" id="setting-server-url" placeholder="http://localhost:8081" />
+                <!-- Data server -->
+                <div class="form-grid" style="margin-bottom: 14px">
+                    <div class="form-group" style="display: flex; gap: 8px; align-items: normal">
+                        <div>
+                            <label>Data Server URL</label>
+                            <input
+                                type="text"
+                                id="setting-server-url"
+                                placeholder="http://localhost:8081"
+                            />
+                        </div>
+                        <button
+                            class="btn-ghost btn-small"
+                            id="btn-test-connection"
+                            style="white-space: nowrap; margin-bottom: 1px"
+                        >
+                            Test
+                        </button>
                     </div>
-                    <button class="btn-ghost btn-small" id="btn-test-connection"
-                        style="white-space: nowrap; margin-bottom: 1px;">Test</button>
+                </div>
+
+                <div style="display: flex; gap: 10px; flex-wrap: wrap">
+                    <button class="btn-primary" id="btn-save-settings">Save Settings</button>
+                    <button class="btn-ghost btn-small" id="btn-show-deleted">Show Deleted</button>
+                    <button class="btn-secondary btn-small" id="btn-import">⬆ Import Excel</button>
+                    <button class="btn-secondary btn-small" id="btn-export">⬇ Export</button>
+                    <button class="btn-ghost btn-small" id="btn-license">📄 License</button>
+
+                    <input type="file" id="file-input" accept=".xlsx,.xls" class="hidden" />
                 </div>
             </div>
 
-
-            <div style="display: flex; gap: 10px; flex-wrap: wrap">
-                <button class="btn-primary" id="btn-save-settings">Save Settings</button>
-                <button class="btn-ghost btn-small" id="btn-show-deleted">Show Deleted</button>
-                <button class="btn-secondary btn-small" id="btn-import">⬆ Import Excel</button>
-                <button class="btn-secondary btn-small" id="btn-export">⬇ Export</button>
-                <button class="btn-ghost btn-small" id="btn-license">📄 License</button>
-
-                <input type="file" id="file-input" accept=".xlsx,.xls" class="hidden" />
-            </div>
-        </div>
-
-        <!-- Toolbar -->
-        <div id="toolbar">
-            <div style="display: flex; gap: 10px; flex: 1; align-items: center">
-                <div style="position: relative; flex: 1">
-                    <input type="text" id="search-input" placeholder="Search names (fuzzy match, sounds like)..."
-                        style="width: 100%; padding-left: 12px; padding-right: 180px" />
-                    <div style="
+            <!-- Toolbar -->
+            <div id="toolbar">
+                <div style="display: flex; gap: 10px; flex: 1; align-items: center">
+                    <div style="position: relative; flex: 1">
+                        <input
+                            type="text"
+                            id="search-input"
+                            placeholder="Search names (fuzzy match, sounds like)..."
+                            style="width: 100%; padding-left: 12px; padding-right: 180px"
+                        />
+                        <div
+                            style="
                                 position: absolute;
                                 right: 8px;
                                 top: 50%;
@@ -82,47 +99,66 @@
                                 display: flex;
                                 gap: 4px;
                                 align-items: center;
-                            ">
-                        <button class="search-input-btn" id="btn-search-scope" title="Select search scope">
-                            <span id="scope-display">All</span>▼
-                        </button>
-                        <button class="search-input-btn" id="btn-toggle-regex" title="Toggle regex search">
-                            .*
-                        </button>
-                        <button class="search-input-btn" id="btn-toggle-advanced" title="Toggle advanced query syntax">
-                            AND/OR
-                        </button>
-                        <button class="search-input-btn" id="btn-search-history" title="Search history">
-                            ⏱
-                        </button>
+                            "
+                        >
+                            <button
+                                class="search-input-btn"
+                                id="btn-search-scope"
+                                title="Select search scope"
+                            >
+                                <span id="scope-display">All</span>▼
+                            </button>
+                            <button
+                                class="search-input-btn"
+                                id="btn-toggle-regex"
+                                title="Toggle regex search"
+                            >
+                                .*
+                            </button>
+                            <button
+                                class="search-input-btn"
+                                id="btn-toggle-advanced"
+                                title="Toggle advanced query syntax"
+                            >
+                                AND/OR
+                            </button>
+                            <button
+                                class="search-input-btn"
+                                id="btn-search-history"
+                                title="Search history"
+                            >
+                                ⏱
+                            </button>
+                        </div>
                     </div>
                 </div>
-            </div>
-            <button class="btn-primary" id="btn-new">+ New Entity</button>
-        </div>
-
-        <!-- Statistics pane -->
-
-        <div id="stats-pane">
-            <div class="stat-card stat-card--clickable" id="stat-card-total">
-                <span class="stat-value" id="stat-total">—</span>
-                <span class="stat-label">Total entities</span>
+                <button class="btn-primary" id="btn-new">+ New Entity</button>
             </div>
 
-            <div class="stat-card stat-card--clickable" id="stat-card-male">
-                <span class="stat-value" id="stat-male">—</span>
-                <span class="stat-label">Male (persons)</span>
-            </div>
-            <div class="stat-card stat-card--clickable" id="stat-card-female">
-                <span class="stat-value" id="stat-female">—</span>
-                <span class="stat-label">Female (persons)</span>
-            </div>
-            <div class="stat-card stat-card--clickable" id="stat-card-relationships">
-                <span class="stat-value" id="stat-relationships">—</span>
-                <span class="stat-label">Relationships</span>
-            </div>
-            <div class="buttonbar">
-                <button class="btn-ghost btn-in-statcard" onclick="
+            <!-- Statistics pane -->
+
+            <div id="stats-pane">
+                <div class="stat-card stat-card--clickable" id="stat-card-total">
+                    <span class="stat-value" id="stat-total">—</span>
+                    <span class="stat-label">Total entities</span>
+                </div>
+
+                <div class="stat-card stat-card--clickable" id="stat-card-male">
+                    <span class="stat-value" id="stat-male">—</span>
+                    <span class="stat-label">Male (persons)</span>
+                </div>
+                <div class="stat-card stat-card--clickable" id="stat-card-female">
+                    <span class="stat-value" id="stat-female">—</span>
+                    <span class="stat-label">Female (persons)</span>
+                </div>
+                <div class="stat-card stat-card--clickable" id="stat-card-relationships">
+                    <span class="stat-value" id="stat-relationships">—</span>
+                    <span class="stat-label">Relationships</span>
+                </div>
+                <div class="buttonbar">
+                    <button
+                        class="btn-ghost btn-in-statcard"
+                        onclick="
                             var coll = document.getElementsByClassName('objecttypesstats');
                             for (var i = 0, len = coll.length; i < len; i++) {
                                 if (coll[i].style.display === 'none') {
@@ -135,10 +171,13 @@
                                     this.classList.add('btn-ghost');
                                 }
                             }
-                        ">
-                    Object types stats
-                </button>
-                <button class="btn-ghost btn-in-statcard" onclick="
+                        "
+                    >
+                        Object types stats
+                    </button>
+                    <button
+                        class="btn-ghost btn-in-statcard"
+                        onclick="
                             if (
                                 document.getElementById('origin-stats-container').style.display ===
                                 'none'
@@ -153,10 +192,13 @@
                                 this.classList.remove('btn-primary');
                                 this.classList.add('btn-ghost');
                             }
-                        ">
-                    Origin stats
-                </button>
-                <button class="btn-ghost btn-in-statcard" onclick="
+                        "
+                    >
+                        Origin stats
+                    </button>
+                    <button
+                        class="btn-ghost btn-in-statcard"
+                        onclick="
                             if (
                                 document.getElementById('religion-stats-container').style
                                     .display === 'none'
@@ -171,183 +213,214 @@
                                 this.classList.remove('btn-primary');
                                 this.classList.add('btn-ghost');
                             }
-                        ">
-                    Religion stats
-                </button>
+                        "
+                    >
+                        Religion stats
+                    </button>
+                </div>
+                <div style="display: none" id="origin-stats-container"></div>
+                <div style="display: none" id="religion-stats-container"></div>
+                <div
+                    style="display: none"
+                    class="stat-card stat-card--clickable objecttypesstats"
+                    id="stat-card-persons"
+                >
+                    <span class="stat-value" id="stat-persons">—</span>
+                    <span class="stat-label">Persons</span>
+                </div>
+                <div
+                    style="display: none"
+                    class="stat-card stat-card--clickable objecttypesstats"
+                    id="stat-card-associations"
+                >
+                    <span class="stat-value" id="stat-associations">—</span>
+                    <span class="stat-label">Associations</span>
+                </div>
+                <div
+                    style="display: none"
+                    class="stat-card stat-card--clickable objecttypesstats"
+                    id="stat-card-institutions"
+                >
+                    <span class="stat-value" id="stat-institutions">—</span>
+                    <span class="stat-label">Institutions</span>
+                </div>
+                <div
+                    style="display: none"
+                    class="stat-card stat-card--clickable objecttypesstats"
+                    id="stat-card-companies"
+                >
+                    <span class="stat-value" id="stat-companies">—</span>
+                    <span class="stat-label">Companies</span>
+                </div>
             </div>
-            <div style="display: none" id="origin-stats-container"></div>
-            <div style="display: none" id="religion-stats-container"></div>
-            <div style="display: none" class="stat-card stat-card--clickable objecttypesstats" id="stat-card-persons">
-                <span class="stat-value" id="stat-persons">—</span>
-                <span class="stat-label">Persons</span>
-            </div>
-            <div style="display: none" class="stat-card stat-card--clickable objecttypesstats"
-                id="stat-card-associations">
-                <span class="stat-value" id="stat-associations">—</span>
-                <span class="stat-label">Associations</span>
-            </div>
-            <div style="display: none" class="stat-card stat-card--clickable objecttypesstats"
-                id="stat-card-institutions">
-                <span class="stat-value" id="stat-institutions">—</span>
-                <span class="stat-label">Institutions</span>
-            </div>
-            <div style="display: none" class="stat-card stat-card--clickable objecttypesstats" id="stat-card-companies">
-                <span class="stat-value" id="stat-companies">—</span>
-                <span class="stat-label">Companies</span>
+
+            <!-- Records table -->
+            <div id="records-container">
+                <div id="records-count">Loading...</div>
+                <table id="records-table">
+                    <thead>
+                        <tr>
+                            <th></th>
+                            <th data-col="lastname">Lastname</th>
+                            <th data-col="firstname">Firstname</th>
+                            <th data-col="profession">Profession</th>
+                            <th data-col="firstseen">firstseen</th>
+                            <th data-col="lastseen">lastseen</th>
+                            <th>&nbsp;</th>
+                            <th>&nbsp;</th>
+                        </tr>
+                    </thead>
+                    <tbody id="records-tbody"></tbody>
+                </table>
             </div>
         </div>
 
-        <!-- Records table -->
-        <div id="records-container">
-            <div id="records-count">Loading...</div>
-            <table id="records-table">
-                <thead>
-                    <tr>
-                        <th></th>
-                        <th data-col="lastname">Lastname</th>
-                        <th data-col="firstname">Firstname</th>
-                        <th data-col="profession">Profession</th>
-                        <th data-col="firstseen">firstseen</th>
-                        <th data-col="lastseen">lastseen</th>
-                        <th>&nbsp;</th>
-                        <th>&nbsp;</th>
-                    </tr>
-                </thead>
-                <tbody id="records-tbody"></tbody>
-            </table>
-        </div>
-    </div>
-
-    <!-- Person Form Modal -->
-    <div id="person-modal" class="modal-overlay hidden">
-        <div class="modal">
-            <div class="modal-header">
-                <h2 id="modal-title">New Person</h2>
-                <button class="modal-close" id="modal-close-btn">✕</button>
-            </div>
-            <div class="modal-body">
-                <div class="form-grid">
-                    <!-- Entity Type -->
-                    <div class="form-group">
-                        <label>Entity Type</label>
-                        <select id="field-entity-type">
-                            <option value="person">Person</option>
-                            <option value="association">Association</option>
-                            <option value="institution">Institution</option>
-                            <option value="company">Company</option>
-                        </select>
-                    </div>
-
-                    <!-- Lastname -->
-                    <div class="form-group">
-                        <label for="field-lastname">Lastname *</label>
-                        <div class="lookup-wrapper">
-                            <input type="text" id="field-lastname" placeholder="Primary lastname" autocomplete="off" />
-                            <div id="lastname-lookup" class="lookup-dropdown hidden"></div>
+        <!-- Person Form Modal -->
+        <div id="person-modal" class="modal-overlay hidden">
+            <div class="modal">
+                <div class="modal-header">
+                    <h2 id="modal-title">New Person</h2>
+                    <button class="modal-close" id="modal-close-btn">✕</button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-grid">
+                        <!-- Entity Type -->
+                        <div class="form-group">
+                            <label>Entity Type</label>
+                            <select id="field-entity-type">
+                                <option value="person" selected>Person</option>
+                                <option value="association">Association</option>
+                                <option value="institution">Institution</option>
+                                <option value="company">Company</option>
+                            </select>
                         </div>
-                    </div>
 
-                    <!-- Firstname -->
-                    <div class="form-group">
-                        <label for="field-firstname">Firstname</label>
-                        <input type="text" id="field-firstname" placeholder="Primary firstname" />
-                    </div>
+                        <!-- Lastname -->
+                        <div class="form-group">
+                            <label for="field-lastname">Lastname *</label>
+                            <div class="lookup-wrapper">
+                                <input
+                                    type="text"
+                                    id="field-lastname"
+                                    placeholder="Primary lastname"
+                                    autocomplete="off"
+                                />
+                                <div id="lastname-lookup" class="lookup-dropdown hidden"></div>
+                            </div>
+                        </div>
 
-                    <!-- Patronymic -->
-                    <div class="form-group">
-                        <label>Patronymic</label>
-                        <input type="text" id="field-patronymic" />
-                    </div>
+                        <!-- Firstname -->
+                        <div class="form-group">
+                            <label for="field-firstname">Firstname</label>
+                            <input
+                                type="text"
+                                id="field-firstname"
+                                placeholder="Primary firstname"
+                            />
+                        </div>
 
-                    <!-- Relationship Summary -->
-                    <div class="form-group full-width">
-                        <div id="relationship-summary" style="
+                        <!-- Patronymic -->
+                        <div class="form-group">
+                            <label>Patronymic</label>
+                            <input type="text" id="field-patronymic" />
+                        </div>
+
+                        <!-- Relationship Summary -->
+                        <div class="form-group full-width">
+                            <div
+                                id="relationship-summary"
+                                style="
                                     margin-bottom: 20px;
                                     padding: 12px;
                                     background: var(--pale-grey);
                                     border-radius: 4px;
                                     border: 1px solid var(--light-grey);
-                                "></div>
-                    </div>
+                                "
+                            ></div>
+                        </div>
 
-                    <!-- Lastname variations -->
-                    <div class="form-group full-width">
-                        <label>Lastname Variations</label>
-                        <div class="array-field" id="lastname-variations-container"></div>
-                        <button class="btn-ghost add-item-btn" id="add-lastname-variation">
-                            + Add variation
-                        </button>
-                    </div>
+                        <!-- Lastname variations -->
+                        <div class="form-group full-width">
+                            <label>Lastname Variations</label>
+                            <div class="array-field" id="lastname-variations-container"></div>
+                            <button class="btn-ghost add-item-btn" id="add-lastname-variation">
+                                + Add variation
+                            </button>
+                        </div>
 
-                    <!-- Firstname variations -->
-                    <div class="form-group full-width">
-                        <label>Firstname Variations</label>
-                        <div class="array-field" id="firstname-variations-container"></div>
-                        <button class="btn-ghost add-item-btn" id="add-firstname-variation">
-                            + Add variation
-                        </button>
-                    </div>
+                        <!-- Firstname variations -->
+                        <div class="form-group full-width">
+                            <label>Firstname Variations</label>
+                            <div class="array-field" id="firstname-variations-container"></div>
+                            <button class="btn-ghost add-item-btn" id="add-firstname-variation">
+                                + Add variation
+                            </button>
+                        </div>
 
-                    <!-- Relationships -->
-                    <div class="form-group full-width">
-                        <label>Relationships</label>
-                        <div class="array-field" id="relationships-container"></div>
-                        <button class="btn-ghost add-item-btn" id="add-relationship">
-                            + Add relationship
-                        </button>
-                    </div>
+                        <!-- Relationships -->
+                        <div class="form-group full-width">
+                            <label>Relationships</label>
+                            <div class="array-field" id="relationships-container"></div>
+                            <button class="btn-ghost add-item-btn" id="add-relationship">
+                                + Add relationship
+                            </button>
+                        </div>
 
-                    <!-- Notes -->
-                    <div class="form-group full-width">
-                        <label>Opmerkingen / Notes</label>
-                        <textarea id="field-notes"></textarea>
-                    </div>
+                        <!-- Notes -->
+                        <div class="form-group full-width">
+                            <label>Opmerkingen / Notes</label>
+                            <textarea id="field-notes"></textarea>
+                        </div>
 
-                    <!-- Gender -->
-                    <div class="form-group">
-                        <label>Gender</label>
-                        <select id="field-gender">
-                            <option value="M">Male</option>
-                            <option value="F">Female</option>
-                        </select>
-                    </div>
+                        <!-- Gender -->
+                        <div class="form-group">
+                            <label>Gender</label>
+                            <select id="field-gender">
+                                <option value="M" selected>Male</option>
+                                <option value="F">Female</option>
+                            </select>
+                        </div>
 
-                    <!-- City -->
-                    <div class="form-group">
-                        <label>City</label>
-                        <input type="text" id="field-city" list="city-suggestions" />
-                        <datalist id="city-suggestions"></datalist>
-                    </div>
+                        <!-- City -->
+                        <div class="form-group">
+                            <label>City</label>
+                            <input type="text" id="field-city" list="city-suggestions" />
+                            <datalist id="city-suggestions"></datalist>
+                        </div>
 
-                    <!-- Profession -->
-                    <div class="form-group">
-                        <label>Profession</label>
-                        <input type="text" id="field-profession" list="profession-suggestions" />
-                        <datalist id="profession-suggestions"></datalist>
-                    </div>
+                        <!-- Profession -->
+                        <div class="form-group">
+                            <label>Profession</label>
+                            <input
+                                type="text"
+                                id="field-profession"
+                                list="profession-suggestions"
+                            />
+                            <datalist id="profession-suggestions"></datalist>
+                        </div>
 
-                    <!-- Origin -->
-                    <div class="form-group">
-                        <label>Origin</label>
-                        <input type="text" id="field-origin" list="origin-suggestions" />
-                        <datalist id="origin-suggestions"></datalist>
-                    </div>
+                        <!-- Origin -->
+                        <div class="form-group">
+                            <label>Origin</label>
+                            <input type="text" id="field-origin" list="origin-suggestions" />
+                            <datalist id="origin-suggestions"></datalist>
+                        </div>
 
-                    <!-- Religion -->
-                    <div class="form-group">
-                        <label>Religion</label>
-                        <input type="text" id="field-religion" list="religion-suggestions" />
-                        <datalist id="religion-suggestions"></datalist>
-                    </div>
+                        <!-- Religion -->
+                        <div class="form-group">
+                            <label>Religion</label>
+                            <input type="text" id="field-religion" list="religion-suggestions" />
+                            <datalist id="religion-suggestions"></datalist>
+                        </div>
 
-                    <!-- MoCO-A since -->
-                    <div class="form-group">
-                        <label>Member of Nazione Since</label>
-                        <input type="text" id="field-mocosince" />
-                    </div>
+                        <!-- MoCO-A since -->
+                        <div class="form-group">
+                            <label>Member of Nazione Since</label>
+                            <input type="text" id="field-mocosince" />
+                        </div>
 
-                    <!-- Lasting -->
-                    <!--
+                        <!-- Lasting -->
+                        <!--
                         <div class="form-group">
 
                             <label>Lasting</label>
@@ -356,270 +429,323 @@
                         </div>
                         -->
 
-                    <!-- First seen -->
-                    <div class="form-group">
-                        <label>First Seen</label>
-                        <input type="text" id="field-firstseen" />
-                    </div>
+                        <!-- First seen -->
+                        <div class="form-group">
+                            <label>First Seen</label>
+                            <input type="text" id="field-firstseen" />
+                        </div>
 
-                    <!-- Last seen -->
-                    <div class="form-group">
-                        <label>Last Seen</label>
-                        <input type="text" id="field-lastseen" />
-                    </div>
+                        <!-- Last seen -->
+                        <div class="form-group">
+                            <label>Last Seen</label>
+                            <input type="text" id="field-lastseen" />
+                        </div>
 
-                    <!-- Year of birth -->
-                    <div class="form-group">
-                        <label>Year of Birth</label>
-                        <input type="text" id="field-yob" />
-                    </div>
+                        <!-- Year of birth -->
+                        <div class="form-group">
+                            <label>Year of Birth</label>
+                            <input type="text" id="field-yob" />
+                        </div>
 
-                    <!-- Born in -->
-                    <div class="form-group">
-                        <label>Born In</label>
-                        <input type="text" id="field-bornin" list="bornin-suggestions" />
-                        <datalist id="bornin-suggestions"></datalist>
-                    </div>
+                        <!-- Born in -->
+                        <div class="form-group">
+                            <label>Born In</label>
+                            <input type="text" id="field-bornin" list="bornin-suggestions" />
+                            <datalist id="bornin-suggestions"></datalist>
+                        </div>
 
-                    <!-- Year of death -->
-                    <div class="form-group">
-                        <label>Year of Death</label>
-                        <input type="text" id="field-yod" />
-                    </div>
+                        <!-- Year of death -->
+                        <div class="form-group">
+                            <label>Year of Death</label>
+                            <input type="text" id="field-yod" />
+                        </div>
 
-                    <!-- Died in -->
-                    <div class="form-group">
-                        <label>Died In</label>
-                        <input type="text" id="field-diedin" list="diedin-suggestions" />
-                        <datalist id="diedin-suggestions"></datalist>
-                    </div>
+                        <!-- Died in -->
+                        <div class="form-group">
+                            <label>Died In</label>
+                            <input type="text" id="field-diedin" list="diedin-suggestions" />
+                            <datalist id="diedin-suggestions"></datalist>
+                        </div>
 
-                    <!-- Zotero references -->
-                    <div class="form-group full-width">
-                        <label>Zotero References</label>
-                        <div class="array-field" id="zotero-container"></div>
-                        <button class="btn-ghost add-item-btn" id="add-zotero">
-                            + Add Zotero reference
-                        </button>
-                    </div>
+                        <!-- Zotero references -->
+                        <div class="form-group full-width">
+                            <label>Zotero References</label>
+                            <div class="array-field" id="zotero-container"></div>
+                            <button class="btn-ghost add-item-btn" id="add-zotero">
+                                + Add Zotero reference
+                            </button>
+                        </div>
 
-                    <!-- Archief references -->
-                    <div class="form-group full-width">
-                        <label>Archief References</label>
-                        <div class="array-field" id="archief-container"></div>
-                        <button class="btn-ghost add-item-btn" id="add-archief">
-                            + Add Archief reference
-                        </button>
+                        <!-- Archief references -->
+                        <div class="form-group full-width">
+                            <label>Archief References</label>
+                            <div class="array-field" id="archief-container"></div>
+                            <button class="btn-ghost add-item-btn" id="add-archief">
+                                + Add Archief reference
+                            </button>
+                        </div>
                     </div>
                 </div>
-            </div>
-            <div class="modal-footer">
-                <button class="btn-danger btn-small hidden" id="btn-delete-person">
-                    Delete
-                </button>
-                <button class="btn-secondary btn-small hidden" id="btn-history-person">
-                    History
-                </button>
-                <button class="btn-secondary" id="btn-cancel-modal">Cancel</button>
-                <button class="btn-primary" id="btn-save-person">Save</button>
+                <div class="modal-footer">
+                    <button class="btn-danger btn-small hidden" id="btn-delete-person">
+                        Delete
+                    </button>
+                    <button class="btn-secondary btn-small hidden" id="btn-history-person">
+                        History
+                    </button>
+                    <button class="btn-secondary" id="btn-cancel-modal">Cancel</button>
+                    <button class="btn-primary" id="btn-save-person">Save</button>
+                </div>
             </div>
         </div>
-    </div>
 
-    <!-- Generic dialog overlay -->
-    <div id="dialog-overlay" class="modal-overlay hidden">
-        <div class="dialog-box">
-            <h3 id="dialog-title"></h3>
-            <p id="dialog-message"></p>
-            <div class="dialog-buttons" id="dialog-buttons"></div>
+        <!-- Generic dialog overlay -->
+        <div id="dialog-overlay" class="modal-overlay hidden">
+            <div class="dialog-box">
+                <h3 id="dialog-title"></h3>
+                <p id="dialog-message"></p>
+                <div class="dialog-buttons" id="dialog-buttons"></div>
+            </div>
         </div>
-    </div>
 
-    <!-- Progress dialog overlay -->
-    <div id="progress-overlay" class="modal-overlay hidden">
-        <div class="dialog-box">
-            <h3 id="progress-title">Syncing...</h3>
-            <p id="progress-message">Preparing...</p>
-            <div style="
+        <!-- Progress dialog overlay -->
+        <div id="progress-overlay" class="modal-overlay hidden">
+            <div class="dialog-box">
+                <h3 id="progress-title">Syncing...</h3>
+                <p id="progress-message">Preparing...</p>
+                <div
+                    style="
                         background: var(--pale-grey);
                         border-radius: 4px;
                         height: 8px;
                         overflow: hidden;
                         margin: 16px 0;
-                    ">
-                <div id="progress-bar" style="
+                    "
+                >
+                    <div
+                        id="progress-bar"
+                        style="
                             background: var(--ice-blue-dark);
                             height: 100%;
                             width: 0%;
                             transition: width 0.2s;
-                        "></div>
-            </div>
-            <p id="progress-details" style="font-size: 12px; color: var(--mid-grey)"></p>
-        </div>
-    </div>
-
-    <!-- Version history modal -->
-    <div id="version-history-modal" class="modal-overlay hidden">
-        <div class="modal">
-            <div class="modal-header">
-                <h2>Version History</h2>
-                <button class="modal-close" id="version-history-close">✕</button>
-            </div>
-            <div class="modal-body">
-                <p style="font-size: 12px; color: var(--mid-grey); margin-bottom: 12px">
-                    Restoring a version saves the current one as a new backup first, so it can be undone.
-                </p>
-                <div id="version-history-results" style="max-height: 400px; overflow-y: auto"></div>
+                        "
+                    ></div>
+                </div>
+                <p id="progress-details" style="font-size: 12px; color: var(--mid-grey)"></p>
             </div>
         </div>
-    </div>
 
-    <!-- Person picker modal -->
-    <div id="person-picker-modal" class="modal-overlay hidden">
-        <div class="modal">
-            <div class="modal-header">
-                <h2>Select Person</h2>
-                <button class="modal-close" id="person-picker-close">✕</button>
+        <!-- Version history modal -->
+        <div id="version-history-modal" class="modal-overlay hidden">
+            <div class="modal">
+                <div class="modal-header">
+                    <h2>Version History</h2>
+                    <button class="modal-close" id="version-history-close">✕</button>
+                </div>
+                <div class="modal-body">
+                    <p style="font-size: 12px; color: var(--mid-grey); margin-bottom: 12px">
+                        Restoring a version saves the current one as a new backup first, so it can
+                        be undone.
+                    </p>
+                    <div
+                        id="version-history-results"
+                        style="max-height: 400px; overflow-y: auto"
+                    ></div>
+                </div>
             </div>
-            <div class="modal-body">
-                <input type="text" id="person-picker-search" placeholder="Search by name..." style="
+        </div>
+
+        <!-- Person picker modal -->
+        <div id="person-picker-modal" class="modal-overlay hidden">
+            <div class="modal">
+                <div class="modal-header">
+                    <h2>Select Person</h2>
+                    <button class="modal-close" id="person-picker-close">✕</button>
+                </div>
+                <div class="modal-body">
+                    <input
+                        type="text"
+                        id="person-picker-search"
+                        placeholder="Search by name..."
+                        style="
                             width: 100%;
                             padding: 8px;
                             margin-bottom: 12px;
                             border: 1px solid var(--light-grey);
                             border-radius: 4px;
-                        " />
-                <div id="person-picker-results" style="max-height: 400px; overflow-y: auto"></div>
+                        "
+                    />
+                    <div
+                        id="person-picker-results"
+                        style="max-height: 400px; overflow-y: auto"
+                    ></div>
+                </div>
             </div>
         </div>
-    </div>
 
-    <!-- Search scope selector modal -->
-    <div id="search-scope-modal" class="modal-overlay hidden">
-        <div class="dialog-box" style="max-width: 400px">
-            <h3>Search Scope</h3>
-            <p style="margin-bottom: 16px; font-size: 12px; color: var(--mid-grey)">
-                Select which fields to search:
-            </p>
-            <div style="max-height: 300px; overflow-y: auto">
-                <label class="col-option">
-                    <input type="checkbox" class="scope-checkbox" value="all" checked />
-                    All Fields
-                </label>
-                <label class="col-option">
-                    <input type="checkbox" class="scope-checkbox" value="name" />
-                    Name (all name fields)
-                </label>
-                <label class="col-option">
-                    <input type="checkbox" class="scope-checkbox" value="lastname" />
-                    Lastname
-                </label>
-                <label class="col-option">
-                    <input type="checkbox" class="scope-checkbox" value="firstname" />
-                    Firstname
-                </label>
-                <label class="col-option">
-                    <input type="checkbox" class="scope-checkbox" value="entityType" />
-                    Entity Type
-                </label>
-                <label class="col-option">
-                    <input type="checkbox" class="scope-checkbox" value="patronymic" />
-                    Patronymic
-                </label>
-                <label class="col-option">
-                    <input type="checkbox" class="scope-checkbox" value="gender" />
-                    Gender
-                </label>
-                <label class="col-option">
-                    <input type="checkbox" class="scope-checkbox" value="origin" />
-                    Origin
-                </label>
-                <label class="col-option">
-                    <input type="checkbox" class="scope-checkbox" value="city" />
-                    City
-                </label>
-                <label class="col-option">
-                    <input type="checkbox" class="scope-checkbox" value="profession" />
-                    Profession
-                </label>
-                <label class="col-option">
-                    <input type="checkbox" class="scope-checkbox" value="religion" />
-                    Religion
-                </label>
-                <label class="col-option">
-                    <input type="checkbox" class="scope-checkbox" value="notes" />
-                    Notes
-                </label>
-                <label class="col-option">
-                    <input type="checkbox" class="scope-checkbox" value="references" />
-                    References
-                </label>
-                <label class="col-option">
-                    <input type="checkbox" class="scope-checkbox" value="relationships" />
-                    Relationships
-                </label>
-                <label class="col-option">
-                    <input type="checkbox" class="scope-checkbox" value="timespan" />
-                    Timespan (Firstseen-Lastseen)
-                </label>
-            </div>
-            <div style="margin-top: 16px; display: flex; gap: 10px; justify-content: flex-end">
-                <button class="btn-secondary btn-small" id="btn-scope-cancel">Cancel</button>
-                <button class="btn-primary btn-small" id="btn-scope-apply">Apply</button>
+        <!-- Search scope selector modal -->
+        <div id="search-scope-modal" class="modal-overlay hidden">
+            <div class="dialog-box" style="max-width: 400px">
+                <h3>Search Scope</h3>
+                <p style="margin-bottom: 16px; font-size: 12px; color: var(--mid-grey)">
+                    Select which fields to search:
+                </p>
+                <div style="max-height: 300px; overflow-y: auto">
+                    <label class="col-option">
+                        <input type="checkbox" class="scope-checkbox" value="all" checked />
+                        All Fields
+                    </label>
+                    <label class="col-option">
+                        <input type="checkbox" class="scope-checkbox" value="name" />
+                        Name (all name fields)
+                    </label>
+                    <label class="col-option">
+                        <input type="checkbox" class="scope-checkbox" value="lastname" />
+                        Lastname
+                    </label>
+                    <label class="col-option">
+                        <input type="checkbox" class="scope-checkbox" value="firstname" />
+                        Firstname
+                    </label>
+                    <label class="col-option">
+                        <input type="checkbox" class="scope-checkbox" value="entityType" />
+                        Entity Type
+                    </label>
+                    <label class="col-option">
+                        <input type="checkbox" class="scope-checkbox" value="patronymic" />
+                        Patronymic
+                    </label>
+                    <label class="col-option">
+                        <input type="checkbox" class="scope-checkbox" value="gender" />
+                        Gender
+                    </label>
+                    <label class="col-option">
+                        <input type="checkbox" class="scope-checkbox" value="origin" />
+                        Origin
+                    </label>
+                    <label class="col-option">
+                        <input type="checkbox" class="scope-checkbox" value="city" />
+                        City
+                    </label>
+                    <label class="col-option">
+                        <input type="checkbox" class="scope-checkbox" value="profession" />
+                        Profession
+                    </label>
+                    <label class="col-option">
+                        <input type="checkbox" class="scope-checkbox" value="religion" />
+                        Religion
+                    </label>
+                    <label class="col-option">
+                        <input type="checkbox" class="scope-checkbox" value="notes" />
+                        Notes
+                    </label>
+                    <label class="col-option">
+                        <input type="checkbox" class="scope-checkbox" value="references" />
+                        References
+                    </label>
+                    <label class="col-option">
+                        <input type="checkbox" class="scope-checkbox" value="relationships" />
+                        Relationships
+                    </label>
+                    <label class="col-option">
+                        <input type="checkbox" class="scope-checkbox" value="timespan" />
+                        Timespan (Firstseen-Lastseen)
+                    </label>
+                </div>
+                <div style="margin-top: 16px; display: flex; gap: 10px; justify-content: flex-end">
+                    <button class="btn-secondary btn-small" id="btn-scope-cancel">Cancel</button>
+                    <button class="btn-primary btn-small" id="btn-scope-apply">Apply</button>
+                </div>
             </div>
         </div>
-    </div>
 
-    <!-- Search history dropdown -->
-    <div id="search-history-dropdown" class="lookup-dropdown hidden"></div>
+        <!-- Search history dropdown -->
+        <div id="search-history-dropdown" class="lookup-dropdown hidden"></div>
 
-    <!-- Graph view: map / timeline / network / list — a sibling view to the records table -->
-    <div id="records-graph" class="hidden">
-        <div class="records-graph-header">
-            <span id="network-entity-count"></span>
-        </div>
-        <div class="network-modal-body">
+        <!-- Graph view: map / timeline / network / list — a sibling view to the records table -->
+        <div id="records-graph" class="hidden">
+            <div class="records-graph-header">
+                <span id="network-entity-count"></span>
+            </div>
+            <div class="network-modal-body">
                 <!-- Sidebar: view toggles + legend (left in landscape, top in portrait) -->
                 <div class="network-sidebar">
                     <div class="network-view-btns">
-                        <button class="btn-ghost btn-small network-icon-btn" id="btn-list-view"
-                            title="List View">📋</button>
-                        <button class="btn-ghost btn-small network-icon-btn" id="btn-graph-view"
-                            title="Graph View">🕸</button>
-                        <button class="btn-ghost btn-small network-icon-btn" id="btn-map-view"
-                            title="Map View">🗺</button>
-                        <button class="btn-ghost btn-small network-icon-btn" id="btn-timeline-view"
-                            title="Timeline View">📅</button>
-                        <button class="btn-ghost btn-small network-icon-btn" id="btn-save-graph-png"
-                            title="Save graph as PNG" style="display:none">📷</button>
-                        <button class="btn-ghost btn-small network-icon-btn" id="btn-legend-filter"
-                            title="Filter by relationship type">
+                        <button
+                            class="btn-ghost btn-small network-icon-btn"
+                            id="btn-list-view"
+                            title="List View"
+                        >
+                            📋
+                        </button>
+                        <button
+                            class="btn-ghost btn-small network-icon-btn"
+                            id="btn-graph-view"
+                            title="Graph View"
+                        >
+                            🕸
+                        </button>
+                        <button
+                            class="btn-ghost btn-small network-icon-btn"
+                            id="btn-map-view"
+                            title="Map View"
+                        >
+                            🗺
+                        </button>
+                        <button
+                            class="btn-ghost btn-small network-icon-btn"
+                            id="btn-timeline-view"
+                            title="Timeline View"
+                        >
+                            📅
+                        </button>
+                        <button
+                            class="btn-ghost btn-small network-icon-btn"
+                            id="btn-save-graph-png"
+                            title="Save graph as PNG"
+                            style="display: none"
+                        >
+                            📷
+                        </button>
+                        <button
+                            class="btn-ghost btn-small network-icon-btn"
+                            id="btn-legend-filter"
+                            title="Filter by relationship type"
+                        >
                             <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor">
                                 <path d="M1 2h14l-5 7v5l-4-2V9z" />
                             </svg>
                         </button>
                     </div>
                     <!-- Legend items (hidden by default, toggled by filter button) -->
-                    <div id="legend-items" style="display:none; flex-direction:column; gap:8px; font-size:11px"></div>
+                    <div
+                        id="legend-items"
+                        style="display: none; flex-direction: column; gap: 8px; font-size: 11px"
+                    ></div>
                 </div>
 
                 <!-- Main content area -->
                 <div class="network-main">
-                    <input type="text" id="network-search-input" placeholder="Search person in graph..." />
+                    <input
+                        type="text"
+                        id="network-search-input"
+                        placeholder="Search person in graph..."
+                    />
                     <div id="relationship-network-content">
                         <!-- Dynamically populated with person cards -->
                     </div>
-                    <div id="relationship-graph-container" style="display:none">
+                    <div id="relationship-graph-container" style="display: none">
                         <svg id="relationship-graph" width="100%" height="100%"></svg>
                     </div>
-                    <div id="map-container" style="display:none">
+                    <div id="map-container" style="display: none">
                         <div class="map-controls">
                             <label for="map-field-select">Place field:</label>
                             <select id="map-field-select">
-                                <option value="city">City (residence)</option>
-                                <option value="origin">Origin</option>
                                 <option value="bornin">Born in</option>
                                 <option value="diedin">Died in</option>
+                                <option value="city">City (residence)</option>
+                                <option value="origin">Origin</option>
                             </select>
                         </div>
                         <div class="map-body">
@@ -629,7 +755,7 @@
                             </aside>
                         </div>
                     </div>
-                    <div id="timeline-container" style="display:none">
+                    <div id="timeline-container" style="display: none">
                         <div class="timeline-controls">
                             <label for="timeline-mode-select">Range:</label>
                             <select id="timeline-mode-select">
@@ -644,56 +770,61 @@
                     </div>
                 </div>
             </div>
-    </div>
+        </div>
 
-    <!-- Help Modal -->
-    <div id="help-modal" class="modal-overlay hidden">
-        <div class="modal" style="max-width: 800px; max-height: 90vh; margin-right: 20px; margin-left: auto">
-            <div class="modal-header">
-                <h2>Help Documentation</h2>
-                <button class="modal-close" id="help-close">✕</button>
-            </div>
-            <div class="modal-body" style="max-height: calc(90vh - 80px); overflow-y: auto">
-                <div id="help-content" style="padding: 20px">
-                    <p style="text-align: center; color: var(--mid-grey)">
-                        Loading documentation...
-                    </p>
+        <!-- Help Modal -->
+        <div id="help-modal" class="modal-overlay hidden">
+            <div
+                class="modal"
+                style="max-width: 800px; max-height: 90vh; margin-right: 20px; margin-left: auto"
+            >
+                <div class="modal-header">
+                    <h2>Help Documentation</h2>
+                    <button class="modal-close" id="help-close">✕</button>
+                </div>
+                <div class="modal-body" style="max-height: calc(90vh - 80px); overflow-y: auto">
+                    <div id="help-content" style="padding: 20px">
+                        <p style="text-align: center; color: var(--mid-grey)">
+                            Loading documentation...
+                        </p>
+                    </div>
                 </div>
             </div>
         </div>
-    </div>
 
-    <!-- License Modal -->
-    <div id="license-modal" class="modal-overlay hidden">
-        <div class="modal" style="max-width: 700px; max-height: 80vh">
-            <div class="modal-header">
-                <h2>License</h2>
-                <button class="modal-close" id="license-close">✕</button>
-            </div>
-            <div class="modal-body" style="max-height: calc(80vh - 80px); overflow-y: auto">
-                <div id="license-content" style="
+        <!-- License Modal -->
+        <div id="license-modal" class="modal-overlay hidden">
+            <div class="modal" style="max-width: 700px; max-height: 80vh">
+                <div class="modal-header">
+                    <h2>License</h2>
+                    <button class="modal-close" id="license-close">✕</button>
+                </div>
+                <div class="modal-body" style="max-height: calc(80vh - 80px); overflow-y: auto">
+                    <div
+                        id="license-content"
+                        style="
                             padding: 20px;
                             font-family: monospace;
                             font-size: 12px;
                             white-space: pre-wrap;
-                        ">
-                    <p style="text-align: center; color: var(--mid-grey)">Loading license...</p>
+                        "
+                    >
+                        <p style="text-align: center; color: var(--mid-grey)">Loading license...</p>
+                    </div>
                 </div>
             </div>
         </div>
-    </div>
 
-    <!-- Notification -->
-    <div id="notification"></div>
+        <!-- Notification -->
+        <div id="notification"></div>
 
-    <!-- App scripts: classic scripts sharing one global scope, loaded in order.
+        <!-- App scripts: classic scripts sharing one global scope, loaded in order.
          boot.js must be last (it kicks off the app). -->
-    <script src="scripts/core.js"></script>
-    <script src="scripts/data.js"></script>
-    <script src="scripts/records.js"></script>
-    <script src="scripts/modal.js"></script>
-    <script src="scripts/visualize.js"></script>
-    <script src="scripts/boot.js"></script>
-</body>
-
+        <script src="scripts/core.js"></script>
+        <script src="scripts/data.js"></script>
+        <script src="scripts/records.js"></script>
+        <script src="scripts/modal.js"></script>
+        <script src="scripts/visualize.js"></script>
+        <script src="scripts/boot.js"></script>
+    </body>
 </html>

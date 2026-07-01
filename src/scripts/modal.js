@@ -1160,6 +1160,9 @@ async function openNewModal() {
 
   editingUUID = null;
   clearForm();
+  // Set default values after clearing.
+  document.getElementById("field-entity-type").value = "person";
+  document.getElementById("field-gender").value = "M";
   document.getElementById("modal-title").textContent = "New Entity";
   document.getElementById("btn-delete-person").classList.add("hidden");
   document.getElementById("btn-history-person").classList.add("hidden");

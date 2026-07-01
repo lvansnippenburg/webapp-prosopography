@@ -80,7 +80,7 @@ function resolvePlace(value) {
 async function renderMapView() {
   const container = document.getElementById("map-container");
   const svgEl = document.getElementById("map-svg");
-  const field = document.getElementById("map-field-select").value || "city";
+  const field = document.getElementById("map-field-select").value || "bornin";
 
   await Promise.all([loadWorldGeo(), loadGazetteer()]);
   const records = await getActiveRecords();
@@ -97,7 +97,10 @@ async function renderMapView() {
     const val = (r[field] || "").trim();
     if (!val) return;
     // Split on /, ;, or , to handle compound origins (e.g. "Flemish/Dutch").
-    const segments = val.split(/[/;,]/).map((s) => s.trim()).filter(Boolean);
+    const segments = val
+      .split(/[/;,]/)
+      .map((s) => s.trim())
+      .filter(Boolean);
     const resolvedPlaces = [];
     segments.forEach((seg) => {
       const place = resolvePlace(seg);
@@ -134,9 +137,18 @@ async function renderMapView() {
         geometry: { type: "Point", coordinates: [d.place.lon, d.place.lat] },
       })),
     };
-    projection.fitExtent([[30, 30], [width - 30, height - 30]], fc);
+    projection.fitExtent(
+      [
+        [30, 30],
+        [width - 30, height - 30],
+      ],
+      fc,
+    );
   } else {
-    projection.center([8, 47]).scale(700).translate([width / 2, height / 2]);
+    projection
+      .center([8, 47])
+      .scale(700)
+      .translate([width / 2, height / 2]);
   }
   const path = d3.geoPath(projection);
 
@@ -144,7 +156,8 @@ async function renderMapView() {
   // transform, while the dot markers keep a constant screen size and only their
   // positions follow the transform (see the zoom handler below).
   const gCountries = svg.append("g").attr("class", "map-countries");
-  gCountries.selectAll("path")
+  gCountries
+    .selectAll("path")
     .data(_worldGeo.features)
     .join("path")
     .attr("class", "map-country")
@@ -154,7 +167,8 @@ async function renderMapView() {
   const maxCount = d3.max(places, (d) => d.records.length) || 1;
   const rScale = d3.scaleSqrt().domain([1, maxCount]).range([4, 22]);
 
-  const dot = svg.append("g")
+  const dot = svg
+    .append("g")
     .attr("class", "map-dots")
     .selectAll("g.place")
     .data(places)
@@ -167,7 +181,8 @@ async function renderMapView() {
     .style("cursor", "pointer")
     .on("click", (event, d) => showPlaceRecords(d));
 
-  dot.append("circle")
+  dot
+    .append("circle")
     .attr("class", (d) => `place-dot${d.place.approx ? " place-dot--approx" : ""}`)
     .attr("r", (d) => rScale(d.records.length));
   dot.append("title").text((d) => {
@@ -175,7 +190,8 @@ async function renderMapView() {
     if (d.place.approx) label += " (approximate regional centroid)";
     return label;
   }); // .text() is safe
-  dot.append("text")
+  dot
+    .append("text")
     .attr("class", "place-label")
     .attr("text-anchor", "middle")
     .attr("y", (d) => -rScale(d.records.length) - 4)
@@ -185,7 +201,8 @@ async function renderMapView() {
   // constant screen size and just follow the transform's position mapping, so
   // zooming spreads clustered places apart without inflating the markers.
   svg.call(
-    d3.zoom()
+    d3
+      .zoom()
       .scaleExtent([0.5, 20])
       .on("zoom", (event) => {
         const t = event.transform;
@@ -232,14 +249,14 @@ function renderUnplacedPanel(unplaced, placedCount, hasOverlaps, field) {
   const rows = entries
     .map(([val, c]) => `<li>${escapeHtml(val)} <span class="muted">(${c})</span></li>`)
     .join("");
-  let msg = `<h4>Unplaced <span class="muted">(${total})</span></h4>` +
+  let msg =
+    `<h4>Unplaced <span class="muted">(${total})</span></h4>` +
     `<p class="muted">Not in the gazetteer (ethnonyms, or add coordinates to ` +
     `<code>data/places.json</code>):`;
   if (hasOverlaps && field === "origin") {
     msg += ` Note: combined origins (like Flemish/Dutch) count toward each place.`;
   }
-  msg += `</p>` +
-    `<ul class="map-side-list">${rows}</ul>`;
+  msg += `</p>` + `<ul class="map-side-list">${rows}</ul>`;
   side.innerHTML = msg;
 }
 
@@ -316,13 +333,18 @@ async function renderTimelineView() {
   });
 
   const height = laneEnds.length * rowH;
-  svg.attr("viewBox", `0 0 ${width + margin.left + margin.right} ${height + margin.top + margin.bottom}`)
+  svg
+    .attr(
+      "viewBox",
+      `0 0 ${width + margin.left + margin.right} ${height + margin.top + margin.bottom}`,
+    )
     .attr("width", "100%")
     .attr("height", height + margin.top + margin.bottom);
 
   const g = svg.append("g").attr("transform", `translate(${margin.left},${margin.top})`);
 
-  const bar = g.selectAll("g.tl-item")
+  const bar = g
+    .selectAll("g.tl-item")
     .data(items)
     .join("g")
     .attr("class", "tl-item")
@@ -335,17 +357,40 @@ async function renderTimelineView() {
     const sel = d3.select(this);
     const color = ENTITY_COLORS[d.record.entityType || "person"] || ENTITY_COLORS.person;
     if (d.end === d.start) {
-      sel.append("circle").attr("class", "tl-dot").attr("cx", d._x0).attr("cy", rowH / 2).attr("r", 4).attr("fill", color);
+      sel
+        .append("circle")
+        .attr("class", "tl-dot")
+        .attr("cx", d._x0)
+        .attr("cy", rowH / 2)
+        .attr("r", 4)
+        .attr("fill", color);
     } else {
-      sel.append("rect").attr("class", "tl-bar").attr("x", d._x0).attr("y", 3).attr("width", d._x1 - d._x0).attr("height", rowH - 6).attr("fill", color);
+      sel
+        .append("rect")
+        .attr("class", "tl-bar")
+        .attr("x", d._x0)
+        .attr("y", 3)
+        .attr("width", d._x1 - d._x0)
+        .attr("height", rowH - 6)
+        .attr("fill", color);
     }
     const name = [d.record.firstname, d.record.lastname].filter(Boolean).join(" ") || "(unnamed)";
-    sel.append("title").text(`${name} — ${d.start}${d.end !== d.start ? "–" + d.end : ""} (${d.mode === "life" ? "life" : "attested"})`);
+    sel
+      .append("title")
+      .text(
+        `${name} — ${d.start}${d.end !== d.start ? "–" + d.end : ""} (${d.mode === "life" ? "life" : "attested"})`,
+      );
   });
 
   // Axis along the bottom.
-  svg.append("g")
+  svg
+    .append("g")
     .attr("class", "tl-axis")
     .attr("transform", `translate(${margin.left},${height + margin.top})`)
-    .call(d3.axisBottom(x).ticks(Math.min(12, maxYear - minYear)).tickFormat(d3.format("d")));
+    .call(
+      d3
+        .axisBottom(x)
+        .ticks(Math.min(12, maxYear - minYear))
+        .tickFormat(d3.format("d")),
+    );
 }

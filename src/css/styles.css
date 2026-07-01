@@ -1168,6 +1168,11 @@ hr {
     min-width: 0;
     height: 100%;
     background: var(--ice-blue);
+    cursor: grab;
+}
+
+#map-svg:active {
+    cursor: grabbing;
 }
 
 .map-country {

@@ -123,10 +123,11 @@ async function renderMapView() {
   }
   const path = d3.geoPath(projection);
 
-  // Basemap.
-  svg.append("g")
-    .attr("class", "map-countries")
-    .selectAll("path")
+  // Basemap and dots live in separate groups: the basemap pans/zooms with the
+  // transform, while the dot markers keep a constant screen size and only their
+  // positions follow the transform (see the zoom handler below).
+  const gCountries = svg.append("g").attr("class", "map-countries");
+  gCountries.selectAll("path")
     .data(_worldGeo.features)
     .join("path")
     .attr("class", "map-country")
@@ -156,6 +157,22 @@ async function renderMapView() {
     .attr("text-anchor", "middle")
     .attr("y", (d) => -rScale(d.records.length) - 4)
     .text((d) => d.place.label);
+
+  // Mouse pan (drag) and zoom (wheel). The basemap transforms; the dots keep a
+  // constant screen size and just follow the transform's position mapping, so
+  // zooming spreads clustered places apart without inflating the markers.
+  svg.call(
+    d3.zoom()
+      .scaleExtent([0.5, 20])
+      .on("zoom", (event) => {
+        const t = event.transform;
+        gCountries.attr("transform", t);
+        dot.attr("transform", (d) => {
+          const p = t.apply(projection([d.place.lon, d.place.lat]));
+          return `translate(${p[0]},${p[1]})`;
+        });
+      }),
+  );
 
   renderUnplacedPanel(unplaced, byPlace.size);
 }

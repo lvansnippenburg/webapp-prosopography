@@ -46,6 +46,7 @@ function makeRefItem(ref = {}) {
         <button class="btn-danger btn-small remove-item" style="align-self:flex-start;">✕</button>
     `;
   const refInput = div.querySelector(".ref-reference");
+  const yearInput = div.querySelector(".ref-year");
   const remarksInput = div.querySelector(".ref-remarks");
   const openBtn = div.querySelector(".ref-open-link");
 
@@ -62,6 +63,21 @@ function makeRefItem(ref = {}) {
       openBtn.onclick = () => window.open(link.url, "_blank");
     }
   }
+
+  // A "special paste" from Zotero is three parts joined by "; ":
+  //   "Author Year, Page" ; year ; zotero://open-pdf/...?annotation=...
+  // Detect that shape (exactly two semicolons → three parts) and fan the
+  // parts out across the reference, year, and remarks fields.
+  refInput.addEventListener("paste", (e) => {
+    const text = (e.clipboardData || window.clipboardData)?.getData("text") || "";
+    const parts = text.split(";");
+    if (parts.length !== 3) return; // not a Zotero paste — let the browser handle it
+    e.preventDefault();
+    refInput.value = parts[0].trim();
+    yearInput.value = parts[1].trim();
+    remarksInput.value = parts[2].trim();
+    updateOpenBtn();
+  });
 
   refInput.addEventListener("input", updateOpenBtn);
   remarksInput.addEventListener("input", updateOpenBtn);

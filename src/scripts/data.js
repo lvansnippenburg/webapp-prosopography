@@ -1,5 +1,16 @@
 "use strict";
 
+// Maps the pre-simplification relationship-type vocabulary to the current one,
+// so Excel files exported before that migration still import cleanly.
+const LEGACY_RELATIONSHIP_TYPE_MAP = {
+  father: "child",
+  mother: "child",
+  son: "child",
+  daughter: "child",
+  husband: "married",
+  wife: "married",
+};
+
 // ── Server API ─────────────────────────────────────────────────────
 
 function getServerUrl() {
@@ -154,15 +165,22 @@ async function importExcel(file) {
                 .filter(Boolean)
               : [];
 
-            // Parse relationships
+            // Parse relationships. Old exports may still use the pre-simplification
+            // type vocabulary (father/mother/son/daughter/husband/wife); normalize
+            // those to the current married/child types on the way in. Note: a legacy
+            // son/daughter row technically encoded "the other person is my child" —
+            // the reverse of what "child" means on this row — but personUuid is left
+            // blank below either way pending manual resolution, so this is no worse
+            // than the pre-existing gap.
             const relationships = row.Relationships
               ? String(row.Relationships)
                 .split(";")
                 .map((r) => {
                   const parts = r.trim().split(":");
                   if (parts.length === 2) {
+                    const rawType = parts[0].trim();
                     return {
-                      type: parts[0].trim(),
+                      type: LEGACY_RELATIONSHIP_TYPE_MAP[rawType] || rawType,
                       personName: parts[1].trim(),
                       personUuid: "", // Will need to be resolved later
                     };

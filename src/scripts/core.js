@@ -56,13 +56,8 @@ const ENTITY_TYPES = {
 // ── Relationship Network Configuration ────────────────────────────
 
 const RELATIONSHIP_COLORS = {
-  father: "#4A90E2",
-  mother: "#E24A90",
-  son: "#6AB7FF",
-  daughter: "#FF6AB7",
-  child: "#6AB7FF", // Combined son/daughter for graph view
-  husband: "#2D5F8D",
-  wife: "#8D2D5F",
+  married: "#4A6FA5",
+  child: "#6AB7FF", // stored one-way on the offspring's record, pointing at the parent
   brother: "#5AA7D9",
   sister: "#D95AA7",
   sibling: "#5AA7D9", // Combined brother/sister for graph view
@@ -76,7 +71,7 @@ const RELATIONSHIP_COLORS = {
 };
 
 const RELATIONSHIP_GROUPS = {
-  family: ["father", "mother", "son", "daughter", "husband", "wife", "brother", "sister"],
+  family: ["married", "child", "brother", "sister"],
   organizational: ["member", "employed"],
   other: ["associate", "business", "friend", "neighbour", "other"],
 };

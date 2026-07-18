@@ -89,7 +89,7 @@ The database supports four types of entities:
 **1. Person** (default)
 - Individual historical figures
 - Has gender field (Male/Female)
-- Can have family relationships (father, mother, son, daughter, husband, wife, brother, sister)
+- Can have family relationships (married to, child of, brother, sister)
 
 **2. Association**
 - Organizations, societies, guilds, clubs
@@ -111,14 +111,15 @@ The database supports four types of entities:
 
 ### Relationship Types
 
-**Family Relations (bidirectional):**
-- Father ↔ Son/Daughter
-- Mother ↔ Son/Daughter
-- Husband ↔ Wife
+**Family Relations:**
+- **Married to** ↔ Married to (bidirectional — the reciprocal is created automatically)
+- **Child of** → stored only on the child's own record, pointing at the parent (one-way, by design). The parent's own record doesn't store anything back — instead it shows a read-only **"Parent of"** chip for each such record, computed automatically. To edit or remove the relationship, do it from the child's own record. On the parent's record, click **"+ Add child"** (below the relationship chips) to create the link from that side instead — it opens the same person picker used elsewhere and writes the "Child of" entry onto the selected person's record for you.
 - Brother ↔ Brother
 - Sister ↔ Sister
 
-*When you add a family relationship, the reciprocal is automatically created on the related record.*
+*Married to/Brother/Sister are bidirectional — the reciprocal is automatically created on the related record.*
+
+**Inferred siblings:** if two people both have a "Child of" entry pointing at the same parent, they're shown as a read-only **"Sibling (inferred)"** chip on each other's record — no need to add Brother/Sister entries manually just to link siblings who share a parent already on file. If you *do* add an explicit Brother/Sister entry between two such people, that takes precedence and the inferred chip is suppressed for that pair.
 
 **Organizational Relations (one-way):**
 - **Member of**: Person is a member of an Association
@@ -412,6 +413,9 @@ The graph view has a sidebar to switch between four sub-views:
 - Scroll to zoom (0.5× – 3×)
 - Drag background to pan
 - Click **📷 Save PNG** to export the graph
+- The layout toggle switches between **Force** (free-floating) and **Tree** (generations stacked by parent/child depth). In Tree mode, people within the same generation are ordered left-to-right by year of birth where that's known; people without a usable year drift toward the center.
+- Arrowheads show direction — "Child of" edges point from child to parent, "Member of" points from person to association, etc.
+- Siblings sharing a common parent on file are connected automatically (dashed line) even without an explicit Brother/Sister entry — see "Inferred siblings" above.
 
 **🗺 Map:** Entities aggregated onto places, drawn on an offline world map. Choose which field to map (city, origin, born in, died in); dot size reflects how many entities share a place. Click a dot to list its people. Place names that aren't in the gazetteer (`data/places.json`) — including ethnonyms like "Flemish" — are listed under **Unplaced**; add coordinates there to map them.
 
@@ -422,7 +426,7 @@ The graph view has a sidebar to switch between four sub-views:
 Click any relationship type in the legend to toggle it. Works in both views simultaneously.
 
 **Legend groups:**
-- Family Relations: father, mother, son, daughter, husband, wife, brother, sister
+- Family Relations: married, child, brother, sister
 - Organizational Relations: member, employed
 - Other Relations: associate, business, friend, neighbour, other
 

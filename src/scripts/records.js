@@ -358,7 +358,7 @@ function updateSearchPlaceholder() {
         religion: "e.g. Jewish, Catholic",
         notes: "Search in notes...",
         references: "Search in references...",
-        relationships: "e.g. father, member",
+        relationships: "e.g. child, married, member",
         timespan: "e.g. 1650 or 1630-1680",
       };
       input.placeholder = examples[searchScopes[0]] || `Search ${searchScopes[0]}...`;

@@ -196,12 +196,8 @@ function makeRelationshipItem(rel = {}) {
             <input type="text" class="rel-person-name" value="${escapeHtml(rel.personName)}" placeholder="Click to select person" readonly style="cursor:pointer;background:var(--ice-blue);">
             <input type="hidden" class="rel-person-uuid" value="${escapeHtml(rel.personUuid)}">
             <select class="rel-type">
-                <option value="father" ${rel.type === "father" ? "selected" : ""}>Father</option>
-                <option value="mother" ${rel.type === "mother" ? "selected" : ""}>Mother</option>
-                <option value="son" ${rel.type === "son" ? "selected" : ""}>Son</option>
-                <option value="daughter" ${rel.type === "daughter" ? "selected" : ""}>Daughter</option>
-                <option value="husband" ${rel.type === "husband" ? "selected" : ""}>Husband</option>
-                <option value="wife" ${rel.type === "wife" ? "selected" : ""}>Wife</option>
+                <option value="married" ${rel.type === "married" ? "selected" : ""}>Married to</option>
+                <option value="child" ${rel.type === "child" ? "selected" : ""}>Child of</option>
                 <option value="brother" ${rel.type === "brother" ? "selected" : ""}>Brother</option>
                 <option value="sister" ${rel.type === "sister" ? "selected" : ""}>Sister</option>
                 <option value="member" ${rel.type === "member" ? "selected" : ""}>Member of</option>
@@ -651,21 +647,14 @@ function renderRelationshipGraph() {
             isLivorno: isLivorno,
             gender: person.gender,
             entityType: person.entityType || "person",
+            birthYear: parseYear(person.yob),
           };
           nodes.push(node);
           nodeMap.set(person.uuid, node);
         }
 
-        // Check if person has parent relationships (for sibling filtering)
-        const hasParents = rels.some((rel) => rel.type === "father" || rel.type === "mother");
-
         // Add links and target nodes
         relevantRels.forEach((rel) => {
-          // Skip brother/sister if person has parent relationships
-          if ((rel.type === "brother" || rel.type === "sister") && hasParents) {
-            return;
-          }
-
           // Add target node if not exists
           if (!nodeMap.has(rel.personUuid)) {
             // Look up the original record to get city information
@@ -681,6 +670,7 @@ function renderRelationshipGraph() {
               isLivorno: relatedIsLivorno,
               gender: relatedRecord?.gender,
               entityType: relatedRecord?.entityType || "person",
+              birthYear: parseYear(relatedRecord?.yob),
             };
             nodes.push(targetNode);
             nodeMap.set(rel.personUuid, targetNode);
@@ -688,9 +678,7 @@ function renderRelationshipGraph() {
 
           // Simplify relationship types for graph display
           let graphType = rel.type;
-          if (rel.type === "son" || rel.type === "daughter") {
-            graphType = "child";
-          } else if (rel.type === "brother" || rel.type === "sister") {
+          if (rel.type === "brother" || rel.type === "sister") {
             graphType = "sibling";
           }
 
@@ -704,6 +692,47 @@ function renderRelationshipGraph() {
         });
       }
     });
+
+    // Inferred sibling edges: two nodes whose "child" links point at the same
+    // parent are siblings even without an explicit brother/sister entry. Only
+    // drawn when the underlying data (child) and sibling coloring (brother or
+    // sister) are both currently toggled on in the legend, and only between
+    // nodes already present from other active relationships.
+    if (
+      activeRelationshipTypes.has("child") &&
+      (activeRelationshipTypes.has("brother") || activeRelationshipTypes.has("sister"))
+    ) {
+      const childrenByParent = new Map();
+      links.forEach((l) => {
+        if (l.type !== "child") return;
+        if (!childrenByParent.has(l.target)) childrenByParent.set(l.target, []);
+        childrenByParent.get(l.target).push(l.source);
+      });
+
+      const existingSiblingPairs = new Set();
+      links.forEach((l) => {
+        if (l.type !== "sibling") return;
+        existingSiblingPairs.add([l.source, l.target].sort().join("|"));
+      });
+
+      const addedPairs = new Set();
+      childrenByParent.forEach((childIds) => {
+        for (let i = 0; i < childIds.length; i++) {
+          for (let j = i + 1; j < childIds.length; j++) {
+            const pairKey = [childIds[i], childIds[j]].sort().join("|");
+            if (existingSiblingPairs.has(pairKey) || addedPairs.has(pairKey)) continue;
+            addedPairs.add(pairKey);
+            links.push({
+              source: childIds[i],
+              target: childIds[j],
+              type: "sibling",
+              color: RELATIONSHIP_COLORS.sibling,
+              inferred: true,
+            });
+          }
+        }
+      });
+    }
 
     if (nodes.length === 0) {
       svg
@@ -729,17 +758,17 @@ function renderRelationshipGraph() {
     const depths = {};
     nodes.forEach(n => depths[n.id] = 0);
 
-    // Simple multi-pass depth calculation for family hierarchy
-    // Parents (Father/Mother) are considered level 0, children level 1, etc.
+    // Simple multi-pass depth calculation for family hierarchy.
+    // "child" is stored one-way on the offspring's own record, pointing at
+    // the parent (source = child, target = parent), so the child is always
+    // one level deeper than the parent it points to.
     for (let i = 0; i < 5; i++) { // Max 5 generations deep for layout
       links.forEach(l => {
         const sId = typeof l.source === 'string' ? l.source : l.source.id;
         const tId = typeof l.target === 'string' ? l.target : l.target.id;
         const relType = l.type;
 
-        if (relType === 'child' || relType === 'son' || relType === 'daughter') {
-          depths[tId] = Math.max(depths[tId], depths[sId] + 1);
-        } else if (relType === 'father' || relType === 'mother') {
+        if (relType === 'child') {
           depths[sId] = Math.max(depths[sId], depths[tId] + 1);
         }
       });
@@ -770,9 +799,26 @@ function renderRelationshipGraph() {
 
     // Apply mode-specific forces
     if (graphLayoutMode === "tree") {
+      // Within each generation band (y = depth), order nodes left-to-right by
+      // birth year when we have at least two distinct years to spread across;
+      // otherwise fall back to the plain center pull. Nodes with no parseable
+      // yob just drift toward the horizontal center instead of being dropped.
+      const knownYears = nodes.map((n) => n.birthYear).filter((y) => y !== null);
+      const minYear = knownYears.length ? d3.min(knownYears) : null;
+      const maxYear = knownYears.length ? d3.max(knownYears) : null;
+      let xForce;
+      if (knownYears.length >= 2 && minYear !== maxYear) {
+        const yearScale = d3.scaleLinear().domain([minYear, maxYear]).range([80, width - 80]);
+        xForce = d3
+          .forceX((d) => (d.birthYear !== null ? yearScale(d.birthYear) : width / 2))
+          .strength((d) => (d.birthYear !== null ? 0.4 : 0.05));
+      } else {
+        xForce = d3.forceX(width / 2).strength(0.1);
+      }
+
       simulation
         .force("y", d3.forceY(d => (depths[d.id] * 150) + 100).strength(1))
-        .force("x", d3.forceX(width / 2).strength(0.1))
+        .force("x", xForce)
         .force("center", null);
     } else {
       simulation
@@ -799,7 +845,6 @@ function renderRelationshipGraph() {
       .attr("d", "M0,-5L10,0L0,5");
 
     // Create links
-    // Create links
     const link = g
       .append("g")
       .selectAll("line")
@@ -808,6 +853,7 @@ function renderRelationshipGraph() {
       .attr("stroke", (d) => d.color)
       .attr("stroke-width", 2)
       .attr("stroke-opacity", 0.6)
+      .attr("stroke-dasharray", (d) => (d.inferred ? "4,3" : null))
       .attr("marker-end", (d) => `url(#arrow-${d.type})`);
     networkGraphLinkSelection = link; // Store for external access
 
@@ -1002,58 +1048,187 @@ function applyNetworkSearchHighlight(query) {
   });
 }
 
-function renderRelationshipSummary(record) {
-  const container = document.getElementById("relationship-summary");
-  if (!container) return;
-
-  const rels = record.relationships || [];
-  if (rels.length === 0) {
-    container.innerHTML =
-      '<p style="color:var(--mid-grey);font-size:12px;">No relationships defined</p>';
-    return;
-  }
-
-  // Group by type
-  const grouped = {};
-  rels.forEach((rel) => {
-    if (!grouped[rel.type]) grouped[rel.type] = [];
-    grouped[rel.type].push(rel);
-  });
-
-  let html = '<div style="display:flex;flex-wrap:wrap;gap:8px;">';
-  for (const [type, persons] of Object.entries(grouped)) {
-    persons.forEach((rel) => {
-      html += `
-        <div class="relationship-chip" data-uuid="${escapeHtml(rel.personUuid)}" style="cursor:pointer;">
-          <span class="rel-type-badge">${escapeHtml(type)}</span>
-          <span class="rel-person-name">${escapeHtml(rel.personName)}</span>
-        </div>
-      `;
-    });
-  }
-  html += "</div>";
-  container.innerHTML = html;
-
-  // Add click handlers to open related person
-  container.querySelectorAll(".relationship-chip").forEach((chip) => {
+// Wires click-to-open on any not-yet-wired .relationship-chip inside container.
+// Shared by both the record's own relationship chips and the computed
+// "parent of" chips appended by renderRelationshipSummary().
+function wireRelationshipChipClicks(container) {
+  container.querySelectorAll(".relationship-chip:not([data-wired])").forEach((chip) => {
+    chip.dataset.wired = "1";
     chip.addEventListener("click", async (e) => {
       e.preventDefault();
       const uuid = chip.dataset.uuid;
-      // Save current person first if modified
       document.getElementById("person-modal").classList.add("hidden");
       await openEditModal(uuid);
     });
   });
 }
 
+// Given a record and the full (non-deleted) record set, find inferred siblings:
+// other records whose own "child" relationship points at one of this record's
+// parents. Excludes anyone already linked by an explicit brother/sister entry,
+// so the computed chips never duplicate a manually-recorded sibling.
+function computeInferredSiblings(record, allRecords) {
+  const rels = record.relationships || [];
+  const myParentUuids = new Set(
+    rels.filter((rel) => rel.type === "child").map((rel) => rel.personUuid),
+  );
+  if (myParentUuids.size === 0) return [];
+
+  const manuallyLinked = new Set(
+    rels
+      .filter((rel) => rel.type === "brother" || rel.type === "sister")
+      .map((rel) => rel.personUuid),
+  );
+
+  return allRecords.filter(
+    (r) =>
+      r.uuid !== record.uuid &&
+      !manuallyLinked.has(r.uuid) &&
+      (r.relationships || []).some((rel) => rel.type === "child" && myParentUuids.has(rel.personUuid)),
+  );
+}
+
+// Renders a "+ Add child" button into #relationship-summary. Only meaningful
+// for persons — associations/institutions/companies don't have children. Since
+// "child" is stored one-way on the offspring's own record, this is the only
+// way to create the link while looking at the parent's record.
+function renderAddChildButton(record) {
+  const container = document.getElementById("relationship-summary");
+  if (!container) return;
+  if ((record.entityType || "person") !== "person") return;
+  if (container.querySelector(".btn-add-child")) return; // already rendered this pass
+
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "btn-ghost btn-small btn-add-child";
+  btn.style.marginTop = "6px";
+  btn.textContent = "+ Add child";
+  btn.addEventListener("click", async () => {
+    const selected = await showPersonPicker();
+    if (!selected || editingUUID !== record.uuid) return;
+
+    if (selected.uuid === record.uuid) {
+      await showDialog("Cannot add child", "A person cannot be their own child.", [
+        { label: "OK", cls: "btn-primary", value: true },
+      ]);
+      return;
+    }
+
+    const child = await apiGet(selected.uuid);
+    if (!child) return;
+    child.relationships = child.relationships || [];
+    const alreadyLinked = child.relationships.some(
+      (rel) => rel.type === "child" && rel.personUuid === record.uuid,
+    );
+    if (alreadyLinked) {
+      await showDialog(
+        "Already linked",
+        `${selected.name} is already recorded as a child of this record.`,
+        [{ label: "OK", cls: "btn-primary", value: true }],
+      );
+      return;
+    }
+
+    child.relationships.push({
+      type: "child",
+      personUuid: record.uuid,
+      personName: `${record.firstname || ""} ${record.lastname || ""}`.trim(),
+    });
+    child.modifiedAt = now();
+    await apiPut(child);
+    if (editingUUID === record.uuid) renderRelationshipSummary(record);
+  });
+  container.appendChild(btn);
+}
+
+async function renderRelationshipSummary(record) {
+  const container = document.getElementById("relationship-summary");
+  if (!container) return;
+
+  const rels = record.relationships || [];
+
+  if (rels.length === 0) {
+    container.innerHTML =
+      '<p style="color:var(--mid-grey);font-size:12px;">No relationships defined</p>';
+  } else {
+    // Group by type
+    const grouped = {};
+    rels.forEach((rel) => {
+      if (!grouped[rel.type]) grouped[rel.type] = [];
+      grouped[rel.type].push(rel);
+    });
+
+    let html = '<div class="relationship-chip-row" style="display:flex;flex-wrap:wrap;gap:8px;">';
+    for (const [type, persons] of Object.entries(grouped)) {
+      persons.forEach((rel) => {
+        html += `
+          <div class="relationship-chip" data-uuid="${escapeHtml(rel.personUuid)}" style="cursor:pointer;">
+            <span class="rel-type-badge">${escapeHtml(type)}</span>
+            <span class="rel-person-name">${escapeHtml(rel.personName)}</span>
+          </div>
+        `;
+      });
+    }
+    html += "</div>";
+    container.innerHTML = html;
+  }
+
+  wireRelationshipChipClicks(container);
+  renderAddChildButton(record);
+
+  // Computed reverse view: "child" is stored one-way, only on the offspring's
+  // own record — so a parent's own record has nothing to show unless we look
+  // it up. Also compute inferred siblings (shared-parent, not manually linked)
+  // from the same full scan.
+  const all = await apiGetAll().catch(() => []);
+  if (editingUUID !== record.uuid) return; // modal moved on while this was in flight
+
+  const active = all.filter((r) => !r.deletedAt);
+  const offspring = active.filter((r) =>
+    (r.relationships || []).some((rel) => rel.type === "child" && rel.personUuid === record.uuid),
+  );
+  const siblings = computeInferredSiblings(record, active);
+  if (offspring.length === 0 && siblings.length === 0) return;
+
+  if (rels.length === 0) {
+    container.innerHTML = '<div class="relationship-chip-row" style="display:flex;flex-wrap:wrap;gap:8px;"></div>';
+    renderAddChildButton(record);
+  }
+  const row = container.querySelector(".relationship-chip-row");
+
+  const appendComputedChip = (uuid, name, badge, title) => {
+    const chip = document.createElement("div");
+    chip.className = "relationship-chip relationship-chip--computed";
+    chip.dataset.uuid = uuid;
+    chip.style.cursor = "pointer";
+    chip.title = title;
+    chip.innerHTML = `<span class="rel-type-badge">${escapeHtml(badge)}</span><span class="rel-person-name">${escapeHtml(name)}</span>`;
+    row.appendChild(chip);
+  };
+
+  offspring.forEach((child) => {
+    appendComputedChip(
+      child.uuid,
+      `${child.firstname || ""} ${child.lastname || ""}`.trim(),
+      "parent of",
+      "Computed from the child's own record — edit the relationship there",
+    );
+  });
+  siblings.forEach((sib) => {
+    appendComputedChip(
+      sib.uuid,
+      `${sib.firstname || ""} ${sib.lastname || ""}`.trim(),
+      "sibling (inferred)",
+      "Inferred from a shared parent — add an explicit Brother/Sister relationship to override",
+    );
+  });
+
+  wireRelationshipChipClicks(container);
+}
+
 function getReciprocalRelationType(type) {
   const reciprocals = {
-    father: "son",
-    mother: "daughter",
-    son: "father",
-    daughter: "mother",
-    husband: "wife",
-    wife: "husband",
+    married: "married",
     brother: "brother",
     sister: "sister",
     friend: "friend",
@@ -1061,9 +1236,13 @@ function getReciprocalRelationType(type) {
     business: "business",
     neighbour: "neighbour",
     other: "other",
-    // One-way relationships have no reciprocal
+    // One-way relationships have no reciprocal.
+    // "child" is stored only on the offspring's own record (pointing at the
+    // parent) — the parent's side is computed on demand, never written back,
+    // so there is nothing to keep in sync and nothing that can desync.
     member: null,
     employed: null,
+    child: null,
   };
   return reciprocals[type] !== undefined ? reciprocals[type] : "other";
 }

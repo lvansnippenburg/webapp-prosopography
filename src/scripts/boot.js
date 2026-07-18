@@ -283,6 +283,11 @@ function attachEventListeners() {
     }
   });
 
+  // Export to Gephi
+  document.getElementById("btn-export-gephi").addEventListener("click", () => {
+    exportToGephi();
+  });
+
   document.getElementById("file-input").addEventListener("change", async (e) => {
     const file = e.target.files[0];
     if (!file) return;

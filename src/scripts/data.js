@@ -470,3 +470,160 @@ function exportToJSON() {
   notify(`Exported ${filteredRecords.length} records to JSON`, "success");
 }
 
+// Node fill color used by the in-app D3 graph (renderRelationshipGraph's
+// getNodeColor in modal.js) — mirrored here so the Gephi import looks the
+// same at a glance without the user having to re-color it themselves.
+function gephiNodeColor(r) {
+  const entityType = r.entityType || "person";
+  if (entityType === "association" || entityType === "institution" || entityType === "company") {
+    return { r: 232, g: 145, b: 58 }; // #e8913a
+  }
+  if (r.gender === "F") {
+    return { r: 216, g: 112, b: 147 }; // #d87093
+  }
+  return { r: 90, g: 157, b: 181 }; // #5a9db5
+}
+
+// Export the current results as a GEXF 1.3 network file for Gephi (gephi.org).
+// Nodes carry as many record fields as GEXF's typed-attribute model supports;
+// edges come from each record's relationships. Relationship types that are
+// inherently symmetric (getReciprocalRelationType(type) === type — married,
+// brother, sister, associate, business, friend, neighbour, other) are stored
+// on both records today, so they're deduped to one "undirected" edge per
+// pair+type; one-way types (child, member, employed) become single "directed"
+// edges. Only edges whose other endpoint is also part of this export are
+// included, since a GEXF edge must reference a node present in the file.
+function exportToGephi() {
+  if (!filteredRecords.length) {
+    notify("No records to export.", "warning");
+    return;
+  }
+
+  const exportedUuids = new Set(filteredRecords.map((r) => r.uuid));
+
+  const NODE_ATTRS = [
+    ["entityType", "string"],
+    ["gender", "string"],
+    ["patronymic", "string"],
+    ["city", "string"],
+    ["profession", "string"],
+    ["origin", "string"],
+    ["religion", "string"],
+    ["yob", "string"],
+    ["yod", "string"],
+    ["bornin", "string"],
+    ["diedin", "string"],
+    ["firstseen", "string"],
+    ["lastseen", "string"],
+    ["mocosince", "string"],
+    ["lastnameVariations", "string"],
+    ["firstnameVariations", "string"],
+    ["notes", "string"],
+    ["zotero", "string"],
+    ["archief", "string"],
+    ["createdAt", "string"],
+    ["modifiedAt", "string"],
+    ["relationshipCount", "integer"],
+  ];
+
+  const attrDefs = NODE_ATTRS.map(
+    ([title, type], i) => `      <attribute id="${i}" title="${escapeHtml(title)}" type="${type}"/>`,
+  ).join("\n");
+
+  const nodeXml = filteredRecords
+    .map((r) => {
+      const label = `${r.firstname || ""} ${r.lastname || ""}`.trim();
+      const values = {
+        entityType: r.entityType || "person",
+        gender: r.gender || "",
+        patronymic: r.patronymic || "",
+        city: r.city || "",
+        profession: r.profession || "",
+        origin: r.origin || "",
+        religion: r.religion || "",
+        yob: r.yob || "",
+        yod: r.yod || "",
+        bornin: r.bornin || "",
+        diedin: r.diedin || "",
+        firstseen: r.firstseen || "",
+        lastseen: r.lastseen || "",
+        mocosince: r.mocosince || "",
+        lastnameVariations: (r.lastnameVariations || []).join("; "),
+        firstnameVariations: (r.firstnameVariations || []).join("; "),
+        notes: r.notes || "",
+        zotero: (r.zotero || []).map((z) => z.reference).join("; "),
+        archief: (r.archief || []).map((a) => a.reference).join("; "),
+        createdAt: r.createdAt || "",
+        modifiedAt: r.modifiedAt || "",
+        relationshipCount: (r.relationships || []).length,
+      };
+
+      const attvalues = NODE_ATTRS.map(([title], i) => {
+        const val = values[title];
+        if (val === "" || val === undefined || val === null) return "";
+        return `          <attvalue for="${i}" value="${escapeHtml(val)}"/>`;
+      })
+        .filter(Boolean)
+        .join("\n");
+
+      const color = gephiNodeColor(r);
+
+      return (
+        `      <node id="${escapeHtml(r.uuid)}" label="${escapeHtml(label)}">\n` +
+        (attvalues ? `        <attvalues>\n${attvalues}\n        </attvalues>\n` : "") +
+        `        <viz:color r="${color.r}" g="${color.g}" b="${color.b}"/>\n` +
+        `      </node>`
+      );
+    })
+    .join("\n");
+
+  const seenUndirected = new Set();
+  let edgeId = 0;
+  const edgeLines = [];
+  filteredRecords.forEach((r) => {
+    (r.relationships || []).forEach((rel) => {
+      if (!rel.personUuid || !exportedUuids.has(rel.personUuid)) return;
+      const isUndirected = getReciprocalRelationType(rel.type) === rel.type;
+      if (isUndirected) {
+        const key = [r.uuid, rel.personUuid].sort().join("|") + "|" + rel.type;
+        if (seenUndirected.has(key)) return;
+        seenUndirected.add(key);
+      }
+      edgeLines.push(
+        `      <edge id="${edgeId++}" source="${escapeHtml(r.uuid)}" target="${escapeHtml(rel.personUuid)}" ` +
+          `label="${escapeHtml(rel.type)}" type="${isUndirected ? "undirected" : "directed"}"/>`,
+      );
+    });
+  });
+
+  const gexf =
+    `<?xml version="1.0" encoding="UTF-8"?>\n` +
+    `<gexf xmlns="http://gexf.net/1.3" version="1.3" xmlns:viz="http://gexf.net/1.3/viz">\n` +
+    `  <meta lastmodifieddate="${new Date().toISOString().slice(0, 10)}">\n` +
+    `    <creator>Livorno Prosopography</creator>\n` +
+    `    <description>Relationship network export for Gephi (gephi.org)</description>\n` +
+    `  </meta>\n` +
+    `  <graph mode="static" defaultedgetype="directed">\n` +
+    `    <attributes class="node">\n${attrDefs}\n    </attributes>\n` +
+    `    <nodes>\n${nodeXml}\n    </nodes>\n` +
+    `    <edges>\n${edgeLines.join("\n")}\n    </edges>\n` +
+    `  </graph>\n` +
+    `</gexf>\n`;
+
+  const blob = new Blob([gexf], { type: "application/xml" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, "-");
+  a.download = `livorno_prosopography_${timestamp}.gexf`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+
+  notify(
+    `Exported ${filteredRecords.length} records and ${edgeLines.length} relationships to Gephi format`,
+    "success",
+  );
+}
+

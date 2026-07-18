@@ -196,6 +196,14 @@ Click **⬇ Export** in the Settings panel. The export includes all currently di
 2. Edit in a spreadsheet (fix typos, add dates, etc.)
 3. Re-import — UUID matching updates the correct records
 
+### Export to Gephi
+
+Click **🕸 Export to Gephi** in the Settings panel to download a `.gexf` network file (open it directly in [Gephi](https://gephi.org)) — a separate button from the regular Export, since it's a network file rather than tabular data. Same "currently displayed records" scope as the regular export.
+
+- **Nodes** are the exported entities, carrying every field the record has (entity type, gender, city, profession, origin, religion, birth/death years and places, first/last seen, notes, name variations, Zotero/Archief references, timestamps) as typed Gephi attributes, plus a relationship count. Node color matches the in-app relationship graph (orange for associations/institutions/companies, pink/blue for female/male persons).
+- **Edges** come from each record's relationships. Symmetric types (Married to, Brother, Sister, Associate, Business, Friend, Neighbour, Other) become a single **undirected** edge per pair rather than two overlapping ones; one-way types (Child of, Member of, Employed by) become **directed** edges. A relationship pointing at someone outside the current filtered set is skipped, since it can't be drawn without that person's node.
+- Filename: `livorno_prosopography_YYYY-MM-DDTHH-MM-SS.gexf`
+
 ---
 
 ## Basic Search

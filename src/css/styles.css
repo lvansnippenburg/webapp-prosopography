@@ -436,12 +436,11 @@ textarea {
     width: 100%;
 }
 
+/* Scroll position (showing the tail of an overflowing value when not
+   focused) is handled in JS via scrollRefReferenceToEnd() in modal.js —
+   direction:rtl was tried here first but broke click/Home/End caret
+   placement for the LTR reference text, so plain left-to-right stays. */
 input.ref-reference {
-    /* Keep the tail of an overflowing value visible by default (not just when
-       focused/scrolled manually): direction:rtl flips the browser's default
-       scroll anchor to the end of the text, while text-align:left keeps the
-       text itself rendering left-to-right as normal. */
-    direction: rtl;
     text-align: left;
 }
 

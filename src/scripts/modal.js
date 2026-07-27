@@ -33,6 +33,13 @@ function extractZoteroUrl(text) {
   return match ? match[0] : null;
 }
 
+// Scrolls a .ref-reference input to show the end of its value. Only called
+// when the field isn't being actively edited (right after it's populated, and
+// on blur) so normal typing/click/Home/End caret behavior is never disturbed.
+function scrollRefReferenceToEnd(input) {
+  input.scrollLeft = input.scrollWidth;
+}
+
 function makeRefItem(ref = {}) {
   const div = document.createElement("div");
   div.className = "array-item";
@@ -82,6 +89,15 @@ function makeRefItem(ref = {}) {
   refInput.addEventListener("input", updateOpenBtn);
   remarksInput.addEventListener("input", updateOpenBtn);
   updateOpenBtn();
+
+  // Show the tail of a long value whenever the field isn't being edited:
+  // once for the initial pre-filled value, and again each time it's blurred.
+  // Deferred to the next frame because this div isn't attached to the
+  // document yet — the caller appends it right after makeRefItem() returns —
+  // and scrollWidth isn't meaningful until layout has run on a live element.
+  requestAnimationFrame(() => scrollRefReferenceToEnd(refInput));
+  refInput.addEventListener("blur", () => scrollRefReferenceToEnd(refInput));
+
   div.querySelector(".remove-item").addEventListener("click", () => {
     const val = refInput.value.trim();
     if (!val || confirm(`Remove this reference?\n\n"${val}"`)) div.remove();

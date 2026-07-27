@@ -34,9 +34,17 @@ async function boot() {
   if (incomingQuery) {
     document.getElementById("search-input").value = incomingQuery;
   }
+  const incomingRecordUuid = urlParams.get("record") || "";
 
   await refreshRecords(incomingQuery);
   attachEventListeners();
+
+  // Deep link: ?record=<uuid> opens that record's edit modal on load, as if
+  // the user had clicked it in the table. Written by the "Copy Link" button
+  // in the person-modal header (see btn-copy-link wiring below).
+  if (incomingRecordUuid) {
+    await openEditModal(incomingRecordUuid);
+  }
 }
 
 // ── Event Listeners ────────────────────────────────────────────────
@@ -379,6 +387,16 @@ function attachEventListeners() {
   // Modal controls
   document.getElementById("modal-close-btn").addEventListener("click", () => {
     document.getElementById("person-modal").classList.add("hidden");
+  });
+  document.getElementById("btn-copy-link").addEventListener("click", async () => {
+    if (!editingUUID) return;
+    const url = `${window.location.origin}${window.location.pathname}?record=${editingUUID}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      notify("Link copied to clipboard", "success");
+    } catch {
+      notify("Could not copy link — clipboard access was denied", "error");
+    }
   });
   document.getElementById("btn-cancel-modal").addEventListener("click", () => {
     document.getElementById("person-modal").classList.add("hidden");

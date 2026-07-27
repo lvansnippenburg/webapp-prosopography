@@ -1361,6 +1361,7 @@ async function openNewModal() {
   document.getElementById("modal-title").textContent = "New Entity";
   document.getElementById("btn-delete-person").classList.add("hidden");
   document.getElementById("btn-history-person").classList.add("hidden");
+  document.getElementById("btn-copy-link").classList.add("hidden");
   document.getElementById("btn-save-person").style.display = "block";
   document.getElementById("person-modal").classList.remove("hidden");
 
@@ -1425,6 +1426,7 @@ async function openEditModal(uuid) {
   document.getElementById("modal-title").textContent = `Edit ${entityTypeLabel}`;
   document.getElementById("btn-delete-person").classList.remove("hidden");
   document.getElementById("btn-history-person").classList.remove("hidden");
+  document.getElementById("btn-copy-link").classList.remove("hidden");
   document.getElementById("btn-save-person").style.display = "block";
 
   populateForm(record);

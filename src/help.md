@@ -145,6 +145,9 @@ The database supports four types of entities:
 **Deleting a Record:**
 Deletion is soft: the record is marked with a `deletedAt` timestamp and hidden from the main view. It remains on disk. Use **"Show Deleted"** in Settings to reveal deleted records.
 
+**Copying a Link:**
+When editing an existing record, click **🔗 Copy Link** in the modal header to copy a URL to your clipboard. Opening that URL loads the app and jumps straight to that record's edit form, the same as clicking it in the table — handy for sharing a specific record or bookmarking it. (Not shown when creating a new, unsaved entity.)
+
 **Filtering by Entity Type:**
 - Click entity type stat cards (Persons, Associations, Institutions, Companies)
 - Or use Advanced mode: `entityType:association`

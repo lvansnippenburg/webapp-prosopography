@@ -436,6 +436,15 @@ textarea {
     width: 100%;
 }
 
+input.ref-reference {
+    /* Keep the tail of an overflowing value visible by default (not just when
+       focused/scrolled manually): direction:rtl flips the browser's default
+       scroll anchor to the end of the text, while text-align:left keeps the
+       text itself rendering left-to-right as normal. */
+    direction: rtl;
+    text-align: left;
+}
+
 .add-item-btn {
     margin-top: 4px;
     font-size: 12px;

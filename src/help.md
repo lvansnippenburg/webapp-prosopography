@@ -134,6 +134,12 @@ The database supports four types of entities:
 - Neighbour ↔ Neighbour
 - Other ↔ Other
 
+### Relationship Comments
+
+Every relationship has an optional **Comment** field below the person/type selector — use it to note how you know about the relationship (e.g. a source, a caveat, or a date). Comments are stored on that side of the relationship only; they aren't copied to the other person's reciprocal entry, so a comment on "Married to" from one side won't automatically appear on the other person's own record.
+
+Click the **"+ Insert reference…"** dropdown next to the comment field to pick one of the record's current Zotero or Archief references — selecting one appends its citation to the comment, along with its link if it has one (a Zotero deep link or a URL), so the comment becomes something like `Smith 2020, p. 4 (zotero://...)`. If the comment contains a link (inserted this way, or pasted/typed directly), an **↗** button appears next to it to open that link. Relationships with a comment show a 💬 icon on their chip above the form — hover to read it.
+
 ### Working with Entities
 
 **Creating an Entity:**

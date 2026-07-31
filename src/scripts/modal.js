@@ -33,6 +33,28 @@ function extractZoteroUrl(text) {
   return match ? match[0] : null;
 }
 
+// Extract the first zotero:// or https:// URL from free text — used for
+// fields (like a relationship comment) that may embed a link inline among
+// other text, e.g. "documented in the parish register (zotero://...)".
+function extractEmbeddedUrl(text) {
+  if (!text) return null;
+  const match = text.match(/(zotero:\/\/|https:\/\/)[^\s)]+/);
+  return match ? match[0] : null;
+}
+
+// Resolve a {reference, remarks} reference object (a Zotero or Archief entry)
+// to an openable link, if it has one — same two-step check (reference field
+// itself, then a zotero:// URL embedded in remarks) used by the .ref-reference
+// open button and reused when a relationship comment links to a reference.
+function resolveReferenceLink(ref) {
+  let link = resolveRefLink((ref.reference || "").trim());
+  if (!link) {
+    const zoteroUrl = extractZoteroUrl((ref.remarks || "").trim());
+    if (zoteroUrl) link = resolveRefLink(zoteroUrl);
+  }
+  return link;
+}
+
 // Scrolls a .ref-reference input to show the end of its value. Only called
 // when the field isn't being actively edited (right after it's populated, and
 // on blur) so normal typing/click/Home/End caret behavior is never disturbed.
@@ -58,12 +80,10 @@ function makeRefItem(ref = {}) {
   const openBtn = div.querySelector(".ref-open-link");
 
   function updateOpenBtn() {
-    // Try reference field first, then remarks (for zotero:// URLs).
-    let link = resolveRefLink(refInput.value.trim());
-    if (!link) {
-      const zoteroUrl = extractZoteroUrl(remarksInput.value.trim());
-      if (zoteroUrl) link = resolveRefLink(zoteroUrl);
-    }
+    const link = resolveReferenceLink({
+      reference: refInput.value.trim(),
+      remarks: remarksInput.value.trim(),
+    });
     openBtn.style.display = link ? "" : "none";
     if (link) {
       openBtn.title = link.isZotero ? "Open in Zotero" : "Open reference";
@@ -224,12 +244,20 @@ function makeRelationshipItem(rel = {}) {
                 <option value="neighbour" ${rel.type === "neighbour" ? "selected" : ""}>Neighbour</option>
                 <option value="other" ${rel.type === "other" ? "selected" : ""}>Other</option>
             </select>
+            <div class="rel-comment-row" style="display:flex;gap:6px;align-items:center;">
+                <input type="text" class="rel-comment" value="${escapeHtml(rel.comment)}" placeholder="Comment (optional)" style="flex:1;">
+                <select class="rel-ref-picker" title="Insert a reference from this record" style="max-width:150px;flex-shrink:0;"></select>
+                <button class="btn-small rel-comment-open-link" title="Open reference" style="display:none;flex-shrink:0;padding:4px 7px;line-height:1;">&#8599;</button>
+            </div>
         </div>
         <button class="btn-danger btn-small remove-item" style="align-self:flex-start;">✕</button>
     `;
 
   const nameInput = div.querySelector(".rel-person-name");
   const uuidInput = div.querySelector(".rel-person-uuid");
+  const commentInput = div.querySelector(".rel-comment");
+  const refPicker = div.querySelector(".rel-ref-picker");
+  const commentOpenBtn = div.querySelector(".rel-comment-open-link");
 
   // Click to open person picker
   nameInput.addEventListener("click", async () => {
@@ -239,6 +267,56 @@ function makeRelationshipItem(rel = {}) {
       uuidInput.value = selected.uuid;
     }
   });
+
+  // "Insert reference" dropdown: lists the record's current Zotero/Archief
+  // references, read live from the form (not the saved record) so a reference
+  // added earlier in the same editing session is included. Refreshed right
+  // before the dropdown opens rather than once at creation time, so it stays
+  // current if the user adds another reference afterward.
+  let refOptions = [];
+  function refreshRefPickerOptions() {
+    refOptions = [
+      ...collectRefs("zotero-container").map((r) => ({ ...r, source: "Zotero" })),
+      ...collectRefs("archief-container").map((r) => ({ ...r, source: "Archief" })),
+    ];
+    refPicker.innerHTML =
+      '<option value="">+ Insert reference…</option>' +
+      refOptions
+        .map((r, i) => `<option value="${i}">${escapeHtml(r.source)}: ${escapeHtml(r.reference)}</option>`)
+        .join("");
+  }
+  refPicker.addEventListener("mousedown", refreshRefPickerOptions);
+  refreshRefPickerOptions();
+
+  function updateCommentOpenBtn() {
+    const text = commentInput.value.trim();
+    let link = resolveRefLink(text); // the whole comment is just a URL
+    if (!link) {
+      const embedded = extractEmbeddedUrl(text); // a URL embedded among other text
+      if (embedded) link = resolveRefLink(embedded);
+    }
+    commentOpenBtn.style.display = link ? "" : "none";
+    if (link) {
+      commentOpenBtn.title = link.isZotero ? "Open in Zotero" : "Open reference";
+      commentOpenBtn.onclick = () => window.open(link.url, "_blank");
+    }
+  }
+
+  refPicker.addEventListener("change", () => {
+    const idx = refPicker.value;
+    if (idx === "") return;
+    const ref = refOptions[idx];
+    const link = resolveReferenceLink(ref);
+    const insertText = link ? `${ref.reference} (${link.url})` : ref.reference;
+    commentInput.value = commentInput.value.trim()
+      ? `${commentInput.value.trim()} ${insertText}`
+      : insertText;
+    refPicker.value = "";
+    updateCommentOpenBtn();
+  });
+
+  commentInput.addEventListener("input", updateCommentOpenBtn);
+  updateCommentOpenBtn();
 
   div.querySelector(".remove-item").addEventListener("click", () => div.remove());
   return div;
@@ -250,6 +328,7 @@ function collectRelationships(containerId) {
       personUuid: item.querySelector(".rel-person-uuid")?.value.trim() || "",
       personName: item.querySelector(".rel-person-name")?.value.trim() || "",
       type: item.querySelector(".rel-type")?.value || "other",
+      comment: item.querySelector(".rel-comment")?.value.trim() || "",
     }))
     .filter((r) => r.personUuid);
 }
@@ -1177,10 +1256,13 @@ async function renderRelationshipSummary(record) {
     let html = '<div class="relationship-chip-row" style="display:flex;flex-wrap:wrap;gap:8px;">';
     for (const [type, persons] of Object.entries(grouped)) {
       persons.forEach((rel) => {
+        const commentAttr = rel.comment ? ` title="${escapeHtml(rel.comment)}"` : "";
+        const commentIcon = rel.comment ? '<span class="rel-comment-indicator">💬</span>' : "";
         html += `
-          <div class="relationship-chip" data-uuid="${escapeHtml(rel.personUuid)}" style="cursor:pointer;">
+          <div class="relationship-chip" data-uuid="${escapeHtml(rel.personUuid)}" style="cursor:pointer;"${commentAttr}>
             <span class="rel-type-badge">${escapeHtml(type)}</span>
             <span class="rel-person-name">${escapeHtml(rel.personName)}</span>
+            ${commentIcon}
           </div>
         `;
       });
@@ -1200,9 +1282,14 @@ async function renderRelationshipSummary(record) {
   if (editingUUID !== record.uuid) return; // modal moved on while this was in flight
 
   const active = all.filter((r) => !r.deletedAt);
-  const offspring = active.filter((r) =>
-    (r.relationships || []).some((rel) => rel.type === "child" && rel.personUuid === record.uuid),
-  );
+  const offspring = active
+    .map((r) => {
+      const childRel = (r.relationships || []).find(
+        (rel) => rel.type === "child" && rel.personUuid === record.uuid,
+      );
+      return childRel ? { record: r, comment: childRel.comment || "" } : null;
+    })
+    .filter(Boolean);
   const siblings = computeInferredSiblings(record, active);
   if (offspring.length === 0 && siblings.length === 0) return;
 
@@ -1222,12 +1309,13 @@ async function renderRelationshipSummary(record) {
     row.appendChild(chip);
   };
 
-  offspring.forEach((child) => {
+  offspring.forEach(({ record: child, comment }) => {
+    const baseTitle = "Computed from the child's own record — edit the relationship there";
     appendComputedChip(
       child.uuid,
       `${child.firstname || ""} ${child.lastname || ""}`.trim(),
       "parent of",
-      "Computed from the child's own record — edit the relationship there",
+      comment ? `${comment} (${baseTitle})` : baseTitle,
     );
   });
   siblings.forEach((sib) => {

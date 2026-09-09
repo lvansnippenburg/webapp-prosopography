@@ -44,6 +44,18 @@ const MAX_SEARCH_HISTORY = 20;
 let activeRelationshipTypes = new Set(); // Tracks which relationship types are active in network view
 let serverDataDir = "";
 
+// Timespan slider state. from/to are the user's current selection (inclusive
+// years); datasetMin/Max are the full extent found in the loaded records.
+// from/to stay null until first computed in refreshRecords(), and afterwards
+// persist across searches/refreshes until the user changes them — a search
+// shouldn't silently reset an active timespan narrowing.
+let timespanFrom = null;
+let timespanTo = null;
+let timespanDatasetMin = null;
+let timespanDatasetMax = null;
+let timespanWindowMode = false; // "Fixed window" mode: from/to move together
+let timespanPlayInterval = null; // set while auto-advancing through time
+
 // ── Entity Types ───────────────────────────────────────────────────
 
 const ENTITY_TYPES = {

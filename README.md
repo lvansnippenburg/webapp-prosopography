@@ -2,6 +2,16 @@
 
 A historical prosopography database for researching persons, associations, institutions, companies, and their relationships. Built as a single-page web app backed by a local Python data server that stores each record as a JSON file on disk.
 
+## Features
+
+- **Search** — fuzzy name matching (exact/prefix/contains/soundex/Levenshtein), scoped search across specific fields, regex mode, and an advanced `field:value AND/OR field:value` query syntax.
+- **Relationships** — married/child/brother/sister/associate/etc. between records, with automatic reciprocal writes for symmetric types. "Child of" is one-way (stored only on the offspring, pointing at the parent); the parent's own record shows a computed "Parent of" chip instead. Siblings are inferred automatically from a shared parent. Each relationship can carry a free-text comment, optionally linking to one of the record's own Zotero/Archief references.
+- **Timespan slider** — a dual-handle range slider beneath the search bar filters records by `firstseen`/`lastseen`, defaulting to the full span of the loaded data. It matches on **overlap**: a record is included if it was active at *any point* during the selected years, not only if its whole attested period fits inside them. This is the opposite of the Timespan search scope's range query syntax (typing e.g. `1630-1680` with the Timespan scope selected, or `timespan:1630-1680` in advanced mode — see `src/help.md`), which requires *full containment* instead — the slider is built to be dragged or stepped across the dataset (see "Fixed window" mode, which scrubs a constant-width period through time, including a Play/auto-advance option), and containment semantics would make a moving window useless for anyone whose attested career outlasts it. Records with no usable date are excluded once the range is narrowed, but all show at the default full-range setting.
+- **Visualize view** — a second, D3-powered view (toggle next to the search bar) with four sub-views on the same filtered records: a card list, a force-directed/tree relationship graph, an offline world map (place fields resolved via a local gazetteer), and a lifespan/attestation timeline.
+- **Import/export** — Excel (legacy positional or named-column round-trip) and JSON import/export, plus a dedicated GEXF export for opening the relationship network directly in [Gephi](https://gephi.org).
+- **Versioning** — every overwrite is backed up automatically (20 versions per record) and browsable/restorable from the record's own History panel.
+- **Deep links** — "Copy Link" on any record produces a URL that reopens the app with that record's edit form already open.
+
 ## This webapp is primarily for personal use
 
 Before using, copying, or modifying this code: **read the LICENSE.md file.**
@@ -87,7 +97,7 @@ tail -f /tmp/prosopography-server.log
 
 The Python soundex implementation is a direct port of the JS version (`scripts/core.js`), so results are identical on both sides. The client-side wrapper is `apiLookup(query)` in `scripts/data.js`.
 
-The front-end is split into plain scripts that share one global scope, loaded in order by `index.html`: `core.js` (constants, state, utilities, soundex/levenshtein) → `data.js` (server API, parsing, import/export) → `records.js` (table & stats) → `modal.js` (record form & relationship graph) → `boot.js` (startup & event wiring).
+The front-end is split into plain scripts that share one global scope, loaded in order by `index.html`: `core.js` (constants, state, utilities, soundex/levenshtein) → `data.js` (server API, parsing, import/export) → `records.js` (table, stats, search/timespan filtering) → `modal.js` (record form & relationship graph) → `visualize.js` (Map & Timeline views) → `boot.js` (startup & event wiring).
 
 ## Tests
 

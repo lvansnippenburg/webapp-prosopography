@@ -59,6 +59,146 @@ function attachEventListeners() {
     searchDebounce = setTimeout(() => refreshRecords(e.target.value), 280);
   });
 
+  // ── Timespan filter ──────────────────────────────────────────────
+  // A dual-handle slider (two overlapping <input type="range"> elements,
+  // from/to) beneath the search bar, plus an optional "Fixed window" mode
+  // that moves a constant-width range across the dataset instead of resizing
+  // it. Both modes just set timespanFrom/timespanTo (records.js) and call
+  // refreshRecords(), so filtering, sorting, the table, and the Visualize
+  // view all pick it up through the same pipeline as any other filter.
+  let timespanDebounce;
+  const timespanFromInput = document.getElementById("timespan-from");
+  const timespanToInput = document.getElementById("timespan-to");
+  const timespanWindowToggle = document.getElementById("timespan-window-toggle");
+  const timespanWindowControls = document.getElementById("timespan-window-controls");
+  const timespanWindowSizeInput = document.getElementById("timespan-window-size");
+  const timespanWindowPosInput = document.getElementById("timespan-window-position");
+  const timespanPlayBtn = document.getElementById("timespan-window-play");
+
+  function applyTimespanFromInputs() {
+    let from = parseInt(timespanFromInput.value, 10);
+    let to = parseInt(timespanToInput.value, 10);
+    if (from > to) {
+      // Don't let the handles cross — whichever is focused (being dragged)
+      // pushes the other one along with it.
+      if (document.activeElement === timespanToInput) from = to;
+      else to = from;
+      timespanFromInput.value = from;
+      timespanToInput.value = to;
+    }
+    timespanFrom = from;
+    timespanTo = to;
+    clearTimeout(timespanDebounce);
+    timespanDebounce = setTimeout(() => refreshRecords(searchInput.value), 150);
+  }
+
+  timespanFromInput.addEventListener("input", applyTimespanFromInputs);
+  timespanToInput.addEventListener("input", applyTimespanFromInputs);
+
+  // Raise whichever handle is grabbed above the other, so both stay
+  // reachable even when they land on (or cross) the same position.
+  [timespanFromInput, timespanToInput].forEach((el) => {
+    el.addEventListener("pointerdown", () => {
+      timespanFromInput.style.zIndex = el === timespanFromInput ? 2 : 1;
+      timespanToInput.style.zIndex = el === timespanToInput ? 2 : 1;
+    });
+  });
+
+  document.getElementById("timespan-reset").addEventListener("click", () => {
+    if (timespanDatasetMin === null) return;
+    timespanFrom = timespanDatasetMin;
+    timespanTo = timespanDatasetMax;
+    if (timespanWindowMode) setTimespanWindowMode(false);
+    syncTimespanSliderUI();
+    refreshRecords(searchInput.value);
+  });
+
+  function applyTimespanWindowPosition() {
+    if (timespanDatasetMin === null) return;
+    const width = Math.max(1, parseInt(timespanWindowSizeInput.value, 10) || 1);
+    const maxStart = Math.max(timespanDatasetMin, timespanDatasetMax - width + 1);
+    let start = parseInt(timespanWindowPosInput.value, 10);
+    if (Number.isNaN(start)) start = timespanFrom;
+    start = Math.min(Math.max(start, timespanDatasetMin), maxStart);
+
+    timespanFrom = start;
+    timespanTo = Math.min(start + width - 1, timespanDatasetMax);
+    refreshRecords(searchInput.value);
+  }
+
+  function stopTimespanPlay() {
+    if (timespanPlayInterval) {
+      clearInterval(timespanPlayInterval);
+      timespanPlayInterval = null;
+    }
+    timespanPlayBtn.textContent = "▶ Play";
+    timespanPlayBtn.classList.remove("active");
+  }
+
+  function setTimespanWindowMode(active) {
+    timespanWindowMode = active;
+    timespanWindowToggle.classList.toggle("active", active);
+    timespanWindowControls.classList.toggle("hidden", !active);
+    document.getElementById("timespan-slider-wrap").classList.toggle("readonly", active);
+    if (active) {
+      // Start the window at the current "from" selection.
+      timespanWindowPosInput.value = timespanFrom;
+      applyTimespanWindowPosition();
+    } else {
+      stopTimespanPlay();
+    }
+  }
+
+  timespanWindowToggle.addEventListener("click", () => setTimespanWindowMode(!timespanWindowMode));
+
+  timespanWindowSizeInput.addEventListener("input", () => {
+    if (timespanWindowMode) applyTimespanWindowPosition();
+  });
+
+  timespanWindowPosInput.addEventListener("input", () => {
+    clearTimeout(timespanDebounce);
+    timespanDebounce = setTimeout(applyTimespanWindowPosition, 150);
+  });
+
+  document.getElementById("timespan-window-prev").addEventListener("click", () => {
+    const width = Math.max(1, parseInt(timespanWindowSizeInput.value, 10) || 1);
+    timespanWindowPosInput.value = Math.max(
+      timespanDatasetMin,
+      parseInt(timespanWindowPosInput.value, 10) - width,
+    );
+    applyTimespanWindowPosition();
+  });
+
+  document.getElementById("timespan-window-next").addEventListener("click", () => {
+    const width = Math.max(1, parseInt(timespanWindowSizeInput.value, 10) || 1);
+    const maxStart = Math.max(timespanDatasetMin, timespanDatasetMax - width + 1);
+    timespanWindowPosInput.value = Math.min(
+      maxStart,
+      parseInt(timespanWindowPosInput.value, 10) + width,
+    );
+    applyTimespanWindowPosition();
+  });
+
+  timespanPlayBtn.addEventListener("click", () => {
+    if (timespanPlayInterval) {
+      stopTimespanPlay();
+      return;
+    }
+    timespanPlayBtn.textContent = "⏸ Pause";
+    timespanPlayBtn.classList.add("active");
+    timespanPlayInterval = setInterval(() => {
+      const width = Math.max(1, parseInt(timespanWindowSizeInput.value, 10) || 1);
+      const maxStart = Math.max(timespanDatasetMin, timespanDatasetMax - width + 1);
+      const nextStart = parseInt(timespanWindowPosInput.value, 10) + width;
+      if (nextStart > maxStart) {
+        stopTimespanPlay();
+        return;
+      }
+      timespanWindowPosInput.value = nextStart;
+      applyTimespanWindowPosition();
+    }, 1200);
+  });
+
   // Search scope selector
   document.getElementById("btn-search-scope").addEventListener("click", () => {
     const modal = document.getElementById("search-scope-modal");

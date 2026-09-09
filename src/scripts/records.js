@@ -55,6 +55,20 @@ async function refreshRecords(query = "") {
     }
   }
 
+  // Timespan slider filter — independent of the search query above, and
+  // combines with it (AND). Bounds are (re)computed from the full dataset on
+  // every refresh so the slider's range grows if new records extend it, but
+  // the user's current from/to selection is only ever set here on first load
+  // (updateTimespanBounds leaves an existing selection alone).
+  updateTimespanBounds(allRecords);
+  if (
+    timespanFrom !== null &&
+    timespanTo !== null &&
+    (timespanFrom > timespanDatasetMin || timespanTo < timespanDatasetMax)
+  ) {
+    filtered = filtered.filter((r) => recordOverlapsYearRange(r, timespanFrom, timespanTo));
+  }
+
   // Sort
   filtered.sort((a, b) => {
     const av = (a[sortCol] || "").toString().toLowerCase();
@@ -168,13 +182,18 @@ function searchInRecord(record, query, scopes) {
   return false;
 }
 
+// Shared 4-digit year extraction for firstseen/lastseen fields, used by the
+// text-query Timespan scope (matchTimespan) and the timespan slider filter
+// (recordOverlapsYearRange) so both agree on what counts as a usable date.
+function extractYearFromField(value) {
+  if (!value) return null;
+  const match = value.match(/(\d{4})/);
+  return match ? parseInt(match[1], 10) : null;
+}
+
 function matchTimespan(record, query) {
   // Extract years from firstseen and lastseen fields
-  const extractYear = (value) => {
-    if (!value) return null;
-    const match = value.match(/(\d{4})/);
-    return match ? parseInt(match[1], 10) : null;
-  };
+  const extractYear = extractYearFromField;
 
   // Check if fields are truly blank (empty or whitespace only)
   const firstseenBlank = !record.firstseen || !record.firstseen.trim();
@@ -235,6 +254,108 @@ function matchTimespan(record, query) {
 
   // No year found in query, fall back to text matching
   return false;
+}
+
+// Overlap check for the timespan slider: true if the record was active at any
+// point during [from, to] (inclusive). This is deliberately *overlap*, not
+// the *containment* semantics matchTimespan's range query uses ("1630-1650"
+// requires the whole attestation period to fit inside the range) — the
+// slider is designed to be dragged/stepped across the dataset (see the
+// "Fixed window" controls), and under containment semantics nobody with a
+// longer attested span than the window would ever match as it moves.
+function recordOverlapsYearRange(record, from, to) {
+  const firstseen = extractYearFromField(record.firstseen);
+  const lastseen = extractYearFromField(record.lastseen);
+  if (firstseen === null && lastseen === null) return false;
+
+  // A record with only one usable date is treated as a single point in time
+  // at that year for overlap purposes.
+  const start = firstseen !== null ? firstseen : lastseen;
+  const end = lastseen !== null ? lastseen : firstseen;
+  return start <= to && end >= from;
+}
+
+// Scans records for the full firstseen/lastseen year range. Returns
+// {min, max}, both null if no record has a usable year.
+function computeDatasetYearRange(records) {
+  let min = null;
+  let max = null;
+  records.forEach((r) => {
+    [r.firstseen, r.lastseen].forEach((value) => {
+      const year = extractYearFromField(value);
+      if (year === null) return;
+      if (min === null || year < min) min = year;
+      if (max === null || year > max) max = year;
+    });
+  });
+  return { min, max };
+}
+
+// Recomputes the dataset's year bounds from the given records and updates
+// global timespan state. On first call (timespanFrom still null) this also
+// initializes the user's selection to the full range; on later calls it only
+// widens datasetMin/Max if the data has grown, leaving an active user
+// selection untouched — a search keystroke shouldn't reset the slider.
+function updateTimespanBounds(records) {
+  const { min, max } = computeDatasetYearRange(records);
+  const panel = document.getElementById("timespan-filter");
+  if (min === null || max === null) {
+    // Nothing dated in the dataset (or the current view) — nothing to filter by.
+    if (panel) panel.classList.add("hidden");
+    return;
+  }
+  if (panel) panel.classList.remove("hidden");
+
+  const firstInit = timespanFrom === null;
+  timespanDatasetMin = min;
+  timespanDatasetMax = max;
+  if (firstInit) {
+    timespanFrom = min;
+    timespanTo = max;
+  }
+
+  syncTimespanSliderUI();
+}
+
+// Pushes current timespan state onto the slider DOM elements. Safe to call
+// any time, including right after the user's own change already set that
+// same state — setting an <input type="range">'s .value to the value it
+// already holds doesn't interrupt an in-progress drag.
+function syncTimespanSliderUI() {
+  const fromInput = document.getElementById("timespan-from");
+  const toInput = document.getElementById("timespan-to");
+  const label = document.getElementById("timespan-range-label");
+  if (!fromInput || !toInput || timespanDatasetMin === null) return;
+
+  fromInput.min = timespanDatasetMin;
+  fromInput.max = timespanDatasetMax;
+  toInput.min = timespanDatasetMin;
+  toInput.max = timespanDatasetMax;
+  fromInput.value = timespanFrom;
+  toInput.value = timespanTo;
+
+  if (label) label.textContent = `${timespanFrom} – ${timespanTo}`;
+
+  const span = timespanDatasetMax - timespanDatasetMin || 1;
+  const fill = document.getElementById("timespan-track-fill");
+  if (fill) {
+    const leftPct = ((timespanFrom - timespanDatasetMin) / span) * 100;
+    const rightPct = ((timespanTo - timespanDatasetMin) / span) * 100;
+    fill.style.left = `${leftPct}%`;
+    fill.style.width = `${Math.max(0, rightPct - leftPct)}%`;
+  }
+
+  // Window-mode position slider mirrors timespanFrom, range-limited so a
+  // window of the configured size never runs past the dataset's max year.
+  const posInput = document.getElementById("timespan-window-position");
+  const sizeInput = document.getElementById("timespan-window-size");
+  if (posInput && sizeInput) {
+    const width = Math.max(1, parseInt(sizeInput.value, 10) || 1);
+    const maxStart = Math.max(timespanDatasetMin, timespanDatasetMax - width + 1);
+    posInput.min = timespanDatasetMin;
+    posInput.max = maxStart;
+    posInput.value = Math.min(timespanFrom, maxStart);
+  }
 }
 
 function evaluateAdvancedQuery(record, query) {

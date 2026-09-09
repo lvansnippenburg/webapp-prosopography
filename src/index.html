@@ -142,6 +142,68 @@
                 <button class="btn-primary" id="btn-new">+ New Entity</button>
             </div>
 
+            <!-- Timespan filter -->
+            <div id="timespan-filter">
+                <div id="timespan-header">
+                    <span id="timespan-range-label">–</span>
+                    <div style="display: flex; gap: 6px; align-items: center">
+                        <button
+                            class="btn-ghost btn-small"
+                            id="timespan-window-toggle"
+                            title="Select a fixed-width window and move it through time"
+                        >
+                            🎚 Fixed window
+                        </button>
+                        <button
+                            class="btn-ghost btn-small"
+                            id="timespan-reset"
+                            title="Reset to the full range"
+                        >
+                            Reset
+                        </button>
+                    </div>
+                </div>
+                <div id="timespan-slider-wrap">
+                    <div id="timespan-track"></div>
+                    <div id="timespan-track-fill"></div>
+                    <input type="range" id="timespan-from" min="0" max="1" value="0" step="1" />
+                    <input type="range" id="timespan-to" min="0" max="1" value="1" step="1" />
+                </div>
+                <div id="timespan-window-controls" class="hidden">
+                    <label for="timespan-window-size">Window size:</label>
+                    <input
+                        type="number"
+                        id="timespan-window-size"
+                        value="10"
+                        min="1"
+                        style="width: 70px"
+                    />
+                    <span>years</span>
+                    <button class="btn-ghost btn-small" id="timespan-window-prev" title="Step back">
+                        ◀
+                    </button>
+                    <input
+                        type="range"
+                        id="timespan-window-position"
+                        min="0"
+                        max="1"
+                        value="0"
+                        step="1"
+                        style="flex: 1"
+                    />
+                    <button class="btn-ghost btn-small" id="timespan-window-next" title="Step forward">
+                        ▶
+                    </button>
+                    <button
+                        class="btn-ghost btn-small"
+                        id="timespan-window-play"
+                        title="Auto-advance through time"
+                    >
+                        ▶ Play
+                    </button>
+                </div>
+            </div>
+
             <!-- Statistics pane -->
 
             <div id="stats-pane">

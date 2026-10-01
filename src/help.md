@@ -14,15 +14,16 @@ A historical prosopography database for researching persons, associations, insti
 6. [Search Scopes](#search-scopes)
 7. [Multiple Scope Selection](#multiple-scope-selection)
 8. [Regex Mode](#regex-mode)
-9. [Advanced Query Syntax](#advanced-query-syntax)
-10. [Timespan Search](#timespan-search)
-11. [Timespan Slider](#timespan-slider)
-12. [Search History](#search-history)
-13. [Statistics Cards](#statistics-cards)
-14. [Explore: Graph, Map & Timeline](#explore-graph-map--timeline)
-15. [Search Examples](#search-examples)
-16. [Tips & Best Practices](#tips--best-practices)
-17. [Troubleshooting](#troubleshooting)
+9. [Exact Match Mode](#exact-match-mode)
+10. [Advanced Query Syntax](#advanced-query-syntax)
+11. [Timespan Search](#timespan-search)
+12. [Timespan Slider](#timespan-slider)
+13. [Search History](#search-history)
+14. [Statistics Cards](#statistics-cards)
+15. [Explore: Graph, Map & Timeline](#explore-graph-map--timeline)
+16. [Search Examples](#search-examples)
+17. [Tips & Best Practices](#tips--best-practices)
+18. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -244,6 +245,7 @@ All searches are case-insensitive.
 |------|---------------|--------------|
 | **Scope selection** | Click the scope dropdown | Search specific fields |
 | **Regex mode** | Click `.*` button | Use regular expressions |
+| **Exact match mode** | Click `=` button | Require the whole field to match, not just contain the query |
 | **Advanced mode** | Click `AND/OR` button | Use field:value with boolean operators |
 
 ---
@@ -308,6 +310,16 @@ Click **".*"** to toggle regex mode (blue = active). Uses JavaScript regex synta
 | `\bvan\b` | Word boundary "van" |
 
 Invalid regex patterns are silently ignored.
+
+---
+
+## Exact Match Mode
+
+Click **"="** to toggle exact match (blue = active). Normally, searching a specific field (via Search Scopes) matches if the query appears **anywhere** in the field — `Ger` matches "German", "Nigeria", "Algeria". With exact mode on, the field must **equal** the query (still case-insensitive): `Ger` matches nothing, but `German` matches "German" exactly.
+
+This is different from the **Exact** row in the Basic Search table above, which is just the first (and best) of five tiers the *default* fuzzy name search tries automatically — it doesn't stop a shorter or looser query from also matching via prefix/contains/soundex. Exact match mode instead turns **off** partial matching everywhere it applies: specific scopes, "All Fields", and `field:value` conditions in Advanced mode. It has no effect in Regex mode, where `^German$` already does the same thing.
+
+Useful when a short origin/profession/religion value is itself a substring of another value in your data (e.g. filtering strictly for `Ger` → "German" without also pulling in anything merely containing those letters).
 
 ---
 
@@ -482,6 +494,11 @@ origin:Dutch AND profession:merchant AND city:!Amsterdam
 **Names starting with "van", ending with Berg/Burg (regex, lastname scope):**
 ```
 ^van.*(Berg|Burg)$
+```
+
+**Only people whose origin is exactly "German", not "Germanic" or anyone with "German" merely inside a longer value (exact mode, origin scope):**
+```
+German
 ```
 
 **Persons active in 1650:**

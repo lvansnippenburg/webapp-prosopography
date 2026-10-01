@@ -36,6 +36,7 @@ let sortAsc = true;
 let searchScopes = ["all"]; // Multiple scopes for search
 let regexMode = false;
 let advancedMode = false;
+let exactMode = false; // Require a full (case-insensitive) match instead of "contains"
 let graphLayoutMode = "force"; // "force" or "tree"
 let networkGraphNodesSelection = null; // To store D3 node selection
 let networkGraphLinkSelection = null;  // To store D3 link selection

@@ -16,7 +16,8 @@ async function refreshRecords(query = "") {
     addToSearchHistory(query, searchScopes);
 
     // Check if any search mode is active
-    const hasActiveMode = regexMode || advancedMode || !searchScopes.includes("all");
+    const hasActiveMode =
+      regexMode || advancedMode || exactMode || !searchScopes.includes("all");
 
     // Advanced query syntax: field:value AND/OR field:value
     // Also handle single field:value queries in advanced mode
@@ -98,6 +99,10 @@ function searchInRecord(record, query, scopes) {
         return false; // Invalid regex
       }
     }
+    // Exact mode: the whole field must equal the query, not just contain it
+    // (so "Ger" no longer matches "German"). Ignored in regex mode, where
+    // the user can already write ^...$ for the same effect.
+    if (exactMode) return v === q;
     return v.includes(q);
   };
 
@@ -480,6 +485,14 @@ function updateSearchPlaceholder() {
       input.placeholder = `Regex pattern (${searchScopes[0]})...`;
     } else {
       input.placeholder = `Regex pattern (${searchScopes.length} fields)...`;
+    }
+  } else if (exactMode) {
+    if (searchScopes.includes("all")) {
+      input.placeholder = "Exact match (all fields)...";
+    } else if (searchScopes.length === 1) {
+      input.placeholder = `Exact match (${searchScopes[0]})...`;
+    } else {
+      input.placeholder = `Exact match (${searchScopes.length} fields)...`;
     }
   } else if (!searchScopes.includes("all")) {
     // Scope selected but no regex/advanced

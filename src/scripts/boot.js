@@ -270,6 +270,16 @@ function attachEventListeners() {
     refreshRecords(searchInput.value);
   });
 
+  // Exact match toggle — the whole field must equal the query, not just
+  // contain it. Only matters outside regex mode (see matches() in
+  // records.js: regex already lets you write ^...$ for exact matching).
+  document.getElementById("btn-toggle-exact").addEventListener("click", function () {
+    exactMode = !exactMode;
+    this.classList.toggle("active", exactMode);
+    updateSearchPlaceholder();
+    refreshRecords(searchInput.value);
+  });
+
   // Advanced query toggle
   document.getElementById("btn-toggle-advanced").addEventListener("click", function () {
     advancedMode = !advancedMode;

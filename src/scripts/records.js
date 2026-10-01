@@ -61,11 +61,7 @@ async function refreshRecords(query = "") {
   // the user's current from/to selection is only ever set here on first load
   // (updateTimespanBounds leaves an existing selection alone).
   updateTimespanBounds(allRecords);
-  if (
-    timespanFrom !== null &&
-    timespanTo !== null &&
-    (timespanFrom > timespanDatasetMin || timespanTo < timespanDatasetMax)
-  ) {
+  if (timespanFilterIsActive()) {
     filtered = filtered.filter((r) => recordOverlapsYearRange(r, timespanFrom, timespanTo));
   }
 
@@ -291,6 +287,17 @@ function computeDatasetYearRange(records) {
   return { min, max };
 }
 
+// True when the slider is actually narrowing results (used both to decide
+// whether to apply the filter in refreshRecords and to flag the toolbar
+// toggle button while the panel is collapsed).
+function timespanFilterIsActive() {
+  return (
+    timespanFrom !== null &&
+    timespanTo !== null &&
+    (timespanFrom > timespanDatasetMin || timespanTo < timespanDatasetMax)
+  );
+}
+
 // Recomputes the dataset's year bounds from the given records and updates
 // global timespan state. On first call (timespanFrom still null) this also
 // initializes the user's selection to the full range; on later calls it only
@@ -356,6 +363,15 @@ function syncTimespanSliderUI() {
     posInput.max = maxStart;
     posInput.value = Math.min(timespanFrom, maxStart);
   }
+
+  updateTimespanToggleIndicator();
+}
+
+// Flags the toolbar toggle button when a timespan filter is active, so a
+// collapsed panel still shows that results are being narrowed.
+function updateTimespanToggleIndicator() {
+  const btn = document.getElementById("btn-toggle-timespan");
+  if (btn) btn.classList.toggle("filter-active", timespanFilterIsActive());
 }
 
 function evaluateAdvancedQuery(record, query) {

@@ -199,6 +199,25 @@ function attachEventListeners() {
     }, 1200);
   });
 
+  // Collapse / expand the whole timespan panel to save vertical space. The
+  // choice is remembered across reloads; the filter itself keeps running
+  // while collapsed (a dot on the button flags that — see updateTimespanToggleIndicator).
+  const timespanPanel = document.getElementById("timespan-filter");
+  const timespanChevron = document.getElementById("btn-toggle-timespan-chevron");
+
+  function setTimespanCollapsed(collapsed) {
+    timespanPanel.classList.toggle("collapsed", collapsed);
+    timespanChevron.textContent = collapsed ? "▸" : "▾";
+    localStorage.setItem("timespanFilterCollapsed", collapsed ? "1" : "0");
+    updateTimespanToggleIndicator();
+  }
+
+  document.getElementById("btn-toggle-timespan").addEventListener("click", () => {
+    setTimespanCollapsed(!timespanPanel.classList.contains("collapsed"));
+  });
+
+  setTimespanCollapsed(localStorage.getItem("timespanFilterCollapsed") === "1");
+
   // Search scope selector
   document.getElementById("btn-search-scope").addEventListener("click", () => {
     const modal = document.getElementById("search-scope-modal");

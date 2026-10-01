@@ -398,6 +398,8 @@ Year values are extracted from text automatically: `"circa 1650"` → 1650.
 
 Beneath the search bar, a slider lets you filter by period without typing a query. By default both handles sit at the lowest and highest `firstseen`/`lastseen` years found across all records, so nothing is filtered until you move them. Drag either handle to narrow the range — the table (and the Visualize view, which reads the same filtered set) updates as you drag. Click **Reset** to return to the full range.
 
+Use the **⏱ Timespan** button in the toolbar to collapse or expand this panel (the choice is remembered). A dot appears on that button when the filter is still narrowing results while the panel is collapsed.
+
 This filters on **overlap**, not containment: a record matches if it was active at *any point* during the selected years, not only if its entire attested period fits inside them. That's the opposite of the Timespan search scope's range syntax above (`1630-1680` there requires the *whole* period to fit inside the range) — deliberately, so a long-lived person doesn't disappear from a narrow slider window just because their full career extends beyond it. Records with no usable `firstseen`/`lastseen` year are excluded once you narrow the range (there's nothing to place them by), same as they're skipped in the Timeline view.
 
 **Moving through time:** click **🎚 Fixed window** to pick a window size (in years, e.g. 10) and scrub it across the dataset with the slider, the **◀ ▶** step buttons, or **▶ Play** to auto-advance — each step re-filters as it moves. While this is active, the dual-handle slider becomes a read-only indicator of where the window currently sits; turn "Fixed window" back off to resize the range freely again.

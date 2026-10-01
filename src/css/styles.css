@@ -105,6 +105,22 @@ header h1 {
     margin-bottom: 20px;
 }
 
+/* User-collapsed via the toolbar toggle. Kept separate from .hidden (which
+   records.js sets when there is no dated data) so the two don't fight. */
+#timespan-filter.collapsed {
+    display: none;
+}
+
+/* Dot on the toggle button when the (now hidden) filter is still narrowing
+   results, so a collapsed panel isn't a silent footgun. */
+#btn-toggle-timespan.filter-active::after {
+    content: "●";
+    margin-left: 4px;
+    font-size: 9px;
+    vertical-align: middle;
+    color: var(--ice-blue-dark);
+}
+
 #timespan-header {
     display: flex;
     justify-content: space-between;

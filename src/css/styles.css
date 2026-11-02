@@ -911,43 +911,7 @@ hr {
     border-color: var(--ice-blue-dark);
 }
 
-/* ── Relationship Chips ──────────────────────────────── */
-
-.relationship-chip {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 6px 10px;
-    background: var(--white);
-    border: 1px solid var(--ice-blue-mid);
-    border-radius: 16px;
-    font-size: 12px;
-    transition: all 0.15s;
-}
-
-.relationship-chip:hover {
-    background: var(--ice-blue);
-    border-color: var(--ice-blue-dark);
-    transform: translateY(-1px);
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
-}
-
-.relationship-chip--computed {
-    border-style: dashed;
-    background: var(--pale-grey);
-}
-
-.rel-type-badge {
-    display: inline-block;
-    padding: 2px 6px;
-    background: var(--ice-blue-dark);
-    color: var(--white);
-    border-radius: 3px;
-    font-size: 10px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.3px;
-}
+/* ── Relationship editor ──────────────────────────────── */
 
 .rel-person-name {
     color: var(--dark-grey);

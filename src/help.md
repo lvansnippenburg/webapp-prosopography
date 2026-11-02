@@ -116,13 +116,13 @@ The database supports four types of entities:
 
 **Family Relations:**
 - **Married to** ↔ Married to (bidirectional — the reciprocal is created automatically)
-- **Child of** → stored only on the child's own record, pointing at the parent (one-way, by design). The parent's own record doesn't store anything back — instead it shows a read-only **"Parent of"** chip for each such record, computed automatically. To edit or remove the relationship, do it from the child's own record. On the parent's record, click **"+ Add child"** (below the relationship chips) to create the link from that side instead — it opens the same person picker used elsewhere and writes the "Child of" entry onto the selected person's record for you.
+- **Child of** → stored only on the child's own record, pointing at the parent (one-way, by design). The parent's own record doesn't store anything back. To edit, remove, or add the relationship, do it from the child's own record.
 - Brother ↔ Brother
 - Sister ↔ Sister
 
 *Married to/Brother/Sister are bidirectional — the reciprocal is automatically created on the related record.*
 
-**Inferred siblings:** if two people both have a "Child of" entry pointing at the same parent, they're shown as a read-only **"Sibling (inferred)"** chip on each other's record — no need to add Brother/Sister entries manually just to link siblings who share a parent already on file. If you *do* add an explicit Brother/Sister entry between two such people, that takes precedence and the inferred chip is suppressed for that pair.
+**Inferred siblings:** in the relationship **graph** view, two people who both have a "Child of" entry pointing at the same parent are connected by a dashed line, even without an explicit Brother/Sister entry on file — see "Inferred siblings" under Relationship Network below. If you *do* add an explicit Brother/Sister entry between two such people, that takes precedence and the dashed inferred link is suppressed for that pair.
 
 **Organizational Relations (one-way):**
 - **Member of**: Person is a member of an Association

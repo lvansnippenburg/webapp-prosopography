@@ -387,6 +387,15 @@
                             </select>
                         </div>
 
+                        <!-- Gender -->
+                        <div class="form-group">
+                            <label>Gender</label>
+                            <select id="field-gender">
+                                <option value="M" selected>Male</option>
+                                <option value="F">Female</option>
+                            </select>
+                        </div>
+
                         <!-- Lastname -->
                         <div class="form-group">
                             <label for="field-lastname">Lastname *</label>
@@ -417,20 +426,6 @@
                             <input type="text" id="field-patronymic" />
                         </div>
 
-                        <!-- Relationship Summary -->
-                        <div class="form-group full-width">
-                            <div
-                                id="relationship-summary"
-                                style="
-                                    margin-bottom: 20px;
-                                    padding: 12px;
-                                    background: var(--pale-grey);
-                                    border-radius: 4px;
-                                    border: 1px solid var(--light-grey);
-                                "
-                            ></div>
-                        </div>
-
                         <!-- Lastname variations -->
                         <div class="form-group full-width">
                             <label>Lastname Variations</label>
@@ -449,15 +444,6 @@
                             </button>
                         </div>
 
-                        <!-- Residences -->
-                        <div class="form-group full-width">
-                            <label>Residences</label>
-                            <div class="array-field" id="residence-container"></div>
-                            <button class="btn-ghost add-item-btn" id="add-residence">
-                                + Add residence
-                            </button>
-                        </div>
-
                         <!-- Relationships -->
                         <div class="form-group full-width">
                             <label>Relationships</label>
@@ -467,20 +453,24 @@
                             </button>
                         </div>
 
+                        <!-- Residences -->
+                        <div class="form-group full-width">
+                            <label>Residences</label>
+                            <div class="array-field" id="residence-container"></div>
+                            <button class="btn-ghost add-item-btn" id="add-residence">
+                                + Add residence
+                            </button>
+                        </div>
+
+
+
                         <!-- Notes -->
                         <div class="form-group full-width">
                             <label>Opmerkingen / Notes</label>
                             <textarea id="field-notes"></textarea>
                         </div>
 
-                        <!-- Gender -->
-                        <div class="form-group">
-                            <label>Gender</label>
-                            <select id="field-gender">
-                                <option value="M" selected>Male</option>
-                                <option value="F">Female</option>
-                            </select>
-                        </div>
+
 
                         <!-- City suggestions, shared by every residence row's city input -->
                         <datalist id="city-suggestions"></datalist>

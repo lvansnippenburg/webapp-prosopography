@@ -186,8 +186,8 @@ The application supports two Excel formats:
 **Import Tips:**
 
 - Do not delete or modify the UUID column when re-importing exported files — it is used for matching
-- Multi-value fields use semicolons: `value1; value2; value3`
-- Relationships format: `type:personName; type:personName`
+- Simple multi-value fields (name variations) use semicolons: `value1; value2; value3`
+- The **Residences**, **Relationships**, **Zotero**, and **Archief** columns are JSON (e.g. `[{"city":"Livorno","firstseen":"1650",...}]`) — this is what makes a full round trip lossless (every residence with its notes/reference, every relationship with its linked person and comment, every reference with its year/remarks). They aren't meant for hand-editing cell-by-cell; use the app's own editor for that. Files exported before this format existed (or a `type:personName; type:personName`-style cell typed by hand) still import correctly — the importer falls back to the old reading when a cell isn't valid JSON, it just won't carry the extra detail those older formats never had.
 - Each imported record is saved to disk immediately
 
 ### Export Data
@@ -196,7 +196,8 @@ Click **⬇ Export** in the Settings panel. The export includes all currently di
 
 **Excel (.xlsx):**
 - One record per row, one field per column
-- Multi-value fields (variations, relationships, references) separated by semicolons
+- Simple multi-value fields (name variations) separated by semicolons; **Residences**/**Relationships**/**Zotero**/**Archief** are JSON (see Import Tips above) so a full export → re-import round trip doesn't lose anything
+- `City`/`First Seen`/`Last Seen` are a read-only preview of the primary residence — editing them in Excel has no effect on re-import; edit residences in the app, or edit the `Residences` JSON directly if you're comfortable with it
 - Filename: `livorno_prosopography_YYYY-MM-DDTHH-MM-SS.xlsx`
 
 **JSON (.json):**

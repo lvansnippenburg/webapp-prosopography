@@ -118,6 +118,105 @@ function parseRefArray(raw) {
     .map((ref) => ({ reference: ref, year: "", remarks: "" }));
 }
 
+// ── Full-fidelity Excel columns (Residences, Relationships, Zotero, Archief) ──
+//
+// exportToExcel() writes these as JSON so every field (residence notes/
+// reference, relationship personUuid/comment, reference year/remarks) survives
+// an export → edit-unrelated-cells → re-import round trip exactly, not just the
+// handful of sub-fields the old semicolon-joined summary text could carry.
+// importExcel() tries JSON.parse() first; a file exported before this change
+// (or a cell a person typed by hand) won't be valid JSON, so each parser below
+// falls back to the old delimited-text reading for backward compatibility.
+
+// Shared JSON-then-legacy-fallback plumbing: returns the parsed array if `raw`
+// is valid JSON for an array, otherwise null (caller supplies the fallback).
+function parseJsonArrayColumn(raw) {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function parseResidenceColumn(raw, legacyCity, legacyFirstseen, legacyLastseen) {
+  const parsed = parseJsonArrayColumn(raw);
+  if (parsed) {
+    return parsed.map((res) => ({
+      city: String(res?.city || "").trim(),
+      firstseen: String(res?.firstseen || "").trim(),
+      lastseen: String(res?.lastseen || "").trim(),
+      notes: String(res?.notes || "").trim(),
+      reference: String(res?.reference || "").trim(),
+    }));
+  }
+  // Legacy export (pre-residence-array, or pre-JSON-column) — one entry built
+  // from the plain City/First Seen/Last Seen columns, same as before.
+  return [
+    {
+      city: String(legacyCity || "").trim() || "Livorno",
+      firstseen: String(legacyFirstseen || "").trim(),
+      lastseen: String(legacyLastseen || "").trim(),
+      notes: "",
+      reference: "",
+    },
+  ];
+}
+
+function parseRelationshipsColumn(raw) {
+  const parsed = parseJsonArrayColumn(raw);
+  if (parsed) {
+    return parsed
+      .map((rel) => ({
+        type: LEGACY_RELATIONSHIP_TYPE_MAP[rel?.type] || String(rel?.type || "other").trim(),
+        personUuid: String(rel?.personUuid || "").trim(),
+        personName: String(rel?.personName || "").trim(),
+        comment: String(rel?.comment || "").trim(),
+      }))
+      .filter((rel) => rel.personName || rel.personUuid);
+  }
+  // Legacy "type:personName; type:personName" text — personUuid and comment
+  // were never captured in that format, so personUuid is left blank pending
+  // manual resolution (same gap this format has always had).
+  return raw
+    ? String(raw)
+        .split(";")
+        .map((r) => {
+          const parts = r.trim().split(":");
+          if (parts.length !== 2) return null;
+          const rawType = parts[0].trim();
+          return {
+            type: LEGACY_RELATIONSHIP_TYPE_MAP[rawType] || rawType,
+            personName: parts[1].trim(),
+            personUuid: "",
+          };
+        })
+        .filter(Boolean)
+    : [];
+}
+
+// Shared by the Zotero and Archief columns — identical {reference, year, remarks} shape.
+function parseReferencesColumn(raw) {
+  const parsed = parseJsonArrayColumn(raw);
+  if (parsed) {
+    return parsed
+      .map((ref) => ({
+        reference: String(ref?.reference || "").trim(),
+        year: String(ref?.year || "").trim(),
+        remarks: String(ref?.remarks || "").trim(),
+      }))
+      .filter((ref) => ref.reference);
+  }
+  // Legacy "ref1; ref2" text — year/remarks were never captured in that format.
+  return raw
+    ? String(raw)
+        .split(";")
+        .map((ref) => ({ reference: ref.trim(), year: "", remarks: "" }))
+        .filter((r) => r.reference)
+    : [];
+}
+
 // ── Import Excel ───────────────────────────────────────────────────
 
 
@@ -165,53 +264,22 @@ async function importExcel(file) {
                 .filter(Boolean)
               : [];
 
-            // Parse relationships. Old exports may still use the pre-simplification
-            // type vocabulary (father/mother/son/daughter/husband/wife); normalize
-            // those to the current married/child types on the way in. Note: a legacy
-            // son/daughter row technically encoded "the other person is my child" —
-            // the reverse of what "child" means on this row — but personUuid is left
-            // blank below either way pending manual resolution, so this is no worse
-            // than the pre-existing gap.
-            const relationships = row.Relationships
-              ? String(row.Relationships)
-                .split(";")
-                .map((r) => {
-                  const parts = r.trim().split(":");
-                  if (parts.length === 2) {
-                    const rawType = parts[0].trim();
-                    return {
-                      type: LEGACY_RELATIONSHIP_TYPE_MAP[rawType] || rawType,
-                      personName: parts[1].trim(),
-                      personUuid: "", // Will need to be resolved later
-                    };
-                  }
-                  return null;
-                })
-                .filter(Boolean)
-              : [];
-
-            // Parse zotero and archief references
-            const zotero = row.Zotero
-              ? String(row.Zotero)
-                .split(";")
-                .map((ref) => ({
-                  reference: ref.trim(),
-                  year: "",
-                  remarks: "",
-                }))
-                .filter((r) => r.reference)
-              : [];
-
-            const archief = row.Archief
-              ? String(row.Archief)
-                .split(";")
-                .map((ref) => ({
-                  reference: ref.trim(),
-                  year: "",
-                  remarks: "",
-                }))
-                .filter((r) => r.reference)
-              : [];
+            // Relationships/Zotero/Archief/Residences are JSON in files exported
+            // by this app (full fidelity: personUuid, comment, year, remarks,
+            // residence notes/reference, every residence — not just the first).
+            // parseRelationshipsColumn/parseReferencesColumn/parseResidenceColumn
+            // (data.js, "Parsing helpers") fall back to the old delimited-text
+            // reading when the cell isn't valid JSON, for files exported before
+            // this change (or hand-typed by someone following the old format).
+            const relationships = parseRelationshipsColumn(row.Relationships);
+            const zotero = parseReferencesColumn(row.Zotero);
+            const archief = parseReferencesColumn(row.Archief);
+            const residence = parseResidenceColumn(
+              row.Residences,
+              row.City,
+              row["First Seen"],
+              row["Last Seen"],
+            );
 
             const record = {
               uuid: uuid,
@@ -228,15 +296,7 @@ async function importExcel(file) {
               firstnameVariations: firstnameVariations,
               patronymic: String(row.Patronymic || "").trim(),
               gender: String(row.Gender || "M").trim(),
-              residence: [
-                {
-                  city: String(row.City || "").trim() || "Livorno",
-                  firstseen: String(row["First Seen"] || "").trim(),
-                  lastseen: String(row["Last Seen"] || "").trim(),
-                  notes: "",
-                  reference: "",
-                },
-              ],
+              residence: residence,
               profession: String(row.Profession || "").trim(),
               origin: String(row.Origin || "").trim(),
               mocosince: String(row["Moco Since"] || "").trim(),
@@ -383,20 +443,22 @@ function exportToExcel() {
       "Firstname Variations": (r.firstnameVariations || []).join("; "),
       Patronymic: r.patronymic || "",
       Gender: r.gender || "",
-      // Excel's column layout is fixed to one city/first-seen/last-seen triple,
-      // so only the primary (first) residence round-trips through these three
-      // columns; "Residences" below carries the full history for reference.
+      // City/First Seen/Last Seen are a read-only preview of the primary
+      // (first) residence, handy for a glance or for sorting in Excel — they
+      // are NOT read back on import. "Residences" is the authoritative,
+      // full-fidelity column (JSON: every residence, including notes/reference).
       City: r.residence?.[0]?.city || "",
       Profession: r.profession || "",
       Origin: r.origin || "",
       "First Seen": r.residence?.[0]?.firstseen || "",
       "Last Seen": r.residence?.[0]?.lastseen || "",
-      Residences: (r.residence || [])
-        .map((res) => {
-          const span = [res.firstseen, res.lastseen].filter(Boolean).join("–");
-          return span ? `${res.city} (${span})` : res.city;
-        })
-        .join("; "),
+      // JSON, not a semicolon summary — see parseResidenceColumn()/
+      // parseRelationshipsColumn()/parseReferencesColumn() in importExcel()
+      // for why: a human-readable "City (1650–1680)" string can't carry notes,
+      // reference, personUuid, comment, or year/remarks, and re-importing it
+      // would silently drop them. These columns aren't meant for hand-editing
+      // in Excel — use the app's own editor for relationships/residences/refs.
+      Residences: JSON.stringify(r.residence || []),
       "Moco Since": r.mocosince || "",
       Religion: r.religion || "",
       "Year of Birth": r.yob || "",
@@ -404,11 +466,9 @@ function exportToExcel() {
       "Year of Death": r.yod || "",
       "Died In": r.diedin || "",
       Notes: r.notes || "",
-      Relationships: (r.relationships || [])
-        .map((rel) => `${rel.type}:${rel.personName}`)
-        .join("; "),
-      Zotero: (r.zotero || []).map((z) => z.reference).join("; "),
-      Archief: (r.archief || []).map((a) => a.reference).join("; "),
+      Relationships: JSON.stringify(r.relationships || []),
+      Zotero: JSON.stringify(r.zotero || []),
+      Archief: JSON.stringify(r.archief || []),
       "Created At": r.createdAt || "",
       "Modified At": r.modifiedAt || "",
       "Deleted At": r.deletedAt || "",
@@ -434,7 +494,7 @@ function exportToExcel() {
     { wch: 15 }, // Origin
     { wch: 12 }, // First Seen
     { wch: 12 }, // Last Seen
-    { wch: 40 }, // Residences
+    { wch: 50 }, // Residences (JSON)
     { wch: 12 }, // Moco Since
     { wch: 15 }, // Religion
     { wch: 12 }, // Year of Birth
@@ -442,9 +502,9 @@ function exportToExcel() {
     { wch: 12 }, // Year of Death
     { wch: 15 }, // Died In
     { wch: 30 }, // Notes
-    { wch: 40 }, // Relationships
-    { wch: 30 }, // Zotero
-    { wch: 30 }, // Archief
+    { wch: 50 }, // Relationships (JSON)
+    { wch: 40 }, // Zotero (JSON)
+    { wch: 40 }, // Archief (JSON)
     { wch: 20 }, // Created At
     { wch: 20 }, // Modified At
     { wch: 20 }, // Deleted At

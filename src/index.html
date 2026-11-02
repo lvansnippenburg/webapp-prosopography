@@ -449,6 +449,15 @@
                             </button>
                         </div>
 
+                        <!-- Residences -->
+                        <div class="form-group full-width">
+                            <label>Residences</label>
+                            <div class="array-field" id="residence-container"></div>
+                            <button class="btn-ghost add-item-btn" id="add-residence">
+                                + Add residence
+                            </button>
+                        </div>
+
                         <!-- Relationships -->
                         <div class="form-group full-width">
                             <label>Relationships</label>
@@ -473,12 +482,8 @@
                             </select>
                         </div>
 
-                        <!-- City -->
-                        <div class="form-group">
-                            <label>City</label>
-                            <input type="text" id="field-city" list="city-suggestions" />
-                            <datalist id="city-suggestions"></datalist>
-                        </div>
+                        <!-- City suggestions, shared by every residence row's city input -->
+                        <datalist id="city-suggestions"></datalist>
 
                         <!-- Profession -->
                         <div class="form-group">
@@ -520,18 +525,6 @@
 
                         </div>
                         -->
-
-                        <!-- First seen -->
-                        <div class="form-group">
-                            <label>First Seen</label>
-                            <input type="text" id="field-firstseen" />
-                        </div>
-
-                        <!-- Last seen -->
-                        <div class="form-group">
-                            <label>Last Seen</label>
-                            <input type="text" id="field-lastseen" />
-                        </div>
 
                         <!-- Year of birth -->
                         <div class="form-group">

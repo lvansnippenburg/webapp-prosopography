@@ -590,6 +590,9 @@ function attachEventListeners() {
   document.getElementById("add-firstname-variation").addEventListener("click", () => {
     document.getElementById("firstname-variations-container").appendChild(makeVariationItem());
   });
+  document.getElementById("add-residence").addEventListener("click", () => {
+    document.getElementById("residence-container").appendChild(makeResidenceItem());
+  });
   document.getElementById("add-zotero").addEventListener("click", () => {
     document.getElementById("zotero-container").appendChild(makeRefItem());
   });

@@ -147,7 +147,7 @@ function searchInRecord(record, query, scopes) {
         break;
 
       case "city":
-        if (matches(record.city)) return true;
+        if ((record.residence || []).some((res) => matches(res.city))) return true;
         break;
 
       case "profession":
@@ -183,33 +183,39 @@ function searchInRecord(record, query, scopes) {
   return false;
 }
 
-// Shared 4-digit year extraction for firstseen/lastseen fields, used by the
-// text-query Timespan scope (matchTimespan) and the timespan slider filter
-// (recordOverlapsYearRange) so both agree on what counts as a usable date.
+// Shared 4-digit year extraction for residence firstseen/lastseen fields,
+// used by the text-query Timespan scope (matchTimespan) and the timespan
+// slider filter (recordOverlapsYearRange) so both agree on what counts as a
+// usable date.
 function extractYearFromField(value) {
   if (!value) return null;
   const match = value.match(/(\d{4})/);
   return match ? parseInt(match[1], 10) : null;
 }
 
+// Scans every residence entry's firstseen/lastseen and returns the record's
+// overall attested span as {first, last} (both null if nothing parses). This
+// is what replaced the old single flat firstseen/lastseen fields for all
+// span logic below — a record with several residences is "attested" across
+// the full range covered by all of them, not just one.
+function recordYearSpan(record) {
+  let first = null;
+  let last = null;
+  (record.residence || []).forEach((res) => {
+    [res.firstseen, res.lastseen].forEach((value) => {
+      const year = extractYearFromField(value);
+      if (year === null) return;
+      if (first === null || year < first) first = year;
+      if (last === null || year > last) last = year;
+    });
+  });
+  return { first, last };
+}
+
 function matchTimespan(record, query) {
-  // Extract years from firstseen and lastseen fields
-  const extractYear = extractYearFromField;
+  const { first: firstseen, last: lastseen } = recordYearSpan(record);
 
-  // Check if fields are truly blank (empty or whitespace only)
-  const firstseenBlank = !record.firstseen || !record.firstseen.trim();
-  const lastseenBlank = !record.lastseen || !record.lastseen.trim();
-
-  // If both fields are blank, exclude from results
-  if (firstseenBlank && lastseenBlank) {
-    return false;
-  }
-
-  let firstseen = extractYear(record.firstseen);
-  let lastseen = extractYear(record.lastseen);
-
-  // If neither field has an extractable year (but fields aren't blank), exclude
-  // This handles cases where fields have text but no valid year
+  // No usable year anywhere in the record's residences — exclude.
   if (firstseen === null && lastseen === null) {
     return false;
   }
@@ -265,8 +271,7 @@ function matchTimespan(record, query) {
 // "Fixed window" controls), and under containment semantics nobody with a
 // longer attested span than the window would ever match as it moves.
 function recordOverlapsYearRange(record, from, to) {
-  const firstseen = extractYearFromField(record.firstseen);
-  const lastseen = extractYearFromField(record.lastseen);
+  const { first: firstseen, last: lastseen } = recordYearSpan(record);
   if (firstseen === null && lastseen === null) return false;
 
   // A record with only one usable date is treated as a single point in time
@@ -276,18 +281,15 @@ function recordOverlapsYearRange(record, from, to) {
   return start <= to && end >= from;
 }
 
-// Scans records for the full firstseen/lastseen year range. Returns
-// {min, max}, both null if no record has a usable year.
+// Scans records for the full attested year range across all residences.
+// Returns {min, max}, both null if no record has a usable year.
 function computeDatasetYearRange(records) {
   let min = null;
   let max = null;
   records.forEach((r) => {
-    [r.firstseen, r.lastseen].forEach((value) => {
-      const year = extractYearFromField(value);
-      if (year === null) return;
-      if (min === null || year < min) min = year;
-      if (max === null || year > max) max = year;
-    });
+    const span = recordYearSpan(r);
+    if (span.first !== null && (min === null || span.first < min)) min = span.first;
+    if (span.last !== null && (max === null || span.last > max)) max = span.last;
   });
   return { min, max };
 }
@@ -676,7 +678,7 @@ function renderTable(records) {
     const genderLabel = r.gender === "F" ? "&#x2640;" : "&#x2642;";
 
     let cityLabel = "";
-    if (r.city !== "Livorno") {
+    if (!recordResidesInLivorno(r)) {
       cityLabel = "!";
     }
 
@@ -685,13 +687,15 @@ function renderTable(records) {
       .map(escapeHtml)
       .join(" ");
 
+    const yearSpan = recordYearSpan(r);
+
     tr.innerHTML = `
             <td>${entityIcon}${cityLabel}</td>
             <td>${escapeHtml(r.lastname)}${lnVars}</td>
             <td>${fullFirstname}${fnVars}</td>
             <td>${escapeHtml(r.profession)}</td>
-            <td>${escapeHtml(r.firstseen)}</td>
-            <td>${escapeHtml(r.lastseen)}</td>
+            <td title="${escapeHtml(residenceCitiesLabel(r))}">${yearSpan.first ?? ""}</td>
+            <td title="${escapeHtml(residenceCitiesLabel(r))}">${yearSpan.last ?? ""}</td>
             <td style="white-space:nowrap">
             ${zoteroCount ? `<span class="tag">${zoteroCount}&nbsp;ref${zoteroCount > 1 ? "s" : ""}</span>` : ""}
             ${archiefCount ? `<span class="tag">${archiefCount}&nbsp;source${archiefCount > 1 ? "s" : ""}</span>` : ""}

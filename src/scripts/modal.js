@@ -125,6 +125,97 @@ function makeRefItem(ref = {}) {
   return div;
 }
 
+// One entry in a person's residence history: a city plus the period they
+// were attested there, optional notes, and an optional reference. The
+// "+ Insert reference" picker/open-button logic mirrors makeRelationshipItem's
+// comment-reference picker (same shared Zotero/Archief ref list, same
+// resolveRefLink/extractEmbeddedUrl link detection).
+function makeResidenceItem(res = {}) {
+  const div = document.createElement("div");
+  div.className = "array-item";
+  div.innerHTML = `
+        <div class="array-item-fields">
+            <input type="text" class="res-city" value="${escapeHtml(res.city)}" placeholder="City" list="city-suggestions">
+            <input type="text" class="res-firstseen" value="${escapeHtml(res.firstseen)}" placeholder="First seen">
+            <input type="text" class="res-lastseen" value="${escapeHtml(res.lastseen)}" placeholder="Last seen">
+            <input type="text" class="res-notes" value="${escapeHtml(res.notes)}" placeholder="Notes (optional)">
+            <div class="rel-comment-row" style="display:flex;gap:6px;align-items:center;">
+                <input type="text" class="res-reference" value="${escapeHtml(res.reference)}" placeholder="Reference (optional)" style="flex:1;">
+                <select class="res-ref-picker" title="Insert a reference from this record" style="max-width:150px;flex-shrink:0;"></select>
+                <button class="btn-small res-ref-open-link" title="Open reference" style="display:none;flex-shrink:0;padding:4px 7px;line-height:1;">&#8599;</button>
+            </div>
+        </div>
+        <button class="btn-danger btn-small remove-item" style="align-self:flex-start;">✕</button>
+    `;
+
+  const referenceInput = div.querySelector(".res-reference");
+  const refPicker = div.querySelector(".res-ref-picker");
+  const openBtn = div.querySelector(".res-ref-open-link");
+
+  // Same live-read-from-form pattern as makeRelationshipItem's refPicker:
+  // the record's current Zotero/Archief refs, re-read each time the dropdown
+  // opens so a reference added earlier in this same edit session is included.
+  let refOptions = [];
+  function refreshRefPickerOptions() {
+    refOptions = [
+      ...collectRefs("zotero-container").map((r) => ({ ...r, source: "Zotero" })),
+      ...collectRefs("archief-container").map((r) => ({ ...r, source: "Archief" })),
+    ];
+    refPicker.innerHTML =
+      '<option value="">+ Insert reference…</option>' +
+      refOptions
+        .map((r, i) => `<option value="${i}">${escapeHtml(r.source)}: ${escapeHtml(r.reference)}</option>`)
+        .join("");
+  }
+  refPicker.addEventListener("mousedown", refreshRefPickerOptions);
+  refreshRefPickerOptions();
+
+  function updateOpenBtn() {
+    const text = referenceInput.value.trim();
+    let link = resolveRefLink(text); // the whole field is just a URL
+    if (!link) {
+      const embedded = extractEmbeddedUrl(text); // a URL embedded among other text
+      if (embedded) link = resolveRefLink(embedded);
+    }
+    openBtn.style.display = link ? "" : "none";
+    if (link) {
+      openBtn.title = link.isZotero ? "Open in Zotero" : "Open reference";
+      openBtn.onclick = () => window.open(link.url, "_blank");
+    }
+  }
+
+  refPicker.addEventListener("change", () => {
+    const idx = refPicker.value;
+    if (idx === "") return;
+    const ref = refOptions[idx];
+    const link = resolveReferenceLink(ref);
+    const insertText = link ? `${ref.reference} (${link.url})` : ref.reference;
+    referenceInput.value = referenceInput.value.trim()
+      ? `${referenceInput.value.trim()} ${insertText}`
+      : insertText;
+    refPicker.value = "";
+    updateOpenBtn();
+  });
+
+  referenceInput.addEventListener("input", updateOpenBtn);
+  updateOpenBtn();
+
+  div.querySelector(".remove-item").addEventListener("click", () => div.remove());
+  return div;
+}
+
+function collectResidences(containerId) {
+  return [...document.getElementById(containerId).querySelectorAll(".array-item")]
+    .map((item) => ({
+      city: item.querySelector(".res-city")?.value.trim() || "",
+      firstseen: item.querySelector(".res-firstseen")?.value.trim() || "",
+      lastseen: item.querySelector(".res-lastseen")?.value.trim() || "",
+      notes: item.querySelector(".res-notes")?.value.trim() || "",
+      reference: item.querySelector(".res-reference")?.value.trim() || "",
+    }))
+    .filter((r) => r.city);
+}
+
 function collectVariations(containerId) {
   return [...document.getElementById(containerId).querySelectorAll(".variation-input")]
     .map((i) => i.value.trim())
@@ -577,8 +668,8 @@ async function showRelationshipNetwork() {
       card.className = "network-person-card";
       card.dataset.uuid = person.uuid;
 
-      // Apply opacity if city is not Livorno
-      const isLivorno = person.city && person.city.toLowerCase().includes("livorno");
+      // Apply opacity if the person has no residence in Livorno
+      const isLivorno = recordResidesInLivorno(person);
       if (!isLivorno) {
         card.style.opacity = "0.6";
       }
@@ -607,7 +698,7 @@ async function showRelationshipNetwork() {
       card.innerHTML = `
         <div class="network-person-name">${escapeHtml(person.firstname)} ${escapeHtml(person.lastname)}</div>
         <div class="network-person-details">
-          ${escapeHtml(person.patronymic)} ${person.yob ? `(${escapeHtml(person.yob)})` : ""} ${escapeHtml(person.origin)} ${escapeHtml(person.city)}
+          ${escapeHtml(person.patronymic)} ${person.yob ? `(${escapeHtml(person.yob)})` : ""} ${escapeHtml(person.origin)} ${escapeHtml(residenceCitiesLabel(person))}
         </div>
         <div class="network-relationships">
           ${badgesHTML}
@@ -734,7 +825,7 @@ function renderRelationshipGraph() {
       if (relevantRels.length > 0) {
         // Add source node if not exists
         if (!nodeMap.has(person.uuid)) {
-          const isLivorno = person.city && person.city.toLowerCase().includes("livorno");
+          const isLivorno = recordResidesInLivorno(person);
           const node = {
             id: person.uuid,
             name: `${person.firstname || ""} ${person.lastname || ""}`.trim(),
@@ -754,8 +845,7 @@ function renderRelationshipGraph() {
           if (!nodeMap.has(rel.personUuid)) {
             // Look up the original record to get city information
             const relatedRecord = recordLookup.get(rel.personUuid);
-            const relatedIsLivorno =
-              relatedRecord?.city && relatedRecord.city.toLowerCase().includes("livorno");
+            const relatedIsLivorno = relatedRecord ? recordResidesInLivorno(relatedRecord) : false;
             const targetNode = {
               id: rel.personUuid,
               name: rel.personName,
@@ -1462,6 +1552,11 @@ async function openNewModal() {
   // Set default values after clearing.
   document.getElementById("field-entity-type").value = "person";
   document.getElementById("field-gender").value = "M";
+  // Default to one Livorno residence — the primary city of residence assumed
+  // throughout this research project — rather than an empty list.
+  document
+    .getElementById("residence-container")
+    .appendChild(makeResidenceItem({ city: "Livorno" }));
   document.getElementById("modal-title").textContent = "New Entity";
   document.getElementById("btn-delete-person").classList.add("hidden");
   document.getElementById("btn-history-person").classList.add("hidden");
@@ -1486,22 +1581,26 @@ async function populateFieldSuggestions(fieldName) {
   if (!datalist) return;
 
   // Fetch all records and collect unique values for the given field.
+  // "city" lives inside each record's residence array now, not as a single
+  // flat field, so it can contribute more than one value per record.
   const records = await apiGetAll().catch(() => []);
   const values = new Set();
   records.forEach((r) => {
-    const val = r[fieldName];
-    if (val && String(val).trim()) {
-      const trimmed = String(val).trim();
-      // Add the whole value
-      values.add(trimmed);
-      // For place fields (city, bornin, diedin) and origin, also add individual segments
-      if (["city", "bornin", "diedin", "origin"].includes(fieldName)) {
-        trimmed.split(/[/;,]/).forEach((seg) => {
-          const segTrimmed = seg.trim();
-          if (segTrimmed) values.add(segTrimmed);
-        });
+    const rawValues = fieldName === "city" ? (r.residence || []).map((res) => res.city) : [r[fieldName]];
+    rawValues.forEach((val) => {
+      if (val && String(val).trim()) {
+        const trimmed = String(val).trim();
+        // Add the whole value
+        values.add(trimmed);
+        // For place fields (city, bornin, diedin) and origin, also add individual segments
+        if (["city", "bornin", "diedin", "origin"].includes(fieldName)) {
+          trimmed.split(/[/;,]/).forEach((seg) => {
+            const segTrimmed = seg.trim();
+            if (segTrimmed) values.add(segTrimmed);
+          });
+        }
       }
-    }
+    });
   });
 
   // Sort and populate the datalist.
@@ -1554,11 +1653,8 @@ function clearForm() {
     "firstname",
     "patronymic",
     "gender",
-    "city",
     "profession",
     "origin",
-    "firstseen",
-    "lastseen",
     "lasting",
     "mocosince",
     "religion",
@@ -1573,6 +1669,7 @@ function clearForm() {
   });
   document.getElementById("lastname-variations-container").innerHTML = "";
   document.getElementById("firstname-variations-container").innerHTML = "";
+  document.getElementById("residence-container").innerHTML = "";
   document.getElementById("zotero-container").innerHTML = "";
   document.getElementById("archief-container").innerHTML = "";
   document.getElementById("relationships-container").innerHTML = "";
@@ -1588,11 +1685,8 @@ function populateForm(r) {
   set("field-firstname", r.firstname);
   set("field-patronymic", r.patronymic);
   set("field-gender", r.gender);
-  set("field-city", r.city);
   set("field-profession", r.profession);
   set("field-origin", r.origin);
-  set("field-firstseen", r.firstseen);
-  set("field-lastseen", r.lastseen);
   // set("field-lasting", r.lasting);
   set("field-mocosince", r.mocosince);
   set("field-religion", r.religion);
@@ -1612,6 +1706,10 @@ function populateForm(r) {
   const fvc = document.getElementById("firstname-variations-container");
   fvc.innerHTML = "";
   (r.firstnameVariations || []).forEach((v) => fvc.appendChild(makeVariationItem(v)));
+
+  const rsc = document.getElementById("residence-container");
+  rsc.innerHTML = "";
+  (r.residence || []).forEach((res) => rsc.appendChild(makeResidenceItem(res)));
 
   const zc = document.getElementById("zotero-container");
   zc.innerHTML = "";
@@ -1671,11 +1769,9 @@ async function savePerson() {
     firstnameVariations: collectVariations("firstname-variations-container"),
     patronymic: document.getElementById("field-patronymic").value.trim(),
     gender: document.getElementById("field-gender").value,
-    city: document.getElementById("field-city").value.trim(),
+    residence: collectResidences("residence-container"),
     profession: document.getElementById("field-profession").value.trim(),
     origin: document.getElementById("field-origin").value.trim(),
-    firstseen: document.getElementById("field-firstseen").value.trim(),
-    lastseen: document.getElementById("field-lastseen").value.trim(),
     // lasting: document.getElementById("field-lasting").value.trim(),
     mocosince: document.getElementById("field-mocosince").value.trim(),
     religion: document.getElementById("field-religion").value.trim(),

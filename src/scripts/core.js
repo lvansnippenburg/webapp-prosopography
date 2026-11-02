@@ -8,7 +8,9 @@ const COLUMN_MAP = {
   1: "firstname", // special: variations in brackets
   2: "patronymic", // can be a patronymic or a toponymic
   3: "gender", // M for male, F for Female, when missing M is assumed (sorry)
-  4: "city", // the primary city of residene as assumed for the research.
+  4: "city", // the primary city of residence as assumed for the research.
+  // Columns 4/7/8 (city/firstseen/lastseen) become the first entry of the
+  // record's `residence` array on import — see residence-array note below.
   5: "profession",
   6: "origin",
   7: "firstseen",
@@ -216,6 +218,26 @@ function escapeHtml(value) {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
+}
+
+// A person's city/firstseen/lastseen are no longer a single flat triple —
+// people move, so each record has a `residence` array of
+// {city, firstseen, lastseen, notes, reference} entries instead. These two
+// helpers derive the two things the rest of the app used to read straight off
+// the old flat `city` field: whether the person is tied to Livorno at all,
+// and a human-readable summary of every place they resided.
+
+// True if any residence entry's city mentions Livorno (case-insensitive,
+// substring match — catches compounds like "Livorno (Chiesa Olandese)" too).
+function recordResidesInLivorno(record) {
+  return (record.residence || []).some(
+    (res) => res.city && res.city.toLowerCase().includes("livorno"),
+  );
+}
+
+// Every residence's city, in entry order, joined for display (table/graph labels).
+function residenceCitiesLabel(record) {
+  return (record.residence || []).map((res) => res.city).filter(Boolean).join(", ");
 }
 
 function notify(msg, type = "info", duration = 3500) {

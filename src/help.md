@@ -264,10 +264,10 @@ Scopes limit your search to specific fields.
 | **Patronymic** | Patronymic only |
 | **Gender** | M or F |
 | **Origin** | Geographic origin |
-| **City** | City of residence |
+| **City** | Every city in the person's residence history |
 | **Profession** | Occupation |
 | **Religion** | Religious affiliation |
-| **Timespan** | Firstseen–Lastseen (supports year queries) |
+| **Timespan** | Overall first–last seen across every residence (supports year queries) |
 | **Notes** | Notes field |
 | **References** | Zotero and Archief references |
 | **Relationships** | Related persons' names and relationship types |
@@ -375,7 +375,7 @@ Berg AND Amsterdam
 
 ## Timespan Search
 
-The **Timespan** scope searches `firstseen` and `lastseen` to find persons active during a period.
+The **Timespan** scope searches `firstseen` and `lastseen` to find persons active during a period. A person's residence history can hold several cities, each with its own first/last-seen years — Timespan combines all of them into one overall span (earliest `firstseen` across every residence to latest `lastseen`) rather than tying the search to any single residence.
 
 **Single year:**
 ```
@@ -408,7 +408,7 @@ Year values are extracted from text automatically: `"circa 1650"` → 1650.
 
 ## Timespan Slider
 
-Beneath the search bar, a slider lets you filter by period without typing a query. By default both handles sit at the lowest and highest `firstseen`/`lastseen` years found across all records, so nothing is filtered until you move them. Drag either handle to narrow the range — the table (and the Visualize view, which reads the same filtered set) updates as you drag. Click **Reset** to return to the full range.
+Beneath the search bar, a slider lets you filter by period without typing a query. By default both handles sit at the lowest and highest `firstseen`/`lastseen` years found across all records (and all of each person's residences), so nothing is filtered until you move them. Drag either handle to narrow the range — the table (and the Visualize view, which reads the same filtered set) updates as you drag. Click **Reset** to return to the full range.
 
 Use the **⏱ Timespan** button in the toolbar to collapse or expand this panel (the choice is remembered). A dot appears on that button when the filter is still narrowing results while the panel is collapsed.
 
@@ -460,9 +460,9 @@ The graph view has a sidebar to switch between four sub-views:
 - Arrowheads show direction — "Child of" edges point from child to parent, "Member of" points from person to association, etc.
 - Siblings sharing a common parent on file are connected automatically (dashed line) even without an explicit Brother/Sister entry — see "Inferred siblings" above.
 
-**🗺 Map:** Entities aggregated onto places, drawn on an offline world map. Choose which field to map (city, origin, born in, died in); dot size reflects how many entities share a place. Click a dot to list its people. Place names that aren't in the gazetteer (`data/places.json`) — including ethnonyms like "Flemish" — are listed under **Unplaced**; add coordinates there to map them.
+**🗺 Map:** Entities aggregated onto places, drawn on an offline world map. Choose which field to map (city, origin, born in, died in); dot size reflects how many entities share a place. Choosing **City** maps every city in an entity's residence history — someone who lived in both Livorno and Pisa gets a dot at each. Click a dot to list its people. Place names that aren't in the gazetteer (`data/places.json`) — including ethnonyms like "Flemish" — are listed under **Unplaced**; add coordinates there to map them.
 
-**📅 Timeline:** Each entity as a bar across the years, either its **lifespan** (birth–death) or **attestation** (first–last seen). Hover for details; click to open the record. Entities with no usable dates are counted but not drawn.
+**📅 Timeline:** Each entity as a bar across the years, either its **lifespan** (birth–death) or **attestation** (first–last seen, combined across every residence). Hover for details; click to open the record. Entities with no usable dates are counted but not drawn.
 
 ### Legend Filtering
 
@@ -475,7 +475,7 @@ Click any relationship type in the legend to toggle it. Works in both views simu
 
 ### Livorno Indicator
 
-Entities without "Livorno" in their city field appear at 60% opacity in both views.
+Entities with no "Livorno" among their residence history's cities appear at 60% opacity in both views.
 
 ---
 

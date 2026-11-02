@@ -228,11 +228,17 @@ async function importExcel(file) {
               firstnameVariations: firstnameVariations,
               patronymic: String(row.Patronymic || "").trim(),
               gender: String(row.Gender || "M").trim(),
-              city: String(row.City || "").trim(),
+              residence: [
+                {
+                  city: String(row.City || "").trim() || "Livorno",
+                  firstseen: String(row["First Seen"] || "").trim(),
+                  lastseen: String(row["Last Seen"] || "").trim(),
+                  notes: "",
+                  reference: "",
+                },
+              ],
               profession: String(row.Profession || "").trim(),
               origin: String(row.Origin || "").trim(),
-              firstseen: String(row["First Seen"] || "").trim(),
-              lastseen: String(row["Last Seen"] || "").trim(),
               mocosince: String(row["Moco Since"] || "").trim(),
               religion: String(row.Religion || "").trim(),
               yob: String(row["Year of Birth"] || "").trim(),
@@ -295,20 +301,22 @@ async function importExcel(file) {
               // Col 3 — Gender: Male unless F present
               gender: parseGender(row[3]),
 
-              // Col 4 — City
-              city: String(row[4] || "").trim(),
+              // Col 4 — City, Col 7 — First seen, Col 8 — Last seen: one residence entry
+              residence: [
+                {
+                  city: String(row[4] || "").trim() || "Livorno",
+                  firstseen: String(row[7] || "").trim(),
+                  lastseen: String(row[8] || "").trim(),
+                  notes: "",
+                  reference: "",
+                },
+              ],
 
               // Col 5 — Profession
               profession: String(row[5] || "").trim(),
 
               // Col 6 — Origin
               origin: String(row[6] || "").trim(),
-
-              // Col 7 — First seen
-              firstseen: String(row[7] || "").trim(),
-
-              // Col 8 — Last seen
-              lastseen: String(row[8] || "").trim(),
 
               // Col 9 — Lasting
               lasting: String(row[9] || "").trim(),
@@ -375,11 +383,20 @@ function exportToExcel() {
       "Firstname Variations": (r.firstnameVariations || []).join("; "),
       Patronymic: r.patronymic || "",
       Gender: r.gender || "",
-      City: r.city || "",
+      // Excel's column layout is fixed to one city/first-seen/last-seen triple,
+      // so only the primary (first) residence round-trips through these three
+      // columns; "Residences" below carries the full history for reference.
+      City: r.residence?.[0]?.city || "",
       Profession: r.profession || "",
       Origin: r.origin || "",
-      "First Seen": r.firstseen || "",
-      "Last Seen": r.lastseen || "",
+      "First Seen": r.residence?.[0]?.firstseen || "",
+      "Last Seen": r.residence?.[0]?.lastseen || "",
+      Residences: (r.residence || [])
+        .map((res) => {
+          const span = [res.firstseen, res.lastseen].filter(Boolean).join("–");
+          return span ? `${res.city} (${span})` : res.city;
+        })
+        .join("; "),
       "Moco Since": r.mocosince || "",
       Religion: r.religion || "",
       "Year of Birth": r.yob || "",
@@ -417,6 +434,7 @@ function exportToExcel() {
     { wch: 15 }, // Origin
     { wch: 12 }, // First Seen
     { wch: 12 }, // Last Seen
+    { wch: 40 }, // Residences
     { wch: 12 }, // Moco Since
     { wch: 15 }, // Religion
     { wch: 12 }, // Year of Birth
@@ -505,7 +523,8 @@ function exportToGephi() {
     ["entityType", "string"],
     ["gender", "string"],
     ["patronymic", "string"],
-    ["city", "string"],
+    ["city", "string"], // every residence's city, joined ("City1, City2")
+    ["residences", "string"], // full residence history, city (first–last)
     ["profession", "string"],
     ["origin", "string"],
     ["religion", "string"],
@@ -513,7 +532,7 @@ function exportToGephi() {
     ["yod", "string"],
     ["bornin", "string"],
     ["diedin", "string"],
-    ["firstseen", "string"],
+    ["firstseen", "string"], // overall attested span across all residences
     ["lastseen", "string"],
     ["mocosince", "string"],
     ["lastnameVariations", "string"],
@@ -537,7 +556,13 @@ function exportToGephi() {
         entityType: r.entityType || "person",
         gender: r.gender || "",
         patronymic: r.patronymic || "",
-        city: r.city || "",
+        city: residenceCitiesLabel(r),
+        residences: (r.residence || [])
+          .map((res) => {
+            const span = [res.firstseen, res.lastseen].filter(Boolean).join("–");
+            return span ? `${res.city} (${span})` : res.city;
+          })
+          .join("; "),
         profession: r.profession || "",
         origin: r.origin || "",
         religion: r.religion || "",
@@ -545,8 +570,11 @@ function exportToGephi() {
         yod: r.yod || "",
         bornin: r.bornin || "",
         diedin: r.diedin || "",
-        firstseen: r.firstseen || "",
-        lastseen: r.lastseen || "",
+        // recordYearSpan is defined in records.js (loads after data.js) — safe
+        // here for the same reason as getReciprocalRelationType below: this
+        // whole function only runs at click-time, once every script has loaded.
+        firstseen: recordYearSpan(r).first ?? "",
+        lastseen: recordYearSpan(r).last ?? "",
         mocosince: r.mocosince || "",
         lastnameVariations: (r.lastnameVariations || []).join("; "),
         firstnameVariations: (r.firstnameVariations || []).join("; "),

@@ -94,7 +94,16 @@ async function renderMapView() {
   const unplaced = new Map(); // raw value -> count
   let hasOverlaps = false; // true if any record mapped to multiple places
   records.forEach((r) => {
-    const val = (r[field] || "").trim();
+    // "city" no longer a flat field — a person can have several residences,
+    // so feed every residence's city through the same compound-value
+    // splitter below (it already splits on ";", which is how we join them).
+    const val =
+      field === "city"
+        ? (r.residence || [])
+            .map((res) => res.city)
+            .filter(Boolean)
+            .join(";")
+        : (r[field] || "").trim();
     if (!val) return;
     // Split on /, ;, or , to handle compound origins (e.g. "Flemish/Dutch").
     const segments = val
@@ -240,8 +249,8 @@ function renderUnplacedPanel(unplaced, placedCount, hasOverlaps, field) {
   const total = entries.reduce((sum, [, c]) => sum + c, 0);
   if (entries.length === 0) {
     let msg = `<h4>Placed</h4><p class="muted">${placedCount} place${placedCount === 1 ? "" : "s"} mapped. Click a dot to list its people.`;
-    if (hasOverlaps && field === "origin") {
-      msg += ` Note: combined origins (like Flemish/Dutch) count toward each place, so dot counts may add up to more than the total records.`;
+    if (hasOverlaps && (field === "origin" || field === "city")) {
+      msg += ` Note: combined origins/residences (like Flemish/Dutch, or someone with several residences) count toward each place, so dot counts may add up to more than the total records.`;
     }
     side.innerHTML = msg + `</p>`;
     return;
@@ -253,8 +262,8 @@ function renderUnplacedPanel(unplaced, placedCount, hasOverlaps, field) {
     `<h4>Unplaced <span class="muted">(${total})</span></h4>` +
     `<p class="muted">Not in the gazetteer (ethnonyms, or add coordinates to ` +
     `<code>data/places.json</code>):`;
-  if (hasOverlaps && field === "origin") {
-    msg += ` Note: combined origins (like Flemish/Dutch) count toward each place.`;
+  if (hasOverlaps && (field === "origin" || field === "city")) {
+    msg += ` Note: combined origins/residences (like Flemish/Dutch, or someone with several residences) count toward each place.`;
   }
   msg += `</p>` + `<ul class="map-side-list">${rows}</ul>`;
   side.innerHTML = msg;
@@ -269,14 +278,18 @@ function parseYear(value) {
 }
 
 // A {start, end, mode} span for one record, preferring the chosen mode and
-// falling back to the other. "life" = yob→yod, "attest" = firstseen→lastseen.
+// falling back to the other. "life" = yob→yod, "attest" = the overall span
+// across every residence's firstseen→lastseen (recordYearSpan, records.js).
 function recordRange(record, preferred) {
   const modes = preferred === "attest" ? ["attest", "life"] : ["life", "attest"];
   for (const mode of modes) {
     const [a, b] =
       mode === "life"
         ? [parseYear(record.yob), parseYear(record.yod)]
-        : [parseYear(record.firstseen), parseYear(record.lastseen)];
+        : (() => {
+            const span = recordYearSpan(record);
+            return [span.first, span.last];
+          })();
     if (a != null || b != null) {
       return { start: a ?? b, end: b ?? a, mode };
     }

@@ -72,18 +72,33 @@
                 <div style="display: flex; gap: 10px; flex-wrap: wrap">
                     <button class="btn-primary" id="btn-save-settings">Save Settings</button>
                     <button class="btn-ghost btn-small" id="btn-show-deleted">Show Deleted</button>
+                    <button class="btn-secondary btn-small" id="btn-export-excel">⬇ Export Excel</button>
                     <button class="btn-secondary btn-small" id="btn-import">⬆ Import Excel</button>
-                    <button class="btn-secondary btn-small" id="btn-export">⬇ Export</button>
+                    <button
+                        class="btn-secondary btn-small"
+                        id="btn-export-json"
+                        title="Export the currently displayed records as a .json file (full fidelity)"
+                    >
+                        ⬇ Export JSON
+                    </button>
+                    <button
+                        class="btn-secondary btn-small"
+                        id="btn-import-json"
+                        title="Import a .json file previously saved via Export JSON (full fidelity, no parsing needed)"
+                    >
+                        ⬆ Import JSON
+                    </button>
                     <button
                         class="btn-secondary btn-small"
                         id="btn-export-gephi"
                         title="Export the current results as a .gexf network file for Gephi (gephi.org)"
                     >
-                        🕸 Export to Gephi
+                        🕸 Export Gephi
                     </button>
                     <button class="btn-ghost btn-small" id="btn-license">📄 License</button>
 
                     <input type="file" id="file-input" accept=".xlsx,.xls" class="hidden" />
+                    <input type="file" id="file-input-json" accept=".json" class="hidden" />
                 </div>
             </div>
 

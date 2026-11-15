@@ -441,23 +441,18 @@ function attachEventListeners() {
     document.getElementById("file-input").click();
   });
 
-  // Export
-  document.getElementById("btn-export").addEventListener("click", async () => {
-    const choice = await showDialog(
-      "Export Data",
-      `Export ${filteredRecords.length} currently displayed record${filteredRecords.length !== 1 ? "s" : ""} to:`,
-      [
-        { label: "Excel (.xlsx)", cls: "btn-primary", value: "excel" },
-        { label: "JSON (.json)", cls: "btn-secondary", value: "json" },
-        { label: "Cancel", cls: "btn-ghost", value: false },
-      ],
-    );
+  // Import JSON
+  document.getElementById("btn-import-json").addEventListener("click", () => {
+    document.getElementById("file-input-json").click();
+  });
 
-    if (choice === "excel") {
-      exportToExcel();
-    } else if (choice === "json") {
-      exportToJSON();
-    }
+  // Export
+  document.getElementById("btn-export-excel").addEventListener("click", () => {
+    exportToExcel();
+  });
+
+  document.getElementById("btn-export-json").addEventListener("click", () => {
+    exportToJSON();
   });
 
   // Export to Gephi
@@ -482,6 +477,25 @@ function attachEventListeners() {
           : `Imported ${total} record${total !== 1 ? "s" : ""}.`;
         notify(message, "success");
       }
+
+      await refreshRecords();
+    } catch (err) {
+      notify(`Import failed: ${err.message}`, "error");
+    }
+
+    e.target.value = "";
+  });
+
+  document.getElementById("file-input-json").addEventListener("change", async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    try {
+      const { imported, updated, total } = await importJSON(file);
+      const message = updated > 0
+        ? `Imported ${imported} new record${imported !== 1 ? "s" : ""}, updated ${updated} existing record${updated !== 1 ? "s" : ""}.`
+        : `Imported ${total} record${total !== 1 ? "s" : ""}.`;
+      notify(message, "success");
 
       await refreshRecords();
     } catch (err) {

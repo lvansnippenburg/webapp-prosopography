@@ -548,6 +548,47 @@ function exportToJSON() {
   notify(`Exported ${filteredRecords.length} records to JSON`, "success");
 }
 
+// Counterpart to exportToJSON() above: that function dumps filteredRecords
+// verbatim, so reading the file back needs no field-by-field parsing (unlike
+// importExcel, which has to reconstruct structured fields from spreadsheet
+// cells) — every residence/relationship/reference entry round-trips exactly.
+async function importJSON(file) {
+  const text = await file.text();
+
+  let records;
+  try {
+    records = JSON.parse(text);
+  } catch {
+    throw new Error("File is not valid JSON.");
+  }
+  if (!Array.isArray(records)) {
+    throw new Error("JSON file must contain an array of records.");
+  }
+
+  let imported = 0;
+  let updated = 0;
+
+  for (const record of records) {
+    const uuid = record.uuid && String(record.uuid).trim() ? String(record.uuid).trim() : generateUUID();
+    const existing = await apiGet(uuid);
+
+    await apiPut({
+      ...record,
+      uuid,
+      createdAt: record.createdAt || existing?.createdAt || now(),
+      modifiedAt: now(),
+    });
+
+    if (existing) {
+      updated++;
+    } else {
+      imported++;
+    }
+  }
+
+  return { imported, updated, total: imported + updated };
+}
+
 // Node fill color used by the in-app D3 graph (renderRelationshipGraph's
 // getNodeColor in modal.js) — mirrored here so the Gephi import looks the
 // same at a glance without the user having to re-color it themselves.

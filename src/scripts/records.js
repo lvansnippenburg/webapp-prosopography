@@ -649,7 +649,7 @@ function renderTable(records) {
 
   if (!records.length) {
     tbody.innerHTML =
-      '<tr><td colspan="11" style="text-align:center;padding:30px;color:#999;">No records found</td></tr>';
+      '<tr><td colspan="9" style="text-align:center;padding:30px;color:#999;">No records found</td></tr>';
     return;
   }
 
@@ -696,23 +696,11 @@ function renderTable(records) {
             <td>${escapeHtml(r.profession)}</td>
             <td title="${escapeHtml(residenceCitiesLabel(r))}">${yearSpan.first ?? ""}</td>
             <td title="${escapeHtml(residenceCitiesLabel(r))}">${yearSpan.last ?? ""}</td>
-            <td style="white-space:nowrap">
-            ${zoteroCount ? `<span class="tag">${zoteroCount}&nbsp;ref${zoteroCount > 1 ? "s" : ""}</span>` : ""}
-            ${archiefCount ? `<span class="tag">${archiefCount}&nbsp;source${archiefCount > 1 ? "s" : ""}</span>` : ""}
-            ${relationshipCount ? `<span class="tag">${relationshipCount}&nbsp;rel${relationshipCount > 1 ? "s" : ""}</span>` : ""}
-            </td>
-            <td>
-                <button class="btn-ghost btn-small btn-edit" data-uuid="${r.uuid}">&#x270E;</button>
-            </td>
+            <td><span class="count-references">${zoteroCount || ""}</span></td>
+            <td><span class="count-sources">${archiefCount || ""}</span></td>
+            <td><span class="count-relations">${relationshipCount || ""}</span></td>
         `;
     tbody.appendChild(tr);
-  });
-
-  tbody.querySelectorAll(".btn-edit").forEach((btn) => {
-    btn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      openEditModal(btn.dataset.uuid);
-    });
   });
 
   tbody.querySelectorAll("tr").forEach((tr) => {

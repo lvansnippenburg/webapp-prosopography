@@ -240,6 +240,69 @@ function residenceCitiesLabel(record) {
   return (record.residence || []).map((res) => res.city).filter(Boolean).join(", ");
 }
 
+// Flag emoji for the table's Origin column. Keyed by lowercased
+// nationality/ethnonym/place name as it actually appears in `origin`
+// (free text, e.g. "Flemish/Dutch") — separate from the Map view's
+// places.json gazetteer, which is keyed for lat/lon lookup and mixes
+// cities, regions, and historical polities that don't map 1:1 to a modern
+// flag. Historical regions without their own emoji flag (Flanders, Venice,
+// Geneva) are mapped to their present-day country's flag as the closest
+// available approximation.
+const ORIGIN_FLAGS = {
+  dutch: "🇳🇱",
+  netherlands: "🇳🇱",
+  holland: "🇳🇱",
+  flemish: "🇧🇪",
+  flanders: "🇧🇪",
+  belgian: "🇧🇪",
+  belgium: "🇧🇪",
+  german: "🇩🇪",
+  germany: "🇩🇪",
+  english: "🇬🇧",
+  england: "🇬🇧",
+  british: "🇬🇧",
+  scottish: "🇬🇧",
+  scotland: "🇬🇧",
+  irish: "🇮🇪",
+  ireland: "🇮🇪",
+  italian: "🇮🇹",
+  italy: "🇮🇹",
+  venetian: "🇮🇹",
+  venice: "🇮🇹",
+  genoese: "🇮🇹",
+  french: "🇫🇷",
+  france: "🇫🇷",
+  spanish: "🇪🇸",
+  spain: "🇪🇸",
+  portuguese: "🇵🇹",
+  portugal: "🇵🇹",
+  swiss: "🇨🇭",
+  switzerland: "🇨🇭",
+  geneva: "🇨🇭",
+  austrian: "🇦🇹",
+  austria: "🇦🇹",
+  chinese: "🇨🇳",
+  china: "🇨🇳",
+};
+
+// Splits a compound origin value ("Flemish/Dutch") the same way the Map
+// view's byPlace aggregation does (visualize.js) and returns one flag per
+// recognized segment, in encounter order, skipping anything unrecognized
+// (e.g. "?" or a typo) and de-duplicating repeats.
+function originFlags(origin) {
+  if (!origin) return [];
+  const flags = [];
+  String(origin)
+    .split(/[/;,]/)
+    .map((seg) => seg.trim().toLowerCase().replace(/\?+$/, ""))
+    .filter(Boolean)
+    .forEach((seg) => {
+      const flag = ORIGIN_FLAGS[seg];
+      if (flag && !flags.includes(flag)) flags.push(flag);
+    });
+  return flags;
+}
+
 function notify(msg, type = "info", duration = 3500) {
   const el = document.getElementById("notification");
   el.textContent = msg;

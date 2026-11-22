@@ -649,7 +649,7 @@ function renderTable(records) {
 
   if (!records.length) {
     tbody.innerHTML =
-      '<tr><td colspan="9" style="text-align:center;padding:30px;color:#999;">No records found</td></tr>';
+      '<tr><td colspan="10" style="text-align:center;padding:30px;color:#999;">No records found</td></tr>';
     return;
   }
 
@@ -688,12 +688,14 @@ function renderTable(records) {
       .join(" ");
 
     const yearSpan = recordYearSpan(r);
+    const originFlagsLabel = originFlags(r.origin).join(" ");
 
     tr.innerHTML = `
             <td>${entityIcon}${cityLabel}</td>
             <td>${escapeHtml(r.lastname)}${lnVars}</td>
             <td>${fullFirstname}${fnVars}</td>
             <td>${escapeHtml(r.profession)}</td>
+            <td class="origin-flags" title="${escapeHtml(r.origin)}">${originFlagsLabel}</td>
             <td title="${escapeHtml(residenceCitiesLabel(r))}">${yearSpan.first ?? ""}</td>
             <td title="${escapeHtml(residenceCitiesLabel(r))}">${yearSpan.last ?? ""}</td>
             <td><span class="count-references">${zoteroCount || ""}</span></td>

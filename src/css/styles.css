@@ -419,6 +419,12 @@ tbody td {
     border-bottom-right-radius: 6px;
 }
 
+/* Keeps multiple flag emoji in the Origin column on one line instead of
+   wrapping (stacking) when the column is narrow. */
+.origin-flags {
+    white-space: nowrap;
+}
+
 .tag {
     display: inline-block;
     background: var(--ice-blue);
